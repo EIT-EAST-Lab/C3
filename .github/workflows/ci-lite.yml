@@ -1,0 +1,46 @@
+name: ci-lite
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  unit-and-smoke:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPYCACHEPREFIX: ".cache/pycache"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install lightweight test dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e .[test]
+
+      - name: Run unit tests
+        run: |
+          pytest -q -p no:cacheprovider tests
+
+      - name: Run fixture math smoke
+        run: |
+          bash scripts/reproduce/smoke.sh \
+            --task tests/fixtures/tasks/mini_math.yaml \
+            --limit 1 \
+            --print_example 0 \
+            --skip_import_checks 1
+
+      - name: Run fixture code smoke
+        run: |
+          bash scripts/reproduce/smoke.sh \
+            --task tests/fixtures/tasks/mini_code.yaml \
+            --limit 1 \
+            --print_example 0 \
+            --skip_import_checks 1

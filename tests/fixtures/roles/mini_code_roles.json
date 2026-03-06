@@ -1,0 +1,13 @@
+[
+  {
+    "role": "reasoner",
+    "prompt": "Plan the solution. Question: {question}",
+    "with_answer": false
+  },
+  {
+    "role": "actor",
+    "depends_on": ["reasoner"],
+    "prompt": "Write code. Context: {context}",
+    "with_answer": true
+  }
+]

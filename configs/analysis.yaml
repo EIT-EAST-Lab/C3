@@ -1,0 +1,66 @@
+# Defaults for bucket construction in: c3.analysis.c3_analysis build-buckets
+#
+# scripts/reproduce/paper_analysis_figs.sh calls build-buckets twice:
+#   - target_role=actor    -> defaults_section auto -> "credit"
+#   - target_role=reasoner -> defaults_section auto -> "influence"
+#
+# Keys are consumed by c3.analysis.c3_analysis:
+#   num_instances, num_candidates, num_completions
+#   decoding, prefix_decoding
+#   fidelity.include_real_as_j0, fidelity.num_extra_samples_for_V
+#   record_next_teammate
+
+credit:
+  # #instances per split for analysis bucket construction
+  num_instances: 200
+
+  # candidate budget B
+  num_candidates: 8
+
+  # rollouts per candidate
+  num_completions: 1
+
+  # decoding for target_role candidate sampling + rollouts
+  decoding:
+    temperature: 0.7
+    top_p: 0.8
+    top_k: 20
+    max_new_tokens: 512
+
+  # decoding for prefix roles (roles before target_role)
+  prefix_decoding:
+    temperature: 0.0
+    top_p: 1.0
+    top_k: 0
+    max_new_tokens: 256
+
+  fidelity:
+    include_real_as_j0: true
+    num_extra_samples_for_V: 0
+
+  record_next_teammate: false
+
+
+influence:
+  num_instances: 200
+  num_candidates: 8
+  num_completions: 1
+
+  decoding:
+    temperature: 0.7
+    top_p: 0.8
+    top_k: 20
+    max_new_tokens: 512
+
+  prefix_decoding:
+    temperature: 0.0
+    top_p: 1.0
+    top_k: 0
+    max_new_tokens: 256
+
+  fidelity:
+    include_real_as_j0: false
+    num_extra_samples_for_V: 0
+
+  # paper_analysis_figs.sh also passes --record_next_teammate explicitly
+  record_next_teammate: true

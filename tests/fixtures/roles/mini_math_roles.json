@@ -1,0 +1,13 @@
+[
+  {
+    "role": "reasoner",
+    "prompt": "You are the reasoner. Question: {question}",
+    "with_answer": false
+  },
+  {
+    "role": "actor",
+    "depends_on": ["reasoner"],
+    "prompt": "You are the actor. Context: {context}",
+    "with_answer": true
+  }
+]

@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose an enhancement to reproducibility, analysis, or usability.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the exact user-facing behavior and interfaces.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any trade-offs or rejected options.
+  - type: checkboxes
+    id: compatibility
+    attributes:
+      label: Compatibility considerations
+      options:
+        - label: This proposal keeps existing CLI behavior backward-compatible.
+        - label: This proposal requires a breaking change and should be versioned/documented.

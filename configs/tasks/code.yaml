@@ -1,0 +1,30 @@
+# ===== Task：代码（MBPP，占位可跑；可扩展多集混采） =====
+experiment_name: "c3_code"
+
+environment:
+  env_name: "CodeEnv"
+  sampling_mode: merge_epoch
+  reshuffle_each_epoch: true   # 每个 epoch 开头洗一遍；想固定顺序就设 false
+
+  # —— 训练：单/多源均可，这里先保留单源 —— #
+  train_datasets:
+    - name: "MBPP-train"
+      path: "data/MBPP/train.jsonl"
+      weight: 1.0
+      limit: null
+
+  # —— 评测：支持多个评测集（按顺序跑并分别记录指标） —— #
+  eval_suites:
+    - name: "MBPP-test"
+      path: "data/MBPP/test.jsonl"
+      limit: null
+    - name: "MBPP+"     #（如有）
+      path: "data/MBPP_PLUS/test.jsonl"
+      limit: null
+
+  episode_length: 1
+  mix_seed: 42   # 与数学一致的确定性混采种子（暂不影响单集）
+
+# 角色（默认 Duo）
+mas:
+  roles_path: "../roles/code/roles_duo.json"

@@ -1,0 +1,119 @@
+outputs:
+- name: MATH-train
+  type: math
+  output_path: data/MATH/train.jsonl
+  sha256: 1abe0fe1acdb0c9a8e86b9f4a08841ff02614beb0db1f77046d366f213d668e5
+  source:
+    kind: huggingface
+    id: qwedsacf/competition_math
+    config: default
+    split: train
+    revision: d4dea2d7496fab18890f946475fdb5206d94086b
+    license: check HF card
+    notes: Competition MATH mirror dataset (train split).
+- name: GSM8K-test
+  type: math
+  output_path: data/GSM8K/test.jsonl
+  sha256: 003587408adb1b474dc32eb9652d5da88d32f4d2ccf1b4e9b42da2b8948115b9
+  source:
+    kind: huggingface
+    id: openai/gsm8k
+    config: main
+    split: test
+    revision: e53f048856ff4f594e959d75785d2c2d37b678ee
+    license: check HF card
+    notes: GSM8K test split.
+- name: MATH500
+  type: math
+  output_path: data/MATH500/test.jsonl
+  sha256: 5f7fc1d7b99e92338dd34a585529747651560ed9eee3a35e2f20898849e73481
+  source:
+    kind: huggingface
+    id: HuggingFaceH4/MATH-500
+    config: default
+    split: test
+    revision: 33b8b6415e2c3765cb6b0ac1a63b550167e7eb87
+    license: check HF card
+    notes: MATH-500 benchmark.
+- name: CMATH-train
+  type: math
+  output_path: data/CMATH/train.jsonl
+  sha256: 5375f606c91c5b94a38e9da09699c3a97489d9c1827d9585b5283ad2c98bfd95
+  source:
+    kind: huggingface
+    id: weitianwen/cmath
+    config: default
+    split: validation
+    revision: 9b140b4015a1c33b1f91fdb04400cefb9ea6db7e
+    license: check HF card
+    notes: CMATH validation split mapped as train artifact.
+- name: CMATH-test
+  type: math
+  output_path: data/CMATH/test.jsonl
+  sha256: 98fcf4e6ed0c330522ed65375e8ca60806dfe1cb4f0b794ea9d46c3f722d010b
+  source:
+    kind: huggingface
+    id: weitianwen/cmath
+    config: default
+    split: test
+    revision: 9b140b4015a1c33b1f91fdb04400cefb9ea6db7e
+    license: check HF card
+    notes: CMATH test split.
+- name: HumanEval
+  type: code
+  output_path: data/HumanEval/test.jsonl
+  sha256: 7437e50751b47f8b92915e02fcbf018ea2985956df3735eaf153be1313d6eb24
+  source:
+    kind: huggingface
+    id: openai/openai_humaneval
+    config: null
+    split: test
+    revision: d009b64cde5bb5a7d0915975916644532214c91a
+    license: check HF card
+    notes: HumanEval benchmark.
+- name: APPS
+  type: code
+  output_path: data/APPS/test.jsonl
+  sha256: cb85a6526d2250cd45598e54d3f2eab42f45d6f6e731efdcfc4625a21b060fe0
+  source:
+    kind: huggingface
+    id: codeparrot/apps
+    config: null
+    split: test
+    revision: ac6966973a0bd7bb274836fc34782df80e56dd93
+    license: check HF card
+    notes: APPS benchmark.
+- name: MBPP-train
+  type: code
+  output_path: data/MBPP/train.jsonl
+  sha256: 63e1b5d0cfbe3b3b8cc6d2952304d3e7e122d1829ecd811e8616b5678816f710
+  source:
+    kind: huggingface
+    id: google-research-datasets/mbpp
+    config: full
+    split: train
+    revision: 4bb6404fdc6cacfda99d4ac4205087b89d32030c
+    license: check HF card
+    notes: MBPP train split (full config).
+- name: MBPP-test
+  type: code
+  output_path: data/MBPP/test.jsonl
+  sha256: 8cf2280346c94503926621bc7c7036424695d97309a8309190ccec06bb377fd0
+  source:
+    kind: huggingface
+    id: google-research-datasets/mbpp
+    config: full
+    split: test
+    revision: 4bb6404fdc6cacfda99d4ac4205087b89d32030c
+    license: check HF card
+    notes: MBPP test split (full config).
+- name: MBPP+
+  type: code
+  output_path: data/MBPP_PLUS/test.jsonl
+  sha256: 5da2852e2611c2fd4373433024d6a7edaaeb5d1e08a9b88b4feae91acfc06c24
+  source:
+    kind: evalplus
+    id: mbpp_plus
+    license: check EvalPlus
+    revision: evalplus@0.3.1
+    notes: Strictly reproducible fallback path pinned to MBPP HF commit.

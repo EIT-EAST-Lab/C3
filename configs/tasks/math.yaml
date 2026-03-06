@@ -1,0 +1,41 @@
+# ===== Task：数学（主实验：MATH-train + CMATH-train）=====
+experiment_name: "c3_math"
+
+environment:
+  env_name: "MathEnv"
+  sampling_mode: merge_epoch
+  reshuffle_each_epoch: true   # 每个 epoch 开头洗一遍；想固定顺序就设 false
+
+  # —— 训练集：纯多源混采 —— #
+  train_datasets:
+    - name: "MATH-train"
+      path: "data/MATH/train.jsonl"
+      weight: 1.0
+      limit: null
+    - name: "CMATH-train"
+      path: "data/CMATH/train.jsonl"
+      weight: 1.0
+      limit: null
+
+  # —— 评测：多个评测集 —— #
+  eval_suites:
+    - name: "MATH500"
+      path: "data/MATH500/test.jsonl"
+      limit: null
+    - name: "CMATH-test"
+      path: "data/CMATH/test.jsonl"
+      limit: null
+    - name: "GSM8K-test"
+      path: "data/GSM8K/test.jsonl"
+      limit: null
+
+  # 环境与奖励口径
+  episode_length: 1
+  math_backend: marft            # marft | simple
+  reward_mode: vote_binary       # vote_binary | avg_per_answer
+  use_math_verify: true
+  mix_seed: 42                   # 混采的确定性种子
+
+# 角色（默认 Duo）
+mas:
+  roles_path: "../roles/math/roles_duo.json"

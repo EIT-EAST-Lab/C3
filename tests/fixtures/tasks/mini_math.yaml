@@ -1,0 +1,22 @@
+experiment_name: "mini_math"
+
+environment:
+  env_name: "MathEnv"
+  sampling_mode: concat
+  reshuffle_each_epoch: false
+  train_datasets:
+    - name: "fixture-math-train"
+      path: "tests/fixtures/data/mini_math_train.jsonl"
+      limit: null
+  eval_suites:
+    - name: "MATH500"
+      path: "tests/fixtures/data/mini_math_eval.jsonl"
+      limit: null
+  episode_length: 1
+  math_backend: simple
+  reward_mode: strict
+  use_math_verify: false
+  mix_seed: 0
+
+mas:
+  roles_path: "../roles/mini_math_roles.json"

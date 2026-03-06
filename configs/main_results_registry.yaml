@@ -1,0 +1,347 @@
+# configs/main_results_registry.yaml
+# Central registry for paper main results.
+#
+# Each run corresponds to:
+#   - a method (SFT / MAPPO / MAGRPO / C3)
+#   - a task (math / code)
+#   - a seed (0..4)  [required by c3.tools.main_results]
+#   - a source:
+#       - hf_base: a HuggingFace model id (SFT baseline)
+#       - train_run_dir: a local run directory produced by scripts/reproduce/paper_train.sh
+#
+# The main-results sweep script will produce:
+#   <run_root>/<out_subdir>/<task>/<profile>/{eval_only.jsonl, eval_only.jsonl.metrics.jsonl}
+#
+# Notes
+# - We do NOT ship checkpoints.
+# - SFT baseline uses hf_base and writes eval artifacts to:
+#     <ckpt_root>/_runs/_sft_main_results/<run_id>/...
+# - RL-trained methods use train_run_dir and write eval artifacts under that directory.
+
+version: 1
+defaults:
+  # Where to write per-run eval artifacts under the run directory.
+  out_subdir: "main_results"
+  # Profiles to run by default for each run.
+  #   greedy: temperature=0, n=1
+  #   n10:    temperature=0.7, n=10  -> P@1 / P@10
+  profiles: ["greedy", "n10"]
+  # Extra eval args appended verbatim to openrlhf CLI call.
+  extra_eval_args: ""
+
+runs:
+  # ------------------ SFT baseline (no training required) ------------------
+  # Paper-aligned default bases:
+  #   - math: Qwen/Qwen2.5-3B-Instruct
+  #   - code: Qwen/Qwen2.5-Coder-3B-Instruct
+  # We expand SFT to 5 pseudo-seeds so that strict aggregation (expected_runs=5)
+  # passes without special flags.
+
+  - id: "paper_SFT_math_seed0"
+    method: "SFT"
+    task: "math"
+    seed: 0
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-3B-Instruct"
+
+  - id: "paper_SFT_math_seed1"
+    method: "SFT"
+    task: "math"
+    seed: 1
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-3B-Instruct"
+
+  - id: "paper_SFT_math_seed2"
+    method: "SFT"
+    task: "math"
+    seed: 2
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-3B-Instruct"
+
+  - id: "paper_SFT_math_seed3"
+    method: "SFT"
+    task: "math"
+    seed: 3
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-3B-Instruct"
+
+  - id: "paper_SFT_math_seed4"
+    method: "SFT"
+    task: "math"
+    seed: 4
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-3B-Instruct"
+
+  - id: "paper_SFT_code_seed0"
+    method: "SFT"
+    task: "code"
+    seed: 0
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-Coder-3B-Instruct"
+
+  - id: "paper_SFT_code_seed1"
+    method: "SFT"
+    task: "code"
+    seed: 1
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-Coder-3B-Instruct"
+
+  - id: "paper_SFT_code_seed2"
+    method: "SFT"
+    task: "code"
+    seed: 2
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-Coder-3B-Instruct"
+
+  - id: "paper_SFT_code_seed3"
+    method: "SFT"
+    task: "code"
+    seed: 3
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-Coder-3B-Instruct"
+
+  - id: "paper_SFT_code_seed4"
+    method: "SFT"
+    task: "code"
+    seed: 4
+    alg_for_eval: "none"
+    source:
+      type: "hf_base"
+      hf_base: "Qwen/Qwen2.5-Coder-3B-Instruct"
+
+  # ------------------ RL-trained methods (require local training) ------------------
+  # Training outputs are expected at:
+  #   ckpt/_runs/<run_id>/final_hf
+  # and are produced by:
+  #   bash scripts/reproduce/paper_train.sh
+
+  # MAPPO (5 seeds)
+  - id: "paper_MAPPO_math_seed0"
+    method: "MAPPO"
+    task: "math"
+    seed: 0
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_math_seed0"}
+
+  - id: "paper_MAPPO_math_seed1"
+    method: "MAPPO"
+    task: "math"
+    seed: 1
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_math_seed1"}
+
+  - id: "paper_MAPPO_math_seed2"
+    method: "MAPPO"
+    task: "math"
+    seed: 2
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_math_seed2"}
+
+  - id: "paper_MAPPO_math_seed3"
+    method: "MAPPO"
+    task: "math"
+    seed: 3
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_math_seed3"}
+
+  - id: "paper_MAPPO_math_seed4"
+    method: "MAPPO"
+    task: "math"
+    seed: 4
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_math_seed4"}
+
+  - id: "paper_MAPPO_code_seed0"
+    method: "MAPPO"
+    task: "code"
+    seed: 0
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_code_seed0"}
+
+  - id: "paper_MAPPO_code_seed1"
+    method: "MAPPO"
+    task: "code"
+    seed: 1
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_code_seed1"}
+
+  - id: "paper_MAPPO_code_seed2"
+    method: "MAPPO"
+    task: "code"
+    seed: 2
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_code_seed2"}
+
+  - id: "paper_MAPPO_code_seed3"
+    method: "MAPPO"
+    task: "code"
+    seed: 3
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_code_seed3"}
+
+  - id: "paper_MAPPO_code_seed4"
+    method: "MAPPO"
+    task: "code"
+    seed: 4
+    alg_for_eval: "mappo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAPPO_code_seed4"}
+
+  # MAGRPO (5 seeds)
+  - id: "paper_MAGRPO_math_seed0"
+    method: "MAGRPO"
+    task: "math"
+    seed: 0
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_math_seed0"}
+
+  - id: "paper_MAGRPO_math_seed1"
+    method: "MAGRPO"
+    task: "math"
+    seed: 1
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_math_seed1"}
+
+  - id: "paper_MAGRPO_math_seed2"
+    method: "MAGRPO"
+    task: "math"
+    seed: 2
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_math_seed2"}
+
+  - id: "paper_MAGRPO_math_seed3"
+    method: "MAGRPO"
+    task: "math"
+    seed: 3
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_math_seed3"}
+
+  - id: "paper_MAGRPO_math_seed4"
+    method: "MAGRPO"
+    task: "math"
+    seed: 4
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_math_seed4"}
+
+  - id: "paper_MAGRPO_code_seed0"
+    method: "MAGRPO"
+    task: "code"
+    seed: 0
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_code_seed0"}
+
+  - id: "paper_MAGRPO_code_seed1"
+    method: "MAGRPO"
+    task: "code"
+    seed: 1
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_code_seed1"}
+
+  - id: "paper_MAGRPO_code_seed2"
+    method: "MAGRPO"
+    task: "code"
+    seed: 2
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_code_seed2"}
+
+  - id: "paper_MAGRPO_code_seed3"
+    method: "MAGRPO"
+    task: "code"
+    seed: 3
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_code_seed3"}
+
+  - id: "paper_MAGRPO_code_seed4"
+    method: "MAGRPO"
+    task: "code"
+    seed: 4
+    alg_for_eval: "magrpo"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_MAGRPO_code_seed4"}
+
+  # C3 (5 seeds)
+  - id: "paper_C3_math_seed0"
+    method: "C3"
+    task: "math"
+    seed: 0
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_math_seed0"}
+
+  - id: "paper_C3_math_seed1"
+    method: "C3"
+    task: "math"
+    seed: 1
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_math_seed1"}
+
+  - id: "paper_C3_math_seed2"
+    method: "C3"
+    task: "math"
+    seed: 2
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_math_seed2"}
+
+  - id: "paper_C3_math_seed3"
+    method: "C3"
+    task: "math"
+    seed: 3
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_math_seed3"}
+
+  - id: "paper_C3_math_seed4"
+    method: "C3"
+    task: "math"
+    seed: 4
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_math_seed4"}
+
+  - id: "paper_C3_code_seed0"
+    method: "C3"
+    task: "code"
+    seed: 0
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_code_seed0"}
+
+  - id: "paper_C3_code_seed1"
+    method: "C3"
+    task: "code"
+    seed: 1
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_code_seed1"}
+
+  - id: "paper_C3_code_seed2"
+    method: "C3"
+    task: "code"
+    seed: 2
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_code_seed2"}
+
+  - id: "paper_C3_code_seed3"
+    method: "C3"
+    task: "code"
+    seed: 3
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_code_seed3"}
+
+  - id: "paper_C3_code_seed4"
+    method: "C3"
+    task: "code"
+    seed: 4
+    alg_for_eval: "c3"
+    source: {type: "train_run_dir", train_run_dir: "ckpt/_runs/paper_C3_code_seed4"}

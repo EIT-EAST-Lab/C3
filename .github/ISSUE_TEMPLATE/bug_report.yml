@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible bug in training, evaluation, or analysis.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened and what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python, CUDA, GPU, package versions, commit hash.
+      placeholder: |
+        OS:
+        Python:
+        CUDA:
+        GPU:
+        Commit:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Paste exact commands and configs.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Include key traceback or stderr snippets.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Preflight checks
+      options:
+        - label: I ran `bash scripts/audit/pre_release.sh`
+        - label: I ran `bash scripts/reproduce/smoke.sh`
+        - label: I verified data files via `bash scripts/data/prepare_all.sh --out_dir data --strict 1`

@@ -1,0 +1,22 @@
+experiment_name: "mini_code"
+
+environment:
+  env_name: "CodeEnv"
+  sampling_mode: concat
+  reshuffle_each_epoch: false
+  train_datasets:
+    - name: "fixture-code-train"
+      path: "tests/fixtures/data/mini_code_train.jsonl"
+      limit: null
+  eval_suites:
+    - name: "MBPP-test"
+      path: "tests/fixtures/data/mini_code_eval.jsonl"
+      limit: null
+    - name: "MBPP+"
+      path: "tests/fixtures/data/mini_code_eval_plus.jsonl"
+      limit: null
+  episode_length: 1
+  mix_seed: 0
+
+mas:
+  roles_path: "../roles/mini_code_roles.json"

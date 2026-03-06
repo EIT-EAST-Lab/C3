@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite our paper."
+title: "C3: Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration"
+type: software
+license: Apache-2.0
+authors:
+  - family-names: Chen
+    given-names: Yanjun
+    email: yan-jun.chen@connect.polyu.hk
+  - family-names: Sun
+    given-names: Yirong
+  - family-names: Wang
+    given-names: Hanlin
+  - family-names: Zhang
+    given-names: Xinming
+  - family-names: Shen
+    given-names: Xiaoyu
+  - family-names: Li
+    given-names: Wenjie
+  - family-names: Zhang
+    given-names: Wei
+keywords:
+  - multi-agent reinforcement learning
+  - credit assignment
+  - large language models
+  - counterfactual evaluation
+  - RLHF infrastructure
+date-released: "2026-02-11"
+preferred-citation:
+  type: article
+  title: "Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration"
+  authors:
+    - family-names: Chen
+      given-names: Yanjun
+    - family-names: Sun
+      given-names: Yirong
+    - family-names: Wang
+      given-names: Hanlin
+    - family-names: Zhang
+      given-names: Xinming
+    - family-names: Shen
+      given-names: Xiaoyu
+    - family-names: Li
+      given-names: Wenjie
+    - family-names: Zhang
+      given-names: Wei
+  year: 2026
+  notes: "Manuscript associated with C3 release (see C3-0211版.pdf in the project materials)."
