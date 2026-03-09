@@ -1,0 +1,55 @@
+name: project-page
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "project-page/**"
+      - "figs/C3-Logo.png"
+      - "figs/fig1_overview.png"
+      - "figs/fig_learning_dynamics_4b.png"
+      - "figs/fig_pareto_tokens_4b.png"
+      - ".github/workflows/project-page.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Assemble static site
+        run: |
+          mkdir -p _site/assets/figs
+          cp project-page/index.html _site/index.html
+          cp project-page/styles.css _site/styles.css
+          cp project-page/script.js _site/script.js
+          cp figs/C3-Logo.png _site/assets/figs/C3-Logo.png
+          cp figs/fig1_overview.png _site/assets/figs/fig1_overview.png
+          cp figs/fig_learning_dynamics_4b.png _site/assets/figs/fig_learning_dynamics_4b.png
+          cp figs/fig_pareto_tokens_4b.png _site/assets/figs/fig_pareto_tokens_4b.png
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

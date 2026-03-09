@@ -2,6 +2,8 @@
   <img src="figs/C3-Logo.png" alt="C3 Logo" width="420">
   <p><strong>Contextual Counterfactual Credit Assignment</strong></p>
   <p>
+    <a href="https://eit-east-lab.github.io/C3/"><img src="https://img.shields.io/badge/Project-Page-B24A2F" alt="Project Page"></a>
+    <a href="https://github.com/EIT-EAST-Lab/C3"><img src="https://img.shields.io/badge/Paper-Submission%20Under%20Review-7B2F1A" alt="Paper submission under review"></a>
     <a href="docs/IMPLEMENTATION_AUDIT.md"><img src="https://img.shields.io/badge/Paper-Implementation%20Audit-8A2BE2" alt="Paper Implementation Audit"></a>
     <a href="docs/RELEASE_POLICY.md"><img src="https://img.shields.io/badge/Release-Policy-0A66C2" alt="Release Policy"></a>
     <a href=".github/workflows/ci-lite.yml"><img src="https://img.shields.io/badge/CI-Lite%20Gate-2EA043" alt="CI Lite Gate"></a>
@@ -9,25 +11,28 @@
     <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11"></a>
   </p>
   <p>
-    <a href="docs/GETTING_STARTED.md">Getting Started</a> •
-    <a href="docs/CODE_MAP.md">Code Map</a> •
-    <a href="docs/IMPLEMENTATION_CHECKLIST.md">Implementation Checklist</a> •
+    <a href="https://eit-east-lab.github.io/C3/">Project Page</a> |
+    <a href="docs/GETTING_STARTED.md">Getting Started</a> |
+    <a href="docs/CODE_MAP.md">Code Map</a> |
+    <a href="docs/IMPLEMENTATION_CHECKLIST.md">Implementation Checklist</a> |
     <a href="docs/RELEASE_CHECKLIST.md">Release Checklist</a>
   </p>
 </div>
 
 Reference implementation for the paper **Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration**.
 
+Paper status: submitted to arXiv on March 6, 2026, with public posting pending. The companion project page is available at [eit-east-lab.github.io/C3](https://eit-east-lab.github.io/C3/).
+
 ## TL;DR
 
 Cooperative multi-agent systems powered by large language models (LLMs) are frequently optimized via sparse terminal-only feedback, which entangles upstream decisions and obstructs accurate credit assignment. **C3** (Contextual Counterfactual Credit Assignment) addresses this trajectory-level diffusion by isolating the causal impact of individual messages. Instead of distributing rewards across an entire episode, C3 freezes the exact transcript-derived context, evaluates context-matched alternatives via fixed-continuation replay, and applies a leave-one-out (LOO) baseline. This localized intervention extracts unbiased, low-variance marginal advantages for standard policy-gradient optimization, improving both terminal performance and credit fidelity across mathematical and coding benchmarks.
 
 <p align="center">
-  <a href="#core-mechanism">Mechanism</a> •
-  <a href="#key-results">Results</a> •
-  <a href="#30-second-quickstart">Quickstart</a> •
-  <a href="#main-workflows">Workflows</a> •
-  <a href="#audit-and-release-checks">Release Gate</a>
+  <a href="#core-mechanism">Mechanism</a> |
+  <a href="#key-results">Results</a> |
+  <a href="#30-second-quickstart">Quickstart</a> |
+  <a href="#main-workflows">Workflows</a> |
+  <a href="#audit-and-release-gate">Release Gate</a>
 </p>
 
 ## Core Mechanism
@@ -74,9 +79,11 @@ Corresponding local directories (`data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb
 - [configs/](configs/): Configurations for tasks, roles, analyses, execution registries, and data manifests.
 - [scripts/](scripts/): Entrypoints for data preparation, experiment reproduction, model utilities, and release gating.
 - [docs/](docs/): Documentation covering release policies, implementation audits, upstream provenance, and data-source contracts.
+- [project-page/](project-page/): Static companion site for the paper, deployed via GitHub Pages.
 
 ## Quick Navigation
 
+- **Project Page**: [C3 Paper Page](https://eit-east-lab.github.io/C3/)
 - **New User**: [Getting Started Guide](docs/GETTING_STARTED.md)
 - **Code Layout**: [Code Map](docs/CODE_MAP.md)
 - **Paper-to-Code Mapping**: [Implementation Audit](docs/IMPLEMENTATION_AUDIT.md)

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>C3 - Contextual Counterfactual Credit Assignment</title>
+  <meta
+    name="description"
+    content="Project page for C3: Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration."
+  >
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero" id="top">
+      <nav class="topbar">
+        <a class="brand" href="#top">C3</a>
+        <div class="nav-links">
+          <a href="#abstract">Abstract</a>
+          <a href="#method">Method</a>
+          <a href="#results">Results</a>
+          <a href="#reproduce">Reproduce</a>
+          <a href="#citation">Citation</a>
+        </div>
+      </nav>
+
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Project Page</p>
+          <h1>Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration</h1>
+          <p class="authors">
+            Yanjun Chen, Yirong Sun, Hanlin Wang, Xinming Zhang, Xiaoyu Shen, Wenjie Li, Wei Zhang
+          </p>
+          <p class="affiliations">
+            Eastern Institute of Technology, Ningbo and The Hong Kong Polytechnic University
+          </p>
+          <p class="hero-summary">
+            C3 turns sparse terminal team feedback into decision-level learning signals for collaborative LLM systems.
+            Instead of crediting an entire trajectory at once, it freezes the exact transcript-derived context, replays
+            fixed-context alternatives, and uses a leave-one-out baseline to estimate marginal causal impact.
+          </p>
+
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://github.com/EIT-EAST-Lab/C3">Code</a>
+            <a class="button" href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/GETTING_STARTED.md">Getting Started</a>
+            <a class="button" href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/IMPLEMENTATION_AUDIT.md">Implementation Audit</a>
+            <a class="button" href="#paper-status">Paper Status</a>
+          </div>
+
+          <div class="status-strip" id="paper-status">
+            <div class="status-card">
+              <span class="status-label">Status</span>
+              <strong>Submitted to arXiv, under review</strong>
+              <p>This page reflects the March 6, 2026 submission manuscript. The public arXiv link will be added once it is live.</p>
+            </div>
+            <div class="status-card">
+              <span class="status-label">Setting</span>
+              <strong>2-agent Reasoner -&gt; Actor collaboration</strong>
+              <p>Only the final actor output is scored, which makes upstream credit assignment the central learning bottleneck.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <div class="logo-card">
+            <img src="assets/figs/C3-Logo.png" alt="C3 project logo">
+          </div>
+          <div class="signal-grid">
+            <article class="signal-card">
+              <span class="signal-label">Main math result</span>
+              <strong>82.80%</strong>
+              <p>MATH500 greedy accuracy on Qwen3-4B-Instruct-2507.</p>
+            </article>
+            <article class="signal-card">
+              <span class="signal-label">Pass@10</span>
+              <strong>91.44%</strong>
+              <p>MATH500 pass@10 under matched evaluation resources.</p>
+            </article>
+            <article class="signal-card">
+              <span class="signal-label">Token efficiency</span>
+              <strong>418M</strong>
+              <p>Training-token Pareto point on the Qwen3 math suite.</p>
+            </article>
+            <article class="signal-card">
+              <span class="signal-label">Mechanistic signal</span>
+              <strong>0.270</strong>
+              <p>Highest reported credit-fidelity correlation in the paper diagnostics.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section intro-grid" id="abstract">
+        <div class="section-heading">
+          <p class="eyebrow">Abstract</p>
+          <h2>Why C3 exists</h2>
+        </div>
+        <div class="abstract-card">
+          <p>
+            Cooperative MARL systems built from LLM agents are often trained with a single terminal score at the end of
+            an episode. That makes early messages, planning steps, and downstream execution tightly entangled. C3 attacks
+            this problem at the decision level: it freezes the exact local context, samples context-matched alternatives,
+            replays the downstream interaction under a fixed continuation distribution, and subtracts a leave-one-out
+            baseline to produce low-variance advantages for standard policy-gradient optimization.
+          </p>
+          <p>
+            Across five mathematical and coding benchmarks under matched budgets, C3 improves terminal performance over
+            SFT, MAPPO, and MAGRPO. The paper also shows that these gains are accompanied by higher credit fidelity,
+            lower within-context variance, and stronger inter-agent causal dependence.
+          </p>
+        </div>
+        <div class="takeaways">
+          <article class="takeaway">
+            <h3>Problem</h3>
+            <p>Terminal-only supervision diffuses reward across the whole trajectory, obscuring which message actually mattered.</p>
+          </article>
+          <article class="takeaway">
+            <h3>Key idea</h3>
+            <p>Turn collaboration into targeted causal interventions over frozen transcript contexts instead of learning a critic for the whole episode.</p>
+          </article>
+          <article class="takeaway">
+            <h3>Outcome</h3>
+            <p>Better terminal performance and cleaner internal optimization signatures under matched evaluator budgets.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="method">
+        <div class="section-heading">
+          <p class="eyebrow">Method</p>
+          <h2>Replay the right decision, not the whole episode</h2>
+        </div>
+
+        <div class="figure-panel">
+          <img src="assets/figs/fig1_overview.png" alt="Overview of the C3 mechanism">
+          <p class="figure-caption">
+            Figure 1 from the paper. C3 records replay states from collaborative trajectories, samples context-matched
+            alternatives, and estimates per-decision marginal value with fixed-continuation replay plus a leave-one-out baseline.
+          </p>
+        </div>
+
+        <div class="method-grid">
+          <article class="method-step">
+            <span>01</span>
+            <h3>Freeze the transcript-derived context</h3>
+            <p>
+              The algorithm logs replay states at visited decision occurrences, preserving the exact observable context
+              of a Reasoner or Actor turn.
+            </p>
+          </article>
+          <article class="method-step">
+            <span>02</span>
+            <h3>Evaluate context-matched alternatives</h3>
+            <p>
+              Instead of rolling out fresh full episodes, C3 restarts from the frozen replay state and compares
+              alternatives under the same continuation distribution.
+            </p>
+          </article>
+          <article class="method-step">
+            <span>03</span>
+            <h3>Compute low-variance local credit</h3>
+            <p>
+              A leave-one-out baseline removes context-level difficulty, producing unbiased marginal advantages that can
+              feed directly into policy-gradient updates.
+            </p>
+          </article>
+        </div>
+
+        <div class="protocol-card">
+          <div>
+            <p class="eyebrow">Protocol</p>
+            <h3>Reasoner -> Actor, terminal evaluation only</h3>
+          </div>
+          <p>
+            In the paper's primary setup, two LLM agents collaborate asynchronously. The Reasoner proposes a concise
+            plan, the Actor produces the final answer or code, and only the final Actor output is scored by the external
+            evaluator. That asymmetry is exactly why decision-level credit matters.
+          </p>
+        </div>
+      </section>
+
+      <section class="section" id="results">
+        <div class="section-heading">
+          <p class="eyebrow">Results</p>
+          <h2>Performance gains with matched budgets</h2>
+        </div>
+
+        <div class="metrics-grid">
+          <article class="metric-card accent">
+            <span class="metric-name">Qwen3 math</span>
+            <strong>82.80%</strong>
+            <p>MATH500 greedy accuracy, compared with 74.52 for MAGRPO and 69.28 for MAPPO.</p>
+          </article>
+          <article class="metric-card">
+            <span class="metric-name">Qwen3 math</span>
+            <strong>91.44%</strong>
+            <p>MATH500 pass@10 under the same evaluation-resource accounting.</p>
+          </article>
+          <article class="metric-card">
+            <span class="metric-name">Qwen2.5 math</span>
+            <strong>87.01%</strong>
+            <p>GSM8K greedy accuracy with Qwen2.5-3B-Instruct.</p>
+          </article>
+          <article class="metric-card">
+            <span class="metric-name">Qwen2.5 code</span>
+            <strong>7.98</strong>
+            <p>MBPP+ pass metric with Qwen2.5-Coder-3B-Instruct.</p>
+          </article>
+        </div>
+
+        <div class="figure-duo">
+          <figure class="result-figure">
+            <img src="assets/figs/fig_learning_dynamics_4b.png" alt="Learning dynamics comparison across methods">
+            <figcaption>
+              Figure 2. C3 reaches a higher return plateau earlier and shows tighter uncertainty bands across seeds.
+            </figcaption>
+          </figure>
+          <figure class="result-figure">
+            <img src="assets/figs/fig_pareto_tokens_4b.png" alt="Training efficiency Pareto frontier">
+            <figcaption>
+              Figure 3. C3 lies on a favorable training-token Pareto frontier, reaching strong returns with 418M training tokens.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="benchmarks-panel">
+          <div class="benchmarks-copy">
+            <p class="eyebrow">Benchmarks</p>
+            <h3>Five mathematical and coding evaluation suites</h3>
+            <p>
+              The paper evaluates C3 on MATH500, CMATH, GSM8K, MBPP-test, and MBPP+ with matched budgets and five
+              random seeds. Mathematical tasks use Qwen2.5-3B-Instruct and Qwen3-4B-Instruct-2507; coding tasks use
+              Qwen2.5-Coder-3B-Instruct.
+            </p>
+          </div>
+          <div class="benchmark-tags">
+            <span>MATH500</span>
+            <span>CMATH</span>
+            <span>GSM8K</span>
+            <span>MBPP-test</span>
+            <span>MBPP+</span>
+            <span>5 seeds</span>
+            <span>Matched evaluator budgets</span>
+            <span>Reasoner / Actor protocol</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section diagnostics">
+        <div class="section-heading">
+          <p class="eyebrow">Mechanistic Validation</p>
+          <h2>Evidence beyond benchmark accuracy</h2>
+        </div>
+        <div class="diagnostic-grid">
+          <article class="diagnostic-card">
+            <span>Credit fidelity</span>
+            <strong>0.270</strong>
+            <p>Spearman correlation to the target within-context advantage in the shared replay-bucket diagnostics.</p>
+          </article>
+          <article class="diagnostic-card">
+            <span>Within-context variance</span>
+            <strong>0.00513</strong>
+            <p>The LOO baseline reduces variance, stabilizing gradient estimates across tasks.</p>
+          </article>
+          <article class="diagnostic-card">
+            <span>Inter-agent influence</span>
+            <strong>0.187</strong>
+            <p>Higher conditional mutual information suggests stronger downstream responsiveness to upstream reasoning interventions.</p>
+          </article>
+        </div>
+        <div class="ablation-card">
+          <h3>Ablations support the causal story</h3>
+          <p>
+            Removing fixed-context replay lowers terminal accuracy from 90.7% to 86.5%, and removing the LOO baseline
+            reduces the influence metric from 0.187 to 0.149. Both components matter: context matching sharpens the
+            comparison, while LOO removes context-level shifts that would otherwise blur collaboration credit.
+          </p>
+        </div>
+      </section>
+
+      <section class="section" id="reproduce">
+        <div class="section-heading">
+          <p class="eyebrow">Reproduce</p>
+          <h2>Built to connect the paper to runnable code</h2>
+        </div>
+
+        <div class="repro-grid">
+          <article class="repro-card">
+            <h3>Quickstart</h3>
+            <pre><code>python -m pip install -r requirements.txt --no-build-isolation
+bash scripts/data/prepare_all.sh --out_dir data
+bash scripts/reproduce/smoke.sh --task math --limit 1 --print_example 0</code></pre>
+          </article>
+          <article class="repro-card">
+            <h3>Core paths</h3>
+            <ul>
+              <li><code>c3/credit/c3/</code> for credit assignment logic</li>
+              <li><code>openrlhf/trainer/ppo_utils/experience_maker.py</code> for paper-facing integration</li>
+              <li><code>configs/main_results_registry.yaml</code> for experiment references</li>
+              <li><code>scripts/reproduce/</code> for smoke tests, training, and analysis</li>
+            </ul>
+          </article>
+          <article class="repro-card">
+            <h3>Release hygiene</h3>
+            <ul>
+              <li><code>bash scripts/audit/release_gate.sh</code></li>
+              <li><code>bash scripts/reproduce/preflight_repro.sh --task math</code></li>
+              <li><a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/RELEASE_CHECKLIST.md">Release checklist</a></li>
+              <li><a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/IMPLEMENTATION_AUDIT.md">Paper-to-code audit</a></li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="citation">
+        <div class="section-heading">
+          <p class="eyebrow">Citation</p>
+          <h2>Use C3 in your work</h2>
+        </div>
+
+        <div class="citation-layout">
+          <div class="citation-copy">
+            <p>
+              If C3 or this repository helps your research, please cite the manuscript below. The arXiv identifier can be
+              filled in once the public posting is available.
+            </p>
+            <button class="button button-primary" id="copy-bibtex" type="button">Copy BibTeX</button>
+          </div>
+          <pre class="citation-block" id="bibtex"><code>@article{chen2026contextual,
+  title={Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration},
+  author={Chen, Yanjun and Sun, Yirong and Wang, Hanlin and Zhang, Xinming and Shen, Xiaoyu and Li, Wenjie and Zhang, Wei},
+  journal={arXiv preprint},
+  year={2026},
+  note={Submitted manuscript, public arXiv link pending}
+}</code></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>C3 project page for the March 6, 2026 preprint manuscript.</p>
+      <div class="footer-links">
+        <a href="https://github.com/EIT-EAST-Lab/C3">Repository</a>
+        <a href="https://github.com/EIT-EAST-Lab/C3/blob/main/README.md">README</a>
+        <a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/GETTING_STARTED.md">Docs</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
