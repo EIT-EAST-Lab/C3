@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-import torch
+import pytest
 
+torch = pytest.importorskip("torch", reason="MAPPO step-GAE runtime tests require torch.")
+import torch
 from c3.algorithms.mappo import compute_mappo_step_gae
 
 
