@@ -28,7 +28,7 @@ Paper status: now available on arXiv as [2603.06859](https://arxiv.org/abs/2603.
 
 ## TL;DR
 
-Cooperative multi-agent systems powered by large language models (LLMs) are frequently optimized via sparse terminal-only feedback, which entangles upstream decisions and obstructs accurate credit assignment. **C3** (Contextual Counterfactual Credit Assignment) addresses this trajectory-level diffusion by isolating the causal impact of individual messages. Instead of distributing rewards across an entire episode, C3 freezes the exact transcript-derived context, evaluates context-matched alternatives via fixed-continuation replay, and applies a leave-one-out (LOO) baseline. This localized intervention extracts unbiased, low-variance marginal advantages for standard policy-gradient optimization, improving both terminal performance and credit fidelity across mathematical and coding benchmarks.
+Terminal-only feedback in multi-agent LLM collaboration diffuses credit across an entire trajectory. **C3** freezes transcript-derived context and estimates local causal credit with fixed-context replay plus a leave-one-out baseline, outperforming MAPPO and MAGRPO while improving fidelity, variance, and inter-agent influence under matched budgets.
 
 <p align="center">
   <a href="#core-mechanism">Mechanism</a> |

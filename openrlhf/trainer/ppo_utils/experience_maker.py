@@ -1158,12 +1158,6 @@ class RemoteExperienceMaker(ABC):
         gamma = float(getattr(args, "gamma", 1.0))
         lambd = float(getattr(args, "lambd", 1.0))
 
-        if marl_alg == "mappo" and nsp != 1:
-            raise RuntimeError(
-                "[MAPPO][FAIL-FAST] n_samples_per_prompt must be 1 for MAS/C3 tasks. "
-                "MAPPO step-GAE requires per-episode step sequences."
-            )
-
         total_rows = sum(int(e.rewards.shape[0]) for e in experiences if e.rewards is not None)
         fallback_qid_all = torch.arange(total_rows, dtype=torch.long) // max(1, nsp)
         cursor = 0

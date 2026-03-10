@@ -61,11 +61,23 @@ mkdir -p "${CKPT_ROOT}/_runs"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
+_paper_train_n_samples() {
+  local method="$1"
+  "$PYTHON_BIN" - "$method" <<'PY'
+import sys
+
+from c3.utils.paper_train_contract import get_paper_train_n_samples
+
+print(get_paper_train_n_samples(sys.argv[1]))
+PY
+}
+
 run_one() {
   local alg="$1" task="$2" seed="$3"
   local run_id="paper_${alg}_${task}_seed${seed}"
   local run_dir="${CKPT_ROOT}/_runs/${run_id}"
   local final_hf="${run_dir}/final_hf"
+  local n_samples_per_prompt
 
   if [[ -e "$run_dir" ]]; then
     echo "ERROR: run_dir already exists: $run_dir" >&2
@@ -79,6 +91,7 @@ run_one() {
   echo "[paper_train]   final_hf=${final_hf}" >&2
 
   local task_yaml="configs/tasks/${task}.yaml"
+  n_samples_per_prompt="$(_paper_train_n_samples "$alg")"
 
   "$PYTHON_BIN" -m openrlhf.cli.train_ppo_ray \
     --c3_task "$task_yaml" \
@@ -91,7 +104,7 @@ run_one() {
     --temperature 0.7 \
     --top_p 0.8 \
     --top_k 20 \
-    --n_samples_per_prompt 8 \
+    --n_samples_per_prompt "$n_samples_per_prompt" \
     --ckpt_path "$CKPT_ROOT" \
     --run_id "$run_id" \
     --wandb_run_name "$run_id" \

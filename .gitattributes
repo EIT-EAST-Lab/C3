@@ -9,3 +9,4 @@
 *.yml text eol=lf
 *.bib text eol=lf
 *.pdf binary
+*.py text eol=lf

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from c3.utils.budget_ledger import append_ledger, make_budget_record
 from c3.utils.context_key import fingerprint, hash63
+from c3.utils.paper_train_contract import PAPER_TRAIN_BUDGET_B, PAPER_TRAIN_METHOD_N_SAMPLES, get_paper_train_n_samples
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +47,27 @@ def test_budget_ledger_appends_jsonl_and_stringifies_unknowns(tmp_path) -> None:
     assert payload['total_eval_calls'] == 16
     assert payload['roles_topo'] == ['reasoner', 'actor']
     assert isinstance(payload['opaque'], str)
+
+
+def test_paper_train_contract_explicitly_keeps_b8_for_all_paper_methods() -> None:
+    assert PAPER_TRAIN_BUDGET_B == 8
+    assert dict(PAPER_TRAIN_METHOD_N_SAMPLES) == {
+        'MAPPO': 8,
+        'MAGRPO': 8,
+        'C3': 8,
+    }
+    assert [get_paper_train_n_samples(m) for m in ('MAPPO', 'MAGRPO', 'C3')] == [8, 8, 8]
+
+
+def test_paper_train_script_uses_contract_helper() -> None:
+    text = (REPO_ROOT / 'scripts' / 'reproduce' / 'paper_train.sh').read_text(encoding='utf-8')
+    assert 'from c3.utils.paper_train_contract import get_paper_train_n_samples' in text
+    assert '--n_samples_per_prompt "$n_samples_per_prompt"' in text
+
+
+def test_experience_maker_no_longer_forces_mappo_to_single_sample() -> None:
+    text = (REPO_ROOT / 'openrlhf' / 'trainer' / 'ppo_utils' / 'experience_maker.py').read_text(encoding='utf-8')
+    assert 'n_samples_per_prompt must be 1 for MAS/C3 tasks' not in text
 
 
 def test_no_data_check_flags_non_empty_generated_dirs(tmp_path) -> None:

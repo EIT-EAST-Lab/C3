@@ -60,9 +60,7 @@
             Eastern Institute of Technology, Ningbo and The Hong Kong Polytechnic University
           </p>
           <p class="hero-summary">
-            C3 turns sparse terminal team feedback into decision-level learning signals for collaborative LLM systems.
-            Instead of crediting an entire trajectory at once, it freezes the exact transcript-derived context, replays
-            fixed-context alternatives, and uses a leave-one-out baseline to estimate marginal causal impact.
+            C3 turns terminal-only feedback in multi-agent LLM collaboration into decision-level credit through fixed-context replay and a leave-one-out baseline.
           </p>
 
           <div class="hero-actions">
@@ -129,16 +127,9 @@
         </div>
         <div class="abstract-card">
           <p>
-            Cooperative MARL systems built from LLM agents are often trained with a single terminal score at the end of
-            an episode. That makes early messages, planning steps, and downstream execution tightly entangled. C3 attacks
-            this problem at the decision level: it freezes the exact local context, samples context-matched alternatives,
-            replays the downstream interaction under a fixed continuation distribution, and subtracts a leave-one-out
-            baseline to produce low-variance advantages for standard policy-gradient optimization.
-          </p>
-          <p>
-            Across five mathematical and coding benchmarks under matched budgets, C3 improves terminal performance over
-            SFT, MAPPO, and MAGRPO. The paper also shows that these gains are accompanied by higher credit fidelity,
-            lower within-context variance, and stronger inter-agent causal dependence.
+            Terminal-only feedback diffuses credit across multi-agent LLM trajectories. C3 freezes transcript-derived
+            context and estimates local causal credit with fixed-context replay plus a leave-one-out baseline,
+            outperforming MAPPO and MAGRPO under matched budgets.
           </p>
         </div>
         <div class="takeaways">
