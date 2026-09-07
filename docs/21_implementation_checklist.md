@@ -33,8 +33,9 @@ Use this checklist when changing protocol, data loading, credit assignment, eval
 
 - `pytest -q tests` passes.
 - Fixture-based smoke passes for both math and code tasks.
+- `pytest -q tests/test_release_surface.py` passes.
 - `bash scripts/90_audit/pre_release.sh` passes.
-- `bash scripts/90_audit/release_gate.sh` passes.
+- `bash scripts/90_audit/release_gate.sh` passes on a CPU machine.
 
 ## Documentation sync
 

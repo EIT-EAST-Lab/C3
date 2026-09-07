@@ -1,30 +1,65 @@
 # Getting Started
 
-This guide is for users who want to install the repository, prepare local data, and run the main paper-facing entrypoints without first reading the full implementation audit.
+This guide takes you from a fresh checkout to a verified installation, prepared
+datasets, and the paper-facing entrypoints, without first reading the full
+implementation audit.
 
-## 1. Install dependencies
+## 0. Pick a tier
 
-Recommended baseline:
+| | CPU tier | GPU tier |
+|---|---|---|
+| Hardware | any x86_64 machine, no GPU | NVIDIA GPUs, CUDA 12.8 compatible runtime |
+| Python | 3.11 | 3.11 |
+| Enables | unit tests, dataset preparation and verification, smoke tests, analysis and plotting, the release gate | everything above, plus training and full paper reproduction |
+| Lock file | `requirements/cpu.lock.txt` | `requirements/gpu.lock.txt` |
+
+Start with the CPU tier. It is enough to check that the repository works, to
+prepare the datasets, and to read the code with a running interpreter beside you.
+
+## 1. Install
+
+### CPU tier
 
 ```bash
 python -m pip install -U pip
-python -m pip install -r requirements.txt --no-build-isolation
+python -m pip install -r requirements/cpu.lock.txt
+python -m pip install -e . --no-deps
 python -m pip check
 ```
 
-Notes:
+The CPU build of PyTorch lives on PyTorch's own index; the required
+`--extra-index-url` line is inside the lock file. To resolve current versions
+rather than the lock, use `python -m pip install -e ".[cpu,test]"`.
 
-- Python 3.11 is the reference version.
-- The repository is Linux-first and expects a CUDA-compatible PyTorch stack for the full training path.
-- Reproduce scripts export the repo root on `PYTHONPATH` automatically.
-
-For lightweight local development and CI-style checks, editable install is also supported:
+### GPU tier
 
 ```bash
-python -m pip install -e .[test]
+python -m pip install -U pip
+python -m pip install -r requirements/gpu.lock.txt
+python -m pip install -e . --no-deps
+python -m pip check
 ```
 
-## 2. Prepare local datasets
+To reproduce the published numbers against the exact stack that produced them,
+install `requirements/gpu-paper.lock.txt` instead. It is a verbatim snapshot of
+the maintainers' training environment and is intentionally not repaired.
+
+FlashAttention is an optional extra (`pip install -e ".[flash]" --no-build-isolation`).
+It is absent from every lock file because it builds from source and needs a CUDA
+toolchain.
+
+## 2. Check the installation
+
+```bash
+pytest -q tests
+bash scripts/30_smoke/smoke.sh --task tests/fixtures/tasks/mini_math.yaml --limit 1 --print_example 0
+bash scripts/30_smoke/smoke.sh --task tests/fixtures/tasks/mini_code.yaml --limit 1 --print_example 0 --skip_import_checks 1
+```
+
+The fixture smokes use the tiny bundled data under `tests/fixtures/` and download
+nothing.
+
+## 3. Prepare local datasets
 
 The public repository does not ship prepared datasets. Generate them locally:
 
@@ -32,29 +67,31 @@ The public repository does not ship prepared datasets. Generate them locally:
 bash scripts/10_data/prepare_all.sh --out_dir data
 ```
 
-Strict verification:
+Strict verification, which recomputes every SHA256 and compares it against
+`configs/data_manifest.yaml`:
 
 ```bash
 bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
 ```
 
-See [DATA_SOURCES.md](DATA_SOURCES.md) for provenance and SHA256 pinning.
+See [30_data_sources.md](30_data_sources.md) for provenance and SHA256 pinning,
+and [31_network_mirrors.md](31_network_mirrors.md) if your network cannot reach
+Hugging Face or GitHub directly.
 
-## 3. Run a wiring smoke test
+## 4. Run a wiring smoke test on real data
 
-This checks task loading, prompt rendering, and evaluator wiring. It is not a model-quality regression test.
+This checks task loading, prompt rendering, and evaluator wiring. It is not a
+model-quality regression test.
 
 ```bash
 bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0
-```
-
-You can also run:
-
-```bash
 bash scripts/30_smoke/smoke.sh --task code --limit 1 --print_example 0
 ```
 
-## 4. Run paper-facing workflows
+`--tier auto` (the default) import-checks the training CLI only when torch reports
+a usable CUDA device. Force it either way with `--tier cpu` or `--tier gpu`.
+
+## 5. Run the paper-facing workflows (GPU tier)
 
 ### SFT-only eval sweep
 
@@ -90,12 +127,12 @@ bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
   --mappo_critic_ckpt <PATH_TO_MAPPO_CRITIC>
 ```
 
-## 5. Understand the implementation
+## 6. Understand the implementation
 
-- quick repository navigation: [CODE_MAP.md](CODE_MAP.md)
-- paper-to-code mapping and invariants: [IMPLEMENTATION_AUDIT.md](IMPLEMENTATION_AUDIT.md)
+- quick repository navigation: [10_code_map.md](10_code_map.md)
+- paper-to-code mapping and invariants: [20_implementation_audit.md](20_implementation_audit.md)
 
-## 6. Release hygiene
+## 7. Release hygiene
 
 Before publishing the repository, run:
 
@@ -109,9 +146,11 @@ Single-command preflight:
 bash scripts/30_smoke/preflight_repro.sh --task math
 ```
 
-The release surface must not include local generated directories such as `data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb/`, or `models/`. See [RELEASE_POLICY.md](RELEASE_POLICY.md).
+The release surface must not include local generated directories such as `data/`,
+`artifacts/`, `ckpt/`, `runs/`, `wandb/`, or `models/`. See
+[50_release_policy.md](50_release_policy.md).
 
-For the full local release gate, use:
+For the full local release gate, which runs on a CPU machine, use:
 
 ```bash
 bash scripts/90_audit/release_gate.sh

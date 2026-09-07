@@ -7,7 +7,8 @@
     <a href="https://arxiv.org/pdf/2603.06859"><img src="https://img.shields.io/badge/PDF-arXiv%20Paper-7B2F1A" alt="arXiv PDF"></a>
     <a href="docs/20_implementation_audit.md"><img src="https://img.shields.io/badge/Paper-Implementation%20Audit-8A2BE2" alt="Paper Implementation Audit"></a>
     <a href="docs/50_release_policy.md"><img src="https://img.shields.io/badge/Release-Policy-0A66C2" alt="Release Policy"></a>
-    <a href=".github/workflows/ci-lite.yml"><img src="https://img.shields.io/badge/CI-Lite%20Gate-2EA043" alt="CI Lite Gate"></a>
+    <a href=".github/workflows/ci-cpu.yml"><img src="https://github.com/EIT-EAST-Lab/C3/actions/workflows/ci-cpu.yml/badge.svg" alt="CPU CI"></a>
+    <a href=".github/workflows/ci-cpu.yml"><img src="https://img.shields.io/github/check-runs/EIT-EAST-Lab/C3/main?nameFilter=release-audit&label=release%20audit" alt="Release audit"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License Apache 2.0"></a>
     <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11"></a>
   </p>
@@ -18,13 +19,16 @@
     <a href="docs/00_getting_started.md">Getting Started</a> |
     <a href="docs/10_code_map.md">Code Map</a> |
     <a href="docs/21_implementation_checklist.md">Implementation Checklist</a> |
-    <a href="docs/51_release_checklist.md">Release Checklist</a>
+    <a href="docs/51_release_checklist.md">Release Checklist</a> |
+    <a href="CHANGELOG.md">Changelog</a>
   </p>
 </div>
 
 Reference implementation for the paper **Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration**.
 
 Paper status: now available on arXiv as [2603.06859](https://arxiv.org/abs/2603.06859). The companion project page is available at [eit-east-lab.github.io/C3](https://eit-east-lab.github.io/C3/), and the official PDF is available [here](https://arxiv.org/pdf/2603.06859).
+
+Repository version 0.2.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and why.
 
 ## TL;DR
 
@@ -33,7 +37,8 @@ Terminal-only feedback in multi-agent LLM collaboration diffuses credit across a
 <p align="center">
   <a href="#core-mechanism">Mechanism</a> |
   <a href="#key-results">Results</a> |
-  <a href="#30-second-quickstart">Quickstart</a> |
+  <a href="#cpu-quickstart">CPU Quickstart</a> |
+  <a href="#gpu-path">GPU Path</a> |
   <a href="#main-workflows">Workflows</a> |
   <a href="#audit-and-release-gate">Release Gate</a>
 </p>
@@ -80,9 +85,23 @@ Corresponding local directories (`data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb
 - [c3/](c3/): Core C3 implementation, including multi-agent protocol handling, environments, credit assignment logic, and analysis tools.
 - [openrlhf/](openrlhf/): Vendored upstream RLHF training stack, augmented with C3-specific integration points.
 - [configs/](configs/): Configurations for tasks, roles, analyses, execution registries, and data manifests.
-- [scripts/](scripts/): Entrypoints for data preparation, experiment reproduction, model utilities, and release gating.
-- [docs/](docs/): Documentation covering release policies, implementation audits, upstream provenance, and data-source contracts.
+- [requirements/](requirements/): Lock files for the CPU tier, the current GPU tier, and the paper environment.
+- [scripts/](scripts/): Entrypoints, numbered in the order a new user runs them.
+- [docs/](docs/): Documentation, numbered in reading order.
 - [project-page/](project-page/): Static companion site for the paper, deployed via GitHub Pages.
+
+The `scripts/` numbers are the workflow:
+
+| Directory | Stage |
+|---|---|
+| [scripts/10_data/](scripts/10_data/) | Download and pin the datasets |
+| [scripts/20_models/](scripts/20_models/) | Pre-download the base models |
+| [scripts/30_smoke/](scripts/30_smoke/) | Fast wiring checks and the reproduction preflight |
+| [scripts/40_train/](scripts/40_train/) | The paper training matrix (GPU) |
+| [scripts/50_eval/](scripts/50_eval/) | The paper main-results sweep (GPU) |
+| [scripts/60_analysis/](scripts/60_analysis/) | Analysis figures |
+| [scripts/90_audit/](scripts/90_audit/) | Release audit and the local release gate |
+| [scripts/_lib/](scripts/_lib/) | Shared shell helpers, sourced rather than run |
 
 ## Quick Navigation
 
@@ -96,44 +115,103 @@ Corresponding local directories (`data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb
 - **Data Provenance**: [Data Sources](docs/30_data_sources.md)
 - **Release Verification**: [Release Checklist](docs/51_release_checklist.md)
 - **Upstream Lineage**: [Upstream Provenance](docs/40_upstream.md)
+- **Release Notes**: [Changelog](CHANGELOG.md)
+- **Network Mirrors**: [docs/31_network_mirrors.md](docs/31_network_mirrors.md)
 
 ## System Requirements
 
-- **OS**: Linux (x86_64)
-- **Python**: 3.11
-- **GPU Stack**: NVIDIA GPUs with CUDA 12.8-compatible runtime
-- **PyTorch**: `torch/torchaudio/torchvision == 2.9.0+cu128`
+The repository installs in two tiers. Pick the one that matches what you want to do.
 
-If your execution environment differs substantially, you may need to manually adapt the pinned dependencies.
+| | CPU tier | GPU tier |
+|---|---|---|
+| Hardware | Any x86_64 machine, no GPU | NVIDIA GPUs with a CUDA 12.8 compatible runtime |
+| Python | 3.11 | 3.11 |
+| What it enables | Unit tests, dataset preparation and verification, smoke tests, analysis and plotting tooling, the release gate | Everything in the CPU tier, plus training and full paper reproduction |
+| Lock file | [requirements/cpu.lock.txt](requirements/cpu.lock.txt) | [requirements/gpu.lock.txt](requirements/gpu.lock.txt) |
+
+The environment that produced the paper's numbers is preserved verbatim as
+[requirements/gpu-paper.lock.txt](requirements/gpu-paper.lock.txt). Use it to
+reproduce the published results against the exact stack that produced them.
 
 ## Installation
 
-Create a standard Python environment, install the pinned stack, and validate the installation:
+### CPU tier
 
 ```bash
 python -m pip install -U pip
-python -m pip install -r requirements.txt --no-build-isolation
+python -m pip install -r requirements/cpu.lock.txt
+python -m pip install -e . --no-deps
 python -m pip check
 ```
 
-**Installation Notes**:
-- `requirements.txt` acts as a strict full-lock snapshot to guarantee reproducibility.
-- `--no-build-isolation` is strongly recommended due to build-sensitive packages (e.g., `flash_attn`).
-- Experiment reproduction scripts automatically export the repository root to `PYTHONPATH` via `scripts/_lib/common_env.sh`.
-- For lightweight local development or CI checks, an editable install is supported: `python -m pip install -e .[test]`
+The lock file pins the CPU build of PyTorch, which is published on PyTorch's own
+index. The required `--extra-index-url` line is inside the lock file, so no extra
+flag is needed. To resolve current versions instead of using the lock, run
+`python -m pip install -e ".[cpu,test]"`.
 
-## 30-Second Quickstart
+### GPU tier
 
 ```bash
-# 1. Install dependencies
-python -m pip install -r requirements.txt --no-build-isolation
+python -m pip install -U pip
+python -m pip install -r requirements/gpu.lock.txt
+python -m pip install -e . --no-deps
+python -m pip check
+```
 
-# 2. Prepare local datasets (datasets are not shipped with the repo)
-bash scripts/10_data/prepare_all.sh --out_dir data
+FlashAttention is optional and deliberately absent from every lock file: it builds
+from source and needs a CUDA toolchain. Add it with
+`python -m pip install -e ".[flash]" --no-build-isolation` if you want it.
 
-# 3. Run a fast E2E wiring smoke test
+Reproduction scripts export the repository root on `PYTHONPATH` themselves, through
+[scripts/_lib/common_env.sh](scripts/_lib/common_env.sh).
+
+## CPU Quickstart
+
+This runs end to end on a laptop: no GPU, no checkpoints, no model weights.
+
+```bash
+# 1. Install the CPU tier
+python -m pip install -r requirements/cpu.lock.txt
+python -m pip install -e . --no-deps
+
+# 2. Check the installation
+pytest -q tests
+
+# 3. Run the fixture smoke test (tiny bundled data, no downloads)
+bash scripts/30_smoke/smoke.sh --task tests/fixtures/tasks/mini_math.yaml --limit 1 --print_example 0
+
+# 4. Prepare the real datasets and verify them against the manifest
+bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
+
+# 5. Run the real-data smoke test
 bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0
 ```
+
+On a CPU machine the smoke test import-checks the `c3` entrypoints only.
+`--tier gpu` additionally import-checks the training CLI, which needs the GPU tier;
+`--tier auto` (the default) picks the tier from `torch.cuda.is_available()`.
+
+## GPU Path
+
+With the GPU tier installed, the paper workflows are:
+
+```bash
+bash scripts/40_train/paper_train.sh                       # training matrix
+bash scripts/50_eval/paper_main_results.sh sweep ...       # evaluation matrix
+bash scripts/60_analysis/paper_analysis_figs.sh fig2 ...   # analysis figures
+```
+
+Each one is spelled out under [Main Workflows](#main-workflows).
+
+## Network Mirrors
+
+Every download goes to its official source by default, and no mirror is
+hard-coded anywhere in this repository. If your network cannot reach PyPI,
+Hugging Face or GitHub directly, opt into a mirror through `HF_ENDPOINT`,
+`GITHUB_MIRROR_PREFIX`, `PIP_INDEX_URL` or `PIP_EXTRA_INDEX_URL`; see
+[Network Mirrors](docs/31_network_mirrors.md). Data integrity does not depend on
+trusting a mirror: `--strict 1` verifies every prepared file against the SHA256
+pins in `configs/data_manifest.yaml`.
 
 ## Data Preparation
 
@@ -151,7 +229,10 @@ While Transformers/vLLM will automatically download weights on first use, we pro
 
 ```bash
 # Log in to Hugging Face (required for gated models like Qwen)
-huggingface-cli login
+hf auth login
+
+# List what the registry resolves to, without downloading anything
+bash scripts/20_models/download_models.sh --dry_run 1
 
 # Pre-download all base models referenced in the results registry
 bash scripts/20_models/download_models.sh \
@@ -203,12 +284,7 @@ bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
 
 ## Implementation Note
 
-**Note on C3 Algorithm Location:** The primary credit assignment mechanism discussed in the paper is **not** located in `c3/algorithms/group_baseline.py` (which serves as a fallback compatibility calculator). The paper-facing C3 implementation is deeply integrated into the experience generation phase. Key entry points include:
-
-- [openrlhf/trainer/ppo_utils/experience_maker.py](openrlhf/trainer/ppo_utils/experience_maker.py)
-- [c3/credit/counterfactual/](c3/credit/counterfactual/)
-
-Please consult the [Implementation Audit](docs/20_implementation_audit.md) for a comprehensive mapping between the paper's theoretical framework and the codebase.
+The paper's credit assignment lives in [c3/credit/counterfactual/](c3/credit/counterfactual/) and [openrlhf/trainer/ppo_utils/experience_maker.py](openrlhf/trainer/ppo_utils/experience_maker.py); see the [Implementation Audit](docs/20_implementation_audit.md) for the full paper-to-code mapping.
 
 ## Audit and Release Gate
 
@@ -228,12 +304,18 @@ For a single-command preflight reproduction check:
 bash scripts/30_smoke/preflight_repro.sh --task math
 ```
 
-These gating scripts rigorously verify:
+These gating scripts verify:
 - Absence of hard-coded private paths
 - Absence of obvious leaked secrets
 - Absence of bundled datasets or generated release-surface artifacts
+- English prose with no em or en dashes, and no CJK outside the functional allowlist
 - Bash scripting syntax sanity
 - Python compilation and test suite sanity
+- That the gate itself leaves no artifacts in the working tree
+
+Both scripts run on a CPU machine with the CPU tier installed. The same two
+stages run in CI on every push and pull request; see
+[.github/workflows/ci-cpu.yml](.github/workflows/ci-cpu.yml).
 
 ## Governance
 
