@@ -28,10 +28,17 @@
 #
 # What has been verified, and on what
 #   Verified on a CPU-only machine: installation resolves and completes,
-#   `python -m pip check` is clean, `import torch, ray, deepspeed, transformers`
-#   succeed, `import openrlhf.cli.train_ppo_ray` with TRANSFORMERS_NO_TF=1
-#   succeeds, the full unit test suite passes, and
-#   `scripts/30_smoke/smoke.sh --tier gpu` passes including the import stage.
+#   `python -m pip check` is clean, and `import torch`, `import ray`,
+#   `import deepspeed`, `import transformers` and `import vllm` all succeed
+#   (vllm imports on a CPU box without VLLM_TARGET_DEVICE). The full unit test
+#   suite passes in this environment.
+#
+#   NOT VERIFIED, and not a packaging problem: `import openrlhf.cli.train_ppo_ray`
+#   fails on a fresh clone with `ModuleNotFoundError: No module named
+#   'openrlhf.models'`. That package is imported by nine modules of the vendored
+#   subtree but has never been committed to this repository. No dependency set
+#   can fix that; the sources have to be added. Until then the GPU tier installs
+#   but the training entry point cannot be imported.
 #
 #   GPU EXECUTION IS NOT YET VALIDATED. The following need a real NVIDIA GPU and
 #   are unverified against this version set:

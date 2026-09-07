@@ -31,10 +31,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# `git status` is only used to prove the gate leaves no artifacts behind, so it
+# must never be able to hang the gate. Bound it, and downgrade to a warning when
+# it is unavailable or slow (a network filesystem can stall it for minutes).
+_c3_git_status() {
+  local out="$1"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 120 git -C "${REPO_ROOT}" status --porcelain > "${out}" 2>/dev/null
+  else
+    git -C "${REPO_ROOT}" status --porcelain > "${out}" 2>/dev/null
+  fi
+}
+
 IN_GIT_TREE=0
 if git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  IN_GIT_TREE=1
-  git -C "${REPO_ROOT}" status --porcelain > "${STATUS_BEFORE}"
+  if _c3_git_status "${STATUS_BEFORE}"; then
+    IN_GIT_TREE=1
+  else
+    echo "[release_gate] WARN: git status did not finish; the working-tree check is skipped."
+  fi
 fi
 
 mkdir -p "${OUT_DIR}"
@@ -103,14 +118,19 @@ if [[ "${RUN_SFT_EVAL}" == "1" ]]; then
     --out_subdir "release_gate_eval"
 fi
 
-if [[ "${IN_GIT_TREE}" -eq 1 ]]; then
-  NEW_ENTRIES="$(git -C "${REPO_ROOT}" status --porcelain | grep -Fxv -f "${STATUS_BEFORE}" || true)"
+STATUS_AFTER="$(mktemp)"
+if [[ "${IN_GIT_TREE}" -eq 1 ]] && _c3_git_status "${STATUS_AFTER}"; then
+  NEW_ENTRIES="$(grep -Fxv -f "${STATUS_BEFORE}" "${STATUS_AFTER}" || true)"
+  rm -f "${STATUS_AFTER}"
   if [[ -n "${NEW_ENTRIES}" ]]; then
     echo "[release_gate] FAIL: the gate left new files in the working tree:" >&2
     echo "${NEW_ENTRIES}" >&2
     exit 1
   fi
   echo "[release_gate] the gate left the working tree as it found it"
+else
+  rm -f "${STATUS_AFTER}"
+  echo "[release_gate] WARN: the working-tree check was skipped."
 fi
 
 echo "[release_gate] DONE"
