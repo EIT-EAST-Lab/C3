@@ -131,7 +131,7 @@ def validate_args(args, ctx: Dict[str, object]) -> None:
     # per_role guards
     if policy_mode == "per_role":
         if getattr(args, "async_train", False):
-            raise ValueError("per_role policy暂不支持 --async_train（请先关闭）。")
+            raise ValueError("per_role policy does not support --async_train yet; disable it first.")
         if not getattr(args, "c3_task", None):
             raise ValueError("per_role policy requires --c3_task to infer role topo order.")
 

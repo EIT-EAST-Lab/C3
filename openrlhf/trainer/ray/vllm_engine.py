@@ -198,7 +198,7 @@ class LLMRayActor(BaseLLMRayActor):
         return False
 
     def sleep(self, level=1):
-        # 允许用环境变量全局控制（避免你每次开新终端忘记 export）
+        # Allow a global override through the environment, so a new shell needs no export.
         level = int(os.environ.get("VLLM_SLEEP_LEVEL", str(level)))
 
         # (C3) In long training runs with mostly-unique prompts, vLLM prefix caching can
@@ -213,7 +213,7 @@ class LLMRayActor(BaseLLMRayActor):
 
         self.llm.sleep(level=level)
 
-        # 强制把缓存块尽量还给 CUDA driver，让 colocate 的训练进程能拿到显存
+        # Hand cached blocks back to the CUDA driver so a colocated training process can claim the memory.
         if os.environ.get("VLLM_SLEEP_EMPTY_CACHE", "1").lower() not in ("0", "false", "no"):
             try:
                 torch.cuda.empty_cache()
@@ -222,7 +222,7 @@ class LLMRayActor(BaseLLMRayActor):
             except Exception:
                 pass
 
-        # 返回一点诊断信息（可选）
+        # Optional diagnostics for the caller.
         try:
             free_b, total_b = torch.cuda.mem_get_info()
             return {"sleep_level": level, "cuda_free_gb": free_b / 1024**3, "cuda_total_gb": total_b / 1024**3}
@@ -241,7 +241,7 @@ class LLMRayActor(BaseLLMRayActor):
         if prompts is not None:
             # prompts: List[str]
             if len(prompts) == 0:
-                # 加固：避免调用方误传空 prompts 导致 get_responses 永久阻塞
+                # Guard: an empty prompt list from the caller would block get_responses forever.
                 self.response_queues.put([])
                 return
             responses = self.llm.generate(

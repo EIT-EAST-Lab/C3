@@ -69,11 +69,11 @@ def _std_sample(xs: Sequence[float]) -> float:
 
 def _fmt_num(x: Any, ndigits: int) -> str:
     if x is None:
-        return "—"
+        return "-"
     try:
         return f"{float(x):.{ndigits}f}"
     except Exception:
-        return "—"
+        return "-"
 
 
 def _fmt_cell(mean: float, std: float, *, ndigits: int, pm: bool) -> str:

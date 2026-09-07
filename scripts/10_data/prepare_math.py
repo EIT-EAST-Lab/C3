@@ -266,7 +266,7 @@ def _iter_rows_from_repo_files(repo_id: str, revision: str, split: str, cfg: Opt
                     if isinstance(x, dict):
                         yield x
             elif isinstance(obj, dict):
-                # 常见结构: {"train": [...], "test": [...]} 或单条 dict
+                # Common shapes: {"train": [...], "test": [...]}, or a single dict.
                 val = obj.get(split)
                 if isinstance(val, list):
                     for x in val:

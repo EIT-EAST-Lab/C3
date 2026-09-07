@@ -1159,11 +1159,11 @@ def _extract(d: Mapping[str, Any], keys: Sequence[str]) -> Any:
 
 def _fmt_num(x: Any, *, ndigits: int = 3) -> str:
     if x is None:
-        return "—"
+        return "-"
     try:
         return f"{float(x):.{ndigits}f}"
     except Exception:
-        return "—"
+        return "-"
 
 
 def _cmd_latex(args: argparse.Namespace) -> None:

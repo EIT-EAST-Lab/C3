@@ -1,30 +1,30 @@
-# ===== Task：代码（MBPP，占位可跑；可扩展多集混采） =====
+# ===== Task: code (MBPP; runnable as shipped, extensible to multi-source mixing) =====
 experiment_name: "c3_code"
 
 environment:
   env_name: "CodeEnv"
   sampling_mode: merge_epoch
-  reshuffle_each_epoch: true   # 每个 epoch 开头洗一遍；想固定顺序就设 false
+  reshuffle_each_epoch: true   # reshuffle at the start of every epoch; set false to keep a fixed order
 
-  # —— 训练：单/多源均可，这里先保留单源 —— #
+  # Training: one or several sources; a single source is kept here.
   train_datasets:
     - name: "MBPP-train"
       path: "data/MBPP/train.jsonl"
       weight: 1.0
       limit: null
 
-  # —— 评测：支持多个评测集（按顺序跑并分别记录指标） —— #
+  # Evaluation: several suites are supported (run in order, metrics recorded per suite).
   eval_suites:
     - name: "MBPP-test"
       path: "data/MBPP/test.jsonl"
       limit: null
-    - name: "MBPP+"     #（如有）
+    - name: "MBPP+"     # when prepared
       path: "data/MBPP_PLUS/test.jsonl"
       limit: null
 
   episode_length: 1
-  mix_seed: 42   # 与数学一致的确定性混采种子（暂不影响单集）
+  mix_seed: 42   # same deterministic mixing seed as the math task (no effect on a single source)
 
-# 角色（默认 Duo）
+# Roles (Duo by default).
 mas:
   roles_path: "../roles/code/roles_duo.json"

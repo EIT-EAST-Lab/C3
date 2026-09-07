@@ -59,7 +59,7 @@ _RE_NUM_TOKEN = re.compile(_NUM_TOKEN)
 _RE_HASH_TOKEN = re.compile(rf"####\s*({_NUM_TOKEN})")
 
 # Common unicode minus chars
-_MINUS_CHARS = "\u2212\u2012\u2013\u2014\u2010"  # − ‒ – — ‐
+_MINUS_CHARS = "\u2212\u2012\u2013\u2014\u2010"  # minus sign, figure dash, en dash, em dash, hyphen
 
 # Whole #### line (not numeric-only); we will take the LAST occurrence.
 _RE_HASH_LINE = re.compile(r"(?m)^\s*####\s*(.+?)\s*$")
@@ -125,13 +125,13 @@ def _strip_trailing_junk(s: str) -> str:
             changed = True
             continue
 
-        # Unmatched ']' — DO NOT remove if we have '(' or '[' anywhere (intervals!)
+        # Unmatched ']': DO NOT remove if we have '(' or '[' anywhere (intervals!)
         if s.endswith("]") and (not _has_any_left_interval_delim(s)):
             s = s[:-1].rstrip(_TRAIL_PUNCT).strip()
             changed = True
             continue
 
-        # Unmatched ')' — DO NOT remove if we have '(' or '[' anywhere (intervals!)
+        # Unmatched ')': DO NOT remove if we have '(' or '[' anywhere (intervals!)
         if s.endswith(")") and (not _has_any_left_interval_delim(s)):
             s = s[:-1].rstrip(_TRAIL_PUNCT).strip()
             changed = True

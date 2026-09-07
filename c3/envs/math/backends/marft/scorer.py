@@ -335,7 +335,7 @@ def _maybe_extract_with_qwen(pred: str, *, data_name: str = "math") -> str:
     except Exception:
         return ""
     try:
-        # 对 MATH 类任务默认不启用 last-number（符号答案更多）
+        # MATH-style tasks disable last-number extraction by default (symbolic answers dominate).
         return str(_extract(pred or "", data_name, use_last_number=False) or "").strip()
     except Exception:
         return ""
@@ -379,7 +379,7 @@ def score_math_marft(
         info.update({"match": False, "reason": "empty_extracted_pred_or_label"})
         return 0.0, info
 
-    # 若输出包含 boxed / 明确模板答案，优先用成熟 extractor
+    # Prefer the mature extractor when the output contains a boxed or clearly templated answer.
     pred_qwen = _maybe_extract_with_qwen(prediction or "", data_name="math")
     gold_qwen = _maybe_extract_with_qwen(label or "", data_name="math")
     if pred_qwen:
@@ -389,7 +389,7 @@ def score_math_marft(
         info["gold_qwen"] = gold_qwen
         gold_raw = gold_qwen
 
-    # 1) 鲁棒判等（tuple/浮点/latex->text 等）
+    # 1) Robust equality (tuples, floats, latex to text, and so on).
     try:
         from .verify_utils import grade_answer  # type: ignore
         ok_grade = bool(grade_answer(pred_raw, gold_raw))
@@ -400,7 +400,7 @@ def score_math_marft(
     except Exception as e:
         info["grade_answer_error"] = f"{type(e).__name__}: {e}"
 
-    # 2) 可选 math-verify
+    # 2) Optional math-verify backend.
     if use_math_verify:
         try:
             from .math_verify import compute_score  # type: ignore
@@ -414,7 +414,7 @@ def score_math_marft(
         except Exception as e:
             info["math_verify_error"] = f"{type(e).__name__}: {e}"
 
-    # 3) SymPy 等价（你现有的 guard + timeout 兜底）
+    # 3) SymPy equivalence, behind the existing guard and timeout fallback.
     pred_norm = normalize_expr(pred_raw)
     gold_norm = normalize_expr(gold_raw)
     info["pred_norm"] = pred_norm
@@ -428,7 +428,7 @@ def score_math_marft(
     info["match"] = bool(ok)
 
     if (not ok) and (detail.startswith("sympy_unavailable") or detail.startswith("sympy_parse_or_simplify_failed")):
-        # 让 reward.py 回退 simple
+        # Signal reward.py to fall back to the simple backend.
         raise ImportError(detail)
 
     return (1.0 if ok else 0.0), info

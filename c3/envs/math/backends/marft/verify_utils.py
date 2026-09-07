@@ -22,8 +22,8 @@ def normalize_answer(answer: Optional[str]) -> Optional[str]:
     except Exception:
         return answer
 
-# 其余内容保持原逻辑，仅去掉重复的 import 与零碎注释噪音
-# --- 下面内容与原实现一致（为节省版面不改动核心逻辑） ---
+# The rest keeps the original logic; only duplicated imports and stray comment noise were removed.
+# --- What follows matches the original implementation; the core logic is untouched. ---
 def _fix_fracs(string):
     substrs = string.split("\\frac")
     new_str = substrs[0]

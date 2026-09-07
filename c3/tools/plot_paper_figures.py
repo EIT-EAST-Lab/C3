@@ -835,7 +835,7 @@ def _figure_legend(fig: Any, *, style: PaperStyle, pal: Palette, color_map: Dict
         handles.append(patch)
 
     n = len(handles)
-    ncol = n  # 强制一行排开（n 个条目 -> n 列）
+    ncol = n  # force a single row: n entries means n columns
 
 
     fig.legend(
