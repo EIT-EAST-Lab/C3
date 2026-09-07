@@ -60,7 +60,7 @@ def test_paper_train_contract_explicitly_keeps_b8_for_all_paper_methods() -> Non
 
 
 def test_paper_train_script_uses_contract_helper() -> None:
-    text = (REPO_ROOT / 'scripts' / 'reproduce' / 'paper_train.sh').read_text(encoding='utf-8')
+    text = (REPO_ROOT / 'scripts' / '40_train' / 'paper_train.sh').read_text(encoding='utf-8')
     assert 'from c3.utils.paper_train_contract import get_paper_train_n_samples' in text
     assert '--n_samples_per_prompt "$n_samples_per_prompt"' in text
 

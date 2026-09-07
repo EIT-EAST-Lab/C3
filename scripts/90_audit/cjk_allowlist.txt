@@ -1,0 +1,25 @@
+# Functional CJK occurrences, allowlisted for scripts/90_audit/scan_prose.py.
+#
+# Format: <repo-relative path>:<substring that must occur in the offending line>
+# Lines starting with # are comments.
+#
+# Every entry below is a benchmark contract, not prose: the CMATH split of the
+# math task is written in Chinese, so the answer cue words and the trailing
+# punctuation sets must stay byte for byte identical to what the dataset uses.
+# Translating them would silently change answer extraction and scoring.
+
+# Answer cue words and the fullwidth colon in the math answer regexes.
+c3/envs/math/parsing.py:答案是
+# Trailing punctuation stripped from an extracted answer.
+c3/envs/math/parsing.py:。；
+
+# Qwen-style answer extraction used by the MARFT math backend.
+c3/envs/math/backends/marft/parse_utils_qwen.py:答案是
+# Multiple-choice question rendering.
+c3/envs/math/backends/marft/parse_utils_qwen.py:选项
+
+# Trailing noise stripped during MARFT normalization.
+c3/envs/math/backends/marft/normalize.py:。；
+
+# Transcript tail split marker: an "Answer" label may carry a fullwidth colon.
+c3/credit/counterfactual/baselines.py:Answer[:：]

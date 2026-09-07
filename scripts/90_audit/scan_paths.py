@@ -24,9 +24,18 @@ from pathlib import Path
 from typing import Iterable, List, Tuple
 
 
-DEFAULT_EXCLUDE_DIRS = {
+# Excluded wherever they occur: these nest anywhere and hold no source.
+ALWAYS_EXCLUDE_DIRS = {
     ".git",
     "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+}
+
+# Excluded only at the repository root: these are generated local outputs.
+# Scoping them to the root matters. An unscoped "data" also skipped the data
+# preparation scripts, so they were never scanned for hard-coded paths.
+ROOT_ONLY_EXCLUDE_DIRS = {
     ".venv",
     "venv",
     "build",
@@ -36,6 +45,7 @@ DEFAULT_EXCLUDE_DIRS = {
     "data",
     "runs",
     "wandb",
+    "models",
 }
 
 # Absolute Unix paths: require a boundary before the leading slash to avoid
@@ -67,13 +77,14 @@ def _iter_text_files(root: Path) -> Iterable[Path]:
         except Exception:
             continue
 
-        parts = set(rel.parts)
-
         # Avoid self-matching on regex literals inside audit scripts.
         if len(rel.parts) >= 2 and rel.parts[0] == "scripts" and rel.parts[1] == "90_audit":
             continue
 
-        if any(d in parts for d in DEFAULT_EXCLUDE_DIRS):
+        if any(part in ALWAYS_EXCLUDE_DIRS for part in rel.parts):
+            continue
+
+        if rel.parts and rel.parts[0] in ROOT_ONLY_EXCLUDE_DIRS:
             continue
 
         if p.suffix.lower() in BINARY_SUFFIXES:

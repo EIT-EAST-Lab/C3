@@ -58,7 +58,7 @@ check_no_bytecode_artifacts() {
 
 echo "[INFO] Repo root: ${ROOT}"
 
-echo "[0/6] Repo hygiene: ensure no __pycache__/ or *.pyc in the repo..."
+echo "[0/7] Repo hygiene: ensure no __pycache__/ or *.pyc in the repo..."
 check_no_bytecode_artifacts
 echo "[OK] repo hygiene passed."
 
@@ -101,30 +101,33 @@ export PYTHONPYCACHEPREFIX="${TMP_PYCACHE}"
 # output is redirected by PYTHONPYCACHEPREFIX).
 export PYTHONDONTWRITEBYTECODE=1
 
-echo "[1/6] Scan for hard-coded absolute paths..."
+echo "[1/7] Scan for hard-coded absolute paths..."
 "${PY}" "${ROOT}/scripts/90_audit/scan_paths.py" --root "${ROOT}"
 
-echo "[2/6] Scan for obvious secrets..."
+echo "[2/7] Scan for obvious secrets..."
 "${PY}" "${ROOT}/scripts/90_audit/scan_secrets.py" --root "${ROOT}"
 
-echo "[3/6] Check for bundled data/large artifacts..."
+echo "[3/7] Check for bundled data/large artifacts..."
 "${PY}" "${ROOT}/scripts/90_audit/no_data_check.py" --root "${ROOT}" --max_mb 20
 
-echo "[4/6] Bash syntax check for *.sh..."
+echo "[4/7] Scan prose: English only, no em or en dashes..."
+"${PY}" "${ROOT}/scripts/90_audit/scan_prose.py" --root "${ROOT}"
+
+echo "[5/7] Bash syntax check for *.sh..."
 # shellcheck disable=SC2044
 for f in $(find "${ROOT}/scripts" -name "*.sh" -type f); do
   bash -n "$f"
 done
 echo "[OK] bash -n passed."
 
-echo "[5/6] Python syntax compile (best-effort)..."
+echo "[6/7] Python syntax compile (best-effort)..."
 "${PY}" -m compileall -q "${ROOT}/c3" "${ROOT}/openrlhf" "${ROOT}/scripts" || {
   echo "[FAIL] python compileall failed." >&2
   exit 1
 }
 echo "[OK] python compileall passed."
 
-echo "[6/6] Repo hygiene: verify audit did not create __pycache__/ or *.pyc..."
+echo "[7/7] Repo hygiene: verify audit did not create __pycache__/ or *.pyc..."
 check_no_bytecode_artifacts
 echo "[OK] repo hygiene post-check passed."
 

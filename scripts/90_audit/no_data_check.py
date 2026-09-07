@@ -22,9 +22,17 @@ from pathlib import Path
 from typing import List, Tuple
 
 
-DEFAULT_EXCLUDE_DIRS = {
+# Excluded wherever they occur: these nest anywhere and hold no release surface.
+ALWAYS_EXCLUDE_DIRS = {
     ".git",
     "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+}
+
+# Excluded only at the repository root, so that a nested directory sharing one of
+# these names (for example scripts/.../build) is still inspected.
+ROOT_ONLY_EXCLUDE_DIRS = {
     ".venv",
     "venv",
     "build",
@@ -77,8 +85,9 @@ ALLOWED_FIXTURE_PREFIXES = {
 
 
 def _is_in_excluded_dir(rel: Path) -> bool:
-    parts = set(rel.parts)
-    return any(d in parts for d in DEFAULT_EXCLUDE_DIRS)
+    if any(part in ALWAYS_EXCLUDE_DIRS for part in rel.parts):
+        return True
+    return bool(rel.parts) and rel.parts[0] in ROOT_ONLY_EXCLUDE_DIRS
 
 
 def _is_allowed_fixture(rel: Path) -> bool:
