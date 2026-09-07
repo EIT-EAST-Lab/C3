@@ -13,5 +13,5 @@ __all__ = [
     "registry",
     "magrpo",
     "mappo",
-    "c3",
+    "group_baseline",
 ]

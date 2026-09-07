@@ -15,7 +15,7 @@ Notes:
 
 # Derived from OpenRLHF (Apache-2.0).
 # Modified by the C3 authors for the C3 project.
-# See docs/UPSTREAM.md and docs/CHANGES_FROM_OPENRLHF.md for provenance.
+# See docs/40_upstream.md and docs/41_changes_from_openrlhf.md for provenance.
 
 from __future__ import annotations
 
@@ -921,7 +921,7 @@ class PPOTrainer(BasePPOTrainer):
         marl_alg0 = self._marl_alg()
         if self._is_c3_mas and marl_alg0 == "c3":
             from c3.integration.marl_specs import load_task
-            from c3.credit.c3.baselines import build_dependency_from_roles
+            from c3.credit.counterfactual.baselines import build_dependency_from_roles
 
             task_spec = load_task(self.args.c3_task)
             self._c3_roles = [r.name for r in task_spec.roles]
@@ -1833,7 +1833,7 @@ class PPOTrainer(BasePPOTrainer):
         # Fail-fast: C3 requires traj_role_outputs; if missing, pruning likely dropped it.
         self._c3_failfast_missing_traj_maps(experiences_all, where="trainer._train_q_critic_if_needed/pre_materialize")
 
-        from c3.credit.c3.materialize import materialize_c3_batch_data
+        from c3.credit.counterfactual.materialize import materialize_c3_batch_data
 
         batch_data, _, _ = materialize_c3_batch_data(
             experiences_all,

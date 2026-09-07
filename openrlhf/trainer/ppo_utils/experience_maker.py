@@ -1,6 +1,6 @@
 # Derived from OpenRLHF (Apache-2.0).
 # Modified by the C3 authors for the C3 project.
-# See docs/UPSTREAM.md and docs/CHANGES_FROM_OPENRLHF.md for provenance.
+# See docs/40_upstream.md and docs/41_changes_from_openrlhf.md for provenance.
 
 from __future__ import annotations
 
@@ -1664,8 +1664,8 @@ class RemoteExperienceMaker(ABC):
 
         q_group = getattr(self, "q_critic_model_group", None)
 
-        from c3.credit.c3.materialize import materialize_c3_tree_groups
-        from c3.credit.c3.registry import build_credit_cfg_from_args, build_credit_provider
+        from c3.credit.counterfactual.materialize import materialize_c3_tree_groups
+        from c3.credit.counterfactual.registry import build_credit_cfg_from_args, build_credit_provider
         from c3.integration.marl_specs import load_task
         from c3.algorithms.utils import group_mean_std
 

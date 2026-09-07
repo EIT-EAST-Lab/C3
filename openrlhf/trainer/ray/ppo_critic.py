@@ -1,6 +1,6 @@
 # Derived from OpenRLHF (Apache-2.0).
 # Modified by the C3 authors for the C3 project.
-# See docs/UPSTREAM.md and docs/CHANGES_FROM_OPENRLHF.md for provenance.
+# See docs/40_upstream.md and docs/41_changes_from_openrlhf.md for provenance.
 
 import math
 import os
@@ -736,7 +736,7 @@ class QCriticModelActor(BaseModelActor):
         prev = getattr(self, "_q_preamble_path", None)
         if prev == path and hasattr(self, "_q_preamble"):
             return str(getattr(self, "_q_preamble", "") or "")
-        from c3.credit.c3.provider import load_critic_preamble_from_json
+        from c3.credit.counterfactual.provider import load_critic_preamble_from_json
 
         pre = load_critic_preamble_from_json(path)
         self._q_preamble_path = path
@@ -745,8 +745,8 @@ class QCriticModelActor(BaseModelActor):
 
     def _build_views_and_targets(self, batch_data: List[dict], roles: List[str], layers, cfg: Dict[str, Any]):
         """Build (texts, targets) for Round B: prefix-only views (one per role)."""
-        from c3.credit.c3.baselines import extract_question, format_for_q
-        from c3.credit.c3.provider import prepend_preamble
+        from c3.credit.counterfactual.baselines import extract_question, format_for_q
+        from c3.credit.counterfactual.provider import prepend_preamble
 
         prefix_scope = _Q_PREFIX_SCOPE
         parents = cfg.get("parents", None)

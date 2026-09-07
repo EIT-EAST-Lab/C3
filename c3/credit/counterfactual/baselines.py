@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""c3.credit.c3.baselines
+"""c3.credit.counterfactual.baselines
 
 C3 formatting & dependency helpers.
 

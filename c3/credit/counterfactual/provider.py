@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-c3.credit.c3.provider
+c3.credit.counterfactual.provider
 
 Rule-B C3 credit provider.
 

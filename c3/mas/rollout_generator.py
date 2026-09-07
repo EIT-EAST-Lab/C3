@@ -531,7 +531,7 @@ class MASRolloutGenerator:
 
         sanitize_fn = None
         if env_name == "MathEnv":
-            from c3.text_sanitize import sanitize_math_solution_text as sanitize_fn  # noqa: N812
+            from c3.utils.text_sanitize import sanitize_math_solution_text as sanitize_fn  # noqa: N812
 
         # -------------------- fanout / mode --------------------
         train_k = int(getattr(args, "n_samples_per_prompt", n_samples_per_prompt) or n_samples_per_prompt)

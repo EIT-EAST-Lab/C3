@@ -65,7 +65,7 @@ def get(name: str) -> MarlAdvFn:
     Dispatch rules:
       - "none"/"auto": returns MAGRPO (safe default for token-only dispatch).
       - "magrpo": MAGRPO group-baseline advantages.
-      - "c3": C3 placeholder baseline (only if implemented in algorithms.c3).
+      - "c3": C3 placeholder baseline (only if implemented in algorithms.group_baseline).
       - "mappo": intentionally NOT supported here (computed in ExperienceMaker).
     """
     cname = canonical_name(name)
@@ -76,7 +76,7 @@ def get(name: str) -> MarlAdvFn:
         return compute_magrpo
 
     if cname == "c3":
-        from .c3 import compute_c3
+        from .group_baseline import compute_c3
 
         return compute_c3
 

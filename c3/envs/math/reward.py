@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .parsing import normalize_math_answer, parse_math_answer
-from c3.text_sanitize import sanitize_math_solution_text
+from c3.utils.text_sanitize import sanitize_math_solution_text
 
 
 # -----------------------------------------------------------------------------

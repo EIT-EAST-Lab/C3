@@ -534,7 +534,7 @@ def build_fidelity_pairs(
 
 # Optional: reuse your existing sanitizer if present.
 try:
-    from c3.text_sanitize import sanitize_math_solution_text as _sanitize_math_solution_text  # type: ignore
+    from c3.utils.text_sanitize import sanitize_math_solution_text as _sanitize_math_solution_text  # type: ignore
 except Exception:  # pragma: no cover
     _sanitize_math_solution_text = None  # type: ignore
 

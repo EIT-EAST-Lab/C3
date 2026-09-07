@@ -120,7 +120,7 @@ def build_credit_provider(
             "Remove regenerate/per-role wiring from the caller."
         )
 
-    from c3.credit.c3.provider import C3CreditProvider
+    from c3.credit.counterfactual.provider import C3CreditProvider
 
     return C3CreditProvider(
         args=args,
