@@ -127,19 +127,19 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Custom ignores for this repo
-data/
-# Keep lightweight test fixtures for CI/repro contracts.
-!tests/fixtures/data/
-!tests/fixtures/data/*.jsonl
-ckpt/
-wandb/
-runs/
+# Local generated outputs. Anchored to the repository root on purpose: unanchored
+# patterns such as `data/` or `models/` also match `scripts/data/`, `scripts/models/`
+# and `tests/fixtures/data/`, which silently kept the data and model preparation
+# scripts out of the public release.
+/data/
+/ckpt/
+/wandb/
+/runs/
 *.pt
 *.pth
 *.bin
 *.safetensors
 
 # Local caches / artifacts (not shipped)
-models/
-artifacts/
+/models/
+/artifacts/
