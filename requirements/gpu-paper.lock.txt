@@ -14,9 +14,9 @@
 #   exactly this set of versions, so the record is preserved as it is.
 #
 # The single normalization applied
-#   `pip freeze` emitted mpi4py as a conda build path
-#   (`mpi4py @ file:///home/conda/...`) that exists only on the maintainers'
-#   machine. It is written here as the equivalent version pin `mpi4py==4.1.1`.
+#   `pip freeze` emitted mpi4py as a direct reference to a local conda build
+#   directory that exists only on the maintainers' machine. It is written here as
+#   the equivalent version pin `mpi4py==4.1.1`.
 #   Nothing else was changed, reordered, upgraded or removed.
 #
 # How to install it
