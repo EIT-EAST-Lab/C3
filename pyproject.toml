@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "c3-marl-llm"
-version = "0.1.0"
+version = "0.2.0"
 description = "Reference implementation for Contextual Counterfactual Credit Assignment (C3)."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,19 +12,79 @@ license = { text = "Apache-2.0" }
 authors = [
   { name = "C3 Authors" }
 ]
+
+# Core: the minimum needed to import the `c3` package and to run the unit tests
+# and the fixture smokes on a CPU-only machine. Measured, not guessed; see
+# requirements/cpu.lock.txt for the resolved versions.
+#
+# `latex2sympy2` is deliberately absent. Two optional modules import it at module
+# level (c3/envs/math/backends/marft/grader.py and parse_utils_qwen.py) but the
+# maintainers' training environment never had it, so those modules resolve to the
+# guarded ImportError stubs in c3/envs/math/backends/marft/__init__.py. Installing
+# it would silently switch the math scorer onto a different extraction path.
 dependencies = [
   "PyYAML>=6.0",
+  "numpy>=1.26",
+  "torch>=2.4",
+  "sympy>=1.12",
+  "regex>=2023.10.3",
+  "word2number>=1.1",
+  "pylatexenc>=2.10",
 ]
 
 [project.optional-dependencies]
+# CPU tier: everything the documented CPU quickstart needs on top of the core.
+# Enables dataset preparation, the real-data smoke test, the analysis and
+# plotting tooling, and the release gate. No GPU required.
+cpu = [
+  "transformers>=4.44",
+  "datasets>=3.0",
+  "huggingface_hub>=0.26",
+  "pyarrow>=15.0",
+  "evalplus>=0.3.1",
+  "math-verify>=0.5.2",
+  "matplotlib>=3.8",
+]
+
+# GPU tier: the training and paper-reproduction stack. Needs NVIDIA GPUs.
+# Pinned, internally consistent versions live in requirements/gpu.lock.txt.
+train = [
+  "vllm>=0.10",
+  "ray[default]>=2.40",
+  "deepspeed>=0.15",
+  "peft>=0.13",
+  "accelerate>=1.0",
+  "transformers>=4.44",
+  "datasets>=3.0",
+  "torchdata>=0.10",
+  "tqdm>=4.66",
+  "requests>=2.31",
+  "packaging>=23.0",
+  "wandb>=0.18",
+]
+
+# FlashAttention is never imported directly: it is selected through the
+# `attn_implementation="flash_attention_2"` string. It is kept out of every lock
+# file because its source build needs a CUDA toolchain (nvcc).
+flash = [
+  "flash-attn>=2.6",
+]
+
 test = [
   "pytest>=9.0",
   "datasets>=3.0",
 ]
+
 dev = [
   "pytest>=9.0",
   "datasets>=3.0",
 ]
+
+[project.urls]
+Homepage = "https://eit-east-lab.github.io/C3/"
+Repository = "https://github.com/EIT-EAST-Lab/C3"
+Issues = "https://github.com/EIT-EAST-Lab/C3/issues"
+Changelog = "https://github.com/EIT-EAST-Lab/C3/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["c3*", "openrlhf*"]

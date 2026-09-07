@@ -1,0 +1,302 @@
+# C3 GPU tier lock file
+#
+# What this is
+#   A current, internally consistent training stack: the vLLM, Ray and DeepSpeed
+#   environment needed to run the paper's training and evaluation workflows,
+#   resolved against the newest vLLM release. `pip check` passes on it.
+#   To reproduce the published numbers against the environment that produced
+#   them, use requirements/gpu-paper.lock.txt instead.
+#
+# How it was generated
+#   python -m venv .venv && . .venv/bin/activate
+#   python -m pip install -U pip
+#   python -m pip install "vllm==0.28.0"
+#   python -m pip install deepspeed "ray[default]" peft accelerate torchdata wandb
+#   python -m pip install PyYAML numpy sympy regex word2number pylatexenc pytest \
+#                         datasets transformers huggingface_hub pyarrow matplotlib math-verify
+#   python -m pip freeze     # the editable self-reference line was removed
+#   Date: 2026-09-07 (UTC). Resolved on Linux x86_64 with CPython 3.11.14.
+#   vLLM is pinned first on purpose: it is the package that pins torch, and
+#   letting the resolver choose it last sends it backtracking through every
+#   release.
+#
+# How to install it
+#   python -m pip install -r requirements/gpu.lock.txt
+#   python -m pip install -e . --no-deps
+#   No extra index is needed: torch 2.13.0 on PyPI is the CUDA build, and it
+#   pulls the CUDA 13 runtime wheels listed below.
+#
+# What has been verified, and on what
+#   Verified on a CPU-only machine: installation resolves and completes,
+#   `python -m pip check` is clean, `import torch, ray, deepspeed, transformers`
+#   succeed, `import openrlhf.cli.train_ppo_ray` with TRANSFORMERS_NO_TF=1
+#   succeeds, the full unit test suite passes, and
+#   `scripts/30_smoke/smoke.sh --tier gpu` passes including the import stage.
+#
+#   GPU EXECUTION IS NOT YET VALIDATED. The following need a real NVIDIA GPU and
+#   are unverified against this version set:
+#     - vLLM engine sleep and wake, and the weight synchronization path in
+#       openrlhf/trainer/ray/vllm_engine.py;
+#     - a DeepSpeed ZeRO-2 training step;
+#     - the FlashAttention path (attn_implementation="flash_attention_2");
+#     - end to end numerical agreement with the published results.
+#   Treat this file as a starting point for a GPU bring-up, not as a validated
+#   training environment.
+#
+# What is deliberately absent
+#   flash-attn: never imported directly, selected through the
+#     attn_implementation="flash_attention_2" string. It builds from source and
+#     needs a CUDA toolchain, so it is an optional extra: pip install -e ".[flash]"
+#     --no-build-isolation.
+#   xformers: the only release that resolves against this torch would drag the
+#     resolver away from vLLM's own pin, and nothing in this repository imports
+#     it. It was in the paper environment, where it is the reason `pip check`
+#     fails there.
+#   evalplus: its Google client chain pins protobuf below 6, while the CUTLASS
+#     libraries that vLLM 0.28 depends on need protobuf 6.30.2 or newer. The two
+#     cannot coexist. evalplus is only needed to prepare the MBPP+ dataset, which
+#     is a CPU-tier task: prepare the datasets with requirements/cpu.lock.txt and
+#     train with this file.
+#
+# Note on CUDA: this stack targets CUDA 13 (see the nvidia-*-cu13 wheels), while
+# the paper environment targets CUDA 12.8. Check your driver before adopting it.
+
+accelerate==1.14.0
+agent-detector==2.0.0
+aiohappyeyeballs==2.7.1
+aiohttp==3.14.3
+aiohttp-cors==0.8.1
+aiosignal==1.4.0
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anthropic==1.4.0
+antlr4-python3-runtime==4.13.2
+anyio==4.15.1
+apache-tvm-ffi==0.1.11
+astor==0.8.1
+attrs==26.1.0
+blake3==1.0.9
+cachetools==7.1.8
+cbor2==6.1.4
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+click==8.5.0
+cloudpickle==3.1.2
+colorful==0.5.8
+compressed-tensors==0.17.0
+contourpy==1.3.3
+cryptography==50.0.1
+cuda-bindings==13.3.1
+cuda-core==1.0.1
+cuda-pathfinder==1.8.1
+cuda-python==13.3.1
+cuda-tile==1.5.0
+cuda-toolkit==13.0.3.0
+cycler==0.12.1
+datasets==5.0.1
+deepspeed==0.19.6
+depyf==0.20.0
+detect-installer==0.2.1
+dill==0.4.1
+distlib==0.4.3
+dnspython==2.8.0
+docstring_parser==0.18.0
+einops==0.8.2
+email-validator==2.3.0
+fastapi==0.136.3
+fastapi-cli==0.0.32
+fastapi-cloud-cli==0.25.0
+fastar==0.12.0
+fastsafetensors==0.4.0
+filelock==3.32.5
+flashinfer-python==0.6.16.post3
+fonttools==4.64.0
+frozenlist==1.8.0
+fsspec==2026.6.0
+google-api-core==2.36.0
+google-auth==2.57.1
+googleapis-common-protos==1.75.3
+grpcio==1.83.1
+h11==0.16.0
+hf-xet==1.6.0
+hjson==3.1.0
+httpcore==1.0.9
+httpcore2==2.12.0
+httptools==0.8.0
+httpx==0.28.1
+httpx2==2.12.0
+huggingface_hub==1.30.0
+humming-kernels==0.1.12
+idna==3.19
+ijson==3.5.1
+iniconfig==2.3.0
+interegular==0.3.3
+Jinja2==3.1.6
+jiter==0.16.0
+jmespath==1.1.0
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+kiwisolver==1.5.1
+lark==1.2.2
+latex2sympy2_extended==1.11.0
+llguidance==1.7.6
+llvmlite==0.47.0
+lm-format-enforcer==0.11.3
+loguru==0.7.3
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+math-verify==0.9.0
+matplotlib==3.11.1
+mcp==2.2.0
+mcp-types==2.2.0
+mdurl==0.1.2
+mistral_common==1.11.7
+ml_dtypes==0.6.0
+model-hosting-container-standards==0.1.16
+mpmath==1.3.0
+msgpack==1.2.2
+msgspec==0.21.1
+multidict==6.7.1
+multiprocess==0.70.19
+nccl4py==0.5.0
+networkx==3.6.1
+ninja==1.13.2
+numba==0.65.0
+numpy==2.3.5
+nvidia-cublas==13.1.1.3
+nvidia-cuda-cccl==13.3.3.4.1
+nvidia-cuda-crt==13.3.73
+nvidia-cuda-cupti==13.0.85
+nvidia-cuda-nvcc==13.3.73
+nvidia-cuda-nvdisasm==13.3.73
+nvidia-cuda-nvrtc==13.0.88
+nvidia-cuda-runtime==13.0.96
+nvidia-cudnn-cu13==9.20.0.48
+nvidia-cudnn-frontend==1.28.0
+nvidia-cufft==12.0.0.61
+nvidia-cufile==1.15.1.6
+nvidia-curand==10.4.0.35
+nvidia-cusolver==12.0.4.66
+nvidia-cusparse==12.6.3.3
+nvidia-cusparselt-cu13==0.8.1
+nvidia-cutlass-dsl==4.6.2
+nvidia-cutlass-dsl-libs-base==4.6.2
+nvidia-cutlass-dsl-libs-core==4.6.2
+nvidia-cutlass-dsl-libs-cu12==4.6.2
+nvidia-cutlass-dsl-libs-cu13==4.6.2
+nvidia-ml-py==13.610.43
+nvidia-nccl-cu13==2.29.7
+nvidia-nvjitlink==13.3.33
+nvidia-nvshmem-cu13==3.4.5
+nvidia-nvtx==13.0.85
+nvidia-nvvm==13.3.73
+nvtx==0.2.15
+openai==3.8.0
+openai-harmony==0.0.8
+opencensus==0.11.4
+opencensus-context==0.1.3
+opencv-python-headless==5.0.0.93
+opentelemetry-api==1.44.0
+opentelemetry-exporter-otlp==1.44.0
+opentelemetry-exporter-otlp-proto-common==1.44.0
+opentelemetry-exporter-otlp-proto-grpc==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.44.0
+opentelemetry-exporter-prometheus==0.65b0
+opentelemetry-proto==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-semantic-conventions==0.65b0
+opentelemetry-semantic-conventions-ai==0.5.1
+outlines_core==0.2.14
+packaging==26.3
+pandas==3.0.5
+partial-json-parser==0.2.1.1.post7
+peft==0.20.0
+pillow==12.3.0
+platformdirs==4.11.7
+pluggy==1.6.0
+prometheus-fastapi-instrumentator==8.1.0
+prometheus_client==0.26.0
+propcache==0.5.2
+proto-plus==1.28.4
+protobuf==6.33.6
+psutil==7.2.2
+py-cpuinfo==9.0.0
+py-spy==0.4.2
+pyarrow==25.0.1
+pyasn1==0.6.4
+pyasn1_modules==0.4.2
+pybase64==1.5.0
+pycountry==26.2.16
+pycparser==3.0
+pydantic==2.13.5
+pydantic-extra-types==2.11.1
+pydantic-settings==2.15.0
+pydantic_core==2.46.5
+Pygments==2.21.0
+PyJWT==2.13.0
+pylatexenc==2.11
+pynvvideocodec==2.0.4
+pyparsing==3.3.2
+pytest==9.1.1
+python-dateutil==2.9.0.post0
+python-discovery==1.6.0
+python-dotenv==1.2.3
+python-json-logger==4.2.0
+python-multipart==0.0.32
+PyYAML==6.0.3
+pyzmq==27.2.0
+quack-kernels==0.6.4
+ray==2.58.0
+referencing==0.37.0
+regex==2026.9.3
+requests==2.34.2
+rich==15.0.0
+rich-toolkit==0.20.4
+rignore==0.8.1
+rpds-py==2026.6.3
+safetensors==0.8.0
+sentencepiece==0.2.2
+sentry-sdk==2.68.1
+setproctitle==1.3.7
+shellingham==1.5.4
+six==1.17.0
+smart_open==8.0.1
+sniffio==1.3.1
+sse-starlette==3.4.11
+starlette==1.6.0
+supervisor==4.3.0
+sympy==1.14.0
+tabulate==0.10.0
+tiktoken==0.14.0
+tilelang==0.1.12
+tokenizers==0.23.2
+tokenspeed-mla==0.1.8
+tokenspeed-triton==3.8.10.post20260906
+torch==2.13.0
+torch_c_dlpack_ext==0.1.5
+torchaudio==2.11.0
+torchcodec==0.16.0
+torchdata==0.11.0
+torchvision==0.28.0
+tqdm==4.70.0
+transformers==5.16.1
+triton==3.7.1
+truststore==0.10.4
+typer==0.27.2
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+urllib3==2.7.0
+uvicorn==0.52.4
+uvloop==0.22.1
+virtualenv==21.7.8
+vllm==0.28.0
+wandb==0.29.0
+watchfiles==1.2.0
+websockets==17.1
+word2number==1.1
+wrapt==2.4.0
+xgrammar==0.2.3
+xxhash==4.0.1
+yarl==1.24.5
+z3-solver==4.15.4.0

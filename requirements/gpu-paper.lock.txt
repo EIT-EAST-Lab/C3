@@ -1,10 +1,28 @@
-# C3 reproducible lockfile (single-file policy)
-# Tested baseline: Linux x86_64, Python 3.11, CUDA 12.8
-# Recommended install:
-#   python -m pip install -r requirements.txt --no-build-isolation
-# Note:
-#   This is an environment lock snapshot for reproducible experiments/app usage.
-#   It is intentionally full (includes transitive dependencies).
+# C3 paper environment lock file (historical)
+#
+# What this is
+#   A `pip freeze` of the maintainers' training environment: the lineage that
+#   produced the numbers reported in the paper. Linux x86_64, Python 3.11,
+#   CUDA 12.8, NVIDIA A800 GPUs.
+#   It is kept so that the published results can be reproduced against the exact
+#   stack that produced them. It is NOT the recommended environment for new work:
+#   use requirements/gpu.lock.txt for that.
+#
+# Known and deliberately unfixed
+#   `pip check` does not pass on this environment: xformers 0.0.32.post1 declares
+#   torch 2.8.0 while torch is 2.9.0+cu128. The training runs were performed with
+#   exactly this set of versions, so the record is preserved as it is.
+#
+# The single normalization applied
+#   `pip freeze` emitted mpi4py as a conda build path
+#   (`mpi4py @ file:///home/conda/...`) that exists only on the maintainers'
+#   machine. It is written here as the equivalent version pin `mpi4py==4.1.1`.
+#   Nothing else was changed, reordered, upgraded or removed.
+#
+# How to install it
+#   python -m pip install -r requirements/gpu-paper.lock.txt --no-build-isolation
+#   `--no-build-isolation` matters because flash_attn builds from source and needs
+#   the CUDA toolchain (nvcc) plus an already installed torch.
 --extra-index-url https://download.pytorch.org/whl/cu128
 
 absl-py==2.3.1
@@ -230,6 +248,7 @@ pydantic-settings==2.10.1
 pydantic_core==2.41.5
 Pygments==2.19.2
 pylatexenc==2.10
+PyMuPDF==1.27.1
 pynvml==12.0.0
 pyparsing==3.2.5
 pyproject_hooks==1.2.0

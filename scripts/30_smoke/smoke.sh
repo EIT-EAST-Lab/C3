@@ -18,6 +18,10 @@ Options:
   --limit N                #examples to run through the env+evaluator. Default: 1.
   --seed S                 Random seed for the smoke test. Default: 0.
   --print_example 0|1      Whether to print one example (prompts/pred/result). Default: 1.
+  --tier auto|cpu|gpu      Which import checks to run. Default: auto.
+                           cpu:  check the c3 entrypoints only.
+                           gpu:  also import-check the training CLI (needs the GPU tier install).
+                           auto: gpu when torch reports a usable CUDA device, cpu otherwise.
 
   # Optional (slower): run ONE eval-only call through the OpenRLHF CLI using an HF base model.
   # This does NOT require checkpoints, but it may require GPU/vLLM depending on your setup.
@@ -54,9 +58,11 @@ EVAL_SFT="0"
 HF_BASE="${SMOKE_HF_BASE:-}"
 PROFILE="greedy"
 SKIP_IMPORT_CHECKS="0"
+TIER="auto"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --tier) TIER="${2:-}"; shift 2 ;;
     --task) TASK="${2:-}"; shift 2 ;;
     --limit) LIMIT="${2:-}"; shift 2 ;;
     --seed) SEED="${2:-}"; shift 2 ;;
@@ -87,13 +93,39 @@ c3_repro_export_common_env "${REPO_ROOT}"
 
 _echo() { echo "[smoke] $*" >&2; }
 
+_resolve_tier() {
+  case "${TIER}" in
+    cpu|gpu)
+      echo "${TIER}"
+      ;;
+    auto)
+      if "${PYTHON_BIN}" -c "import sys, torch; sys.exit(0 if torch.cuda.is_available() else 1)" >/dev/null 2>&1; then
+        echo "gpu"
+      else
+        echo "cpu"
+      fi
+      ;;
+    *)
+      echo "ERROR: --tier must be auto, cpu or gpu (got '${TIER}')" >&2
+      exit 2
+      ;;
+  esac
+}
+
+RESOLVED_TIER="$(_resolve_tier)"
+
 _echo "repo_root=${REPO_ROOT}"
 _echo "python=${PYTHON_BIN}"
 _echo "task_yaml=${TASK_YAML}"
+_echo "tier=${TIER} (resolved: ${RESOLVED_TIER})"
 
 if [[ "${SKIP_IMPORT_CHECKS}" != "1" ]]; then
-  _echo "1) import-check: ${TRAIN_MOD}"
-  "${PYTHON_BIN}" -c "import ${TRAIN_MOD}" >/dev/null
+  if [[ "${RESOLVED_TIER}" == "gpu" ]]; then
+    _echo "1) import-check: ${TRAIN_MOD}"
+    "${PYTHON_BIN}" -c "import ${TRAIN_MOD}" >/dev/null
+  else
+    _echo "1) skip import-check of ${TRAIN_MOD} (CPU tier; it needs the GPU training stack)"
+  fi
 
   _echo "2) import-check: ${ANALYSIS_MOD}"
   "${PYTHON_BIN}" -c "import ${ANALYSIS_MOD}" >/dev/null
