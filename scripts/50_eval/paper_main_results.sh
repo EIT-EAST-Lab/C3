@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# scripts/reproduce/paper_main_results.sh
+# scripts/50_eval/paper_main_results.sh
 #
 # Run evaluation-only sweeps for paper main results, and aggregate tables.
 #
 # Usage:
-#   bash scripts/reproduce/paper_main_results.sh sweep \
+#   bash scripts/50_eval/paper_main_results.sh sweep \
 #     --registry configs/main_results_registry.yaml \
 #     --ckpt_root ckpt \
 #     --out_dir ckpt/paper_main_results \
 #     [--only_methods SFT|MAPPO|MAGRPO|C3] \
 #     [--resume 1]
 #
-#   bash scripts/reproduce/paper_main_results.sh one \
+#   bash scripts/50_eval/paper_main_results.sh one \
 #     --id <run_id> \
 #     --profile greedy|n10 \
 #     --registry configs/main_results_registry.yaml
 #
 #   # Direct one-shot mode (no registry lookup):
-#   bash scripts/reproduce/paper_main_results.sh one \
+#   bash scripts/50_eval/paper_main_results.sh one \
 #     --id <run_id> \
 #     --profile greedy|n10 \
 #     --method C3 \
@@ -37,7 +37,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-source "${SCRIPT_DIR}/common_env.sh"
+source "${REPO_ROOT}/scripts/_lib/common_env.sh"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
 CKPT_ROOT="ckpt"
@@ -67,8 +67,8 @@ DIRECT_ALG_FOR_EVAL=""
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/reproduce/paper_main_results.sh sweep [options]
-  bash scripts/reproduce/paper_main_results.sh one   [options]
+  bash scripts/50_eval/paper_main_results.sh sweep [options]
+  bash scripts/50_eval/paper_main_results.sh one   [options]
 
 Commands:
   sweep   Run all runs x profiles defined in registry (with optional filters).

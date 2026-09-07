@@ -17,8 +17,8 @@ Use this checklist when changing protocol, data loading, credit assignment, eval
 
 ## Algorithm and credit contracts
 
-- The paper-facing C3 path remains centered on `openrlhf/trainer/ppo_utils/experience_maker.py` plus `c3/credit/c3/*`.
-- `c3/algorithms/c3.py` remains documented as a fallback path, not the primary implementation.
+- The paper-facing C3 path remains centered on `openrlhf/trainer/ppo_utils/experience_maker.py` plus `c3/credit/counterfactual/*`.
+- `c3/algorithms/group_baseline.py` remains documented as a fallback path, not the primary implementation.
 - Changes to `marl_algorithm=auto` behavior are intentional and documented.
 
 ## Evaluation and aggregation contracts
@@ -33,11 +33,11 @@ Use this checklist when changing protocol, data loading, credit assignment, eval
 
 - `pytest -q tests` passes.
 - Fixture-based smoke passes for both math and code tasks.
-- `bash scripts/audit/pre_release.sh` passes.
-- `bash scripts/audit/release_gate.sh` passes.
+- `bash scripts/90_audit/pre_release.sh` passes.
+- `bash scripts/90_audit/release_gate.sh` passes.
 
 ## Documentation sync
 
-- If the implementation path changed, update `docs/CODE_MAP.md`.
-- If the paper-facing mapping changed, update `docs/IMPLEMENTATION_AUDIT.md`.
-- If release behavior changed, update `README.md`, `docs/GETTING_STARTED.md`, and `docs/RELEASE_POLICY.md`.
+- If the implementation path changed, update `docs/10_code_map.md`.
+- If the paper-facing mapping changed, update `docs/20_implementation_audit.md`.
+- If release behavior changed, update `README.md`, `docs/00_getting_started.md`, and `docs/50_release_policy.md`.

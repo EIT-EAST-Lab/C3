@@ -20,8 +20,8 @@
 
 ## How to test
 
-- [ ] `bash scripts/audit/pre_release.sh`
-- [ ] `bash scripts/reproduce/smoke.sh`
+- [ ] `bash scripts/90_audit/pre_release.sh`
+- [ ] `bash scripts/30_smoke/smoke.sh`
 - [ ] Additional task-specific commands:
 
 ## Reviewer checklist

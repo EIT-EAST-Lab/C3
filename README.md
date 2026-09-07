@@ -5,8 +5,8 @@
     <a href="https://eit-east-lab.github.io/C3/"><img src="https://img.shields.io/badge/Project-Page-B24A2F" alt="Project Page"></a>
     <a href="https://arxiv.org/abs/2603.06859"><img src="https://img.shields.io/badge/arXiv-2603.06859-B31B1B" alt="arXiv 2603.06859"></a>
     <a href="https://arxiv.org/pdf/2603.06859"><img src="https://img.shields.io/badge/PDF-arXiv%20Paper-7B2F1A" alt="arXiv PDF"></a>
-    <a href="docs/IMPLEMENTATION_AUDIT.md"><img src="https://img.shields.io/badge/Paper-Implementation%20Audit-8A2BE2" alt="Paper Implementation Audit"></a>
-    <a href="docs/RELEASE_POLICY.md"><img src="https://img.shields.io/badge/Release-Policy-0A66C2" alt="Release Policy"></a>
+    <a href="docs/20_implementation_audit.md"><img src="https://img.shields.io/badge/Paper-Implementation%20Audit-8A2BE2" alt="Paper Implementation Audit"></a>
+    <a href="docs/50_release_policy.md"><img src="https://img.shields.io/badge/Release-Policy-0A66C2" alt="Release Policy"></a>
     <a href=".github/workflows/ci-lite.yml"><img src="https://img.shields.io/badge/CI-Lite%20Gate-2EA043" alt="CI Lite Gate"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License Apache 2.0"></a>
     <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11"></a>
@@ -15,10 +15,10 @@
     <a href="https://eit-east-lab.github.io/C3/">Project Page</a> |
     <a href="https://arxiv.org/abs/2603.06859">arXiv</a> |
     <a href="https://arxiv.org/pdf/2603.06859">PDF</a> |
-    <a href="docs/GETTING_STARTED.md">Getting Started</a> |
-    <a href="docs/CODE_MAP.md">Code Map</a> |
-    <a href="docs/IMPLEMENTATION_CHECKLIST.md">Implementation Checklist</a> |
-    <a href="docs/RELEASE_CHECKLIST.md">Release Checklist</a>
+    <a href="docs/00_getting_started.md">Getting Started</a> |
+    <a href="docs/10_code_map.md">Code Map</a> |
+    <a href="docs/21_implementation_checklist.md">Implementation Checklist</a> |
+    <a href="docs/51_release_checklist.md">Release Checklist</a>
   </p>
 </div>
 
@@ -73,7 +73,7 @@ To maintain a clean public-release surface, this repository does **not** distrib
 - Cached model weights
 - Generated run-time artifacts (e.g., run logs, checkpoints, reports, and experiment outputs)
 
-Corresponding local directories (`data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb/`, `models/`) are treated as local working outputs and remain empty or absent in the public release. For details, see the [Release Policy](docs/RELEASE_POLICY.md).
+Corresponding local directories (`data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb/`, `models/`) are treated as local working outputs and remain empty or absent in the public release. For details, see the [Release Policy](docs/50_release_policy.md).
 
 ## Repository Structure
 
@@ -89,13 +89,13 @@ Corresponding local directories (`data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb
 - **Project Page**: [C3 Paper Page](https://eit-east-lab.github.io/C3/)
 - **Paper**: [arXiv Abstract](https://arxiv.org/abs/2603.06859)
 - **PDF**: [arXiv PDF](https://arxiv.org/pdf/2603.06859)
-- **New User**: [Getting Started Guide](docs/GETTING_STARTED.md)
-- **Code Layout**: [Code Map](docs/CODE_MAP.md)
-- **Paper-to-Code Mapping**: [Implementation Audit](docs/IMPLEMENTATION_AUDIT.md)
-- **Development Invariants**: [Implementation Checklist](docs/IMPLEMENTATION_CHECKLIST.md)
-- **Data Provenance**: [Data Sources](docs/DATA_SOURCES.md)
-- **Release Verification**: [Release Checklist](docs/RELEASE_CHECKLIST.md)
-- **Upstream Lineage**: [Upstream Provenance](docs/UPSTREAM.md)
+- **New User**: [Getting Started Guide](docs/00_getting_started.md)
+- **Code Layout**: [Code Map](docs/10_code_map.md)
+- **Paper-to-Code Mapping**: [Implementation Audit](docs/20_implementation_audit.md)
+- **Development Invariants**: [Implementation Checklist](docs/21_implementation_checklist.md)
+- **Data Provenance**: [Data Sources](docs/30_data_sources.md)
+- **Release Verification**: [Release Checklist](docs/51_release_checklist.md)
+- **Upstream Lineage**: [Upstream Provenance](docs/40_upstream.md)
 
 ## System Requirements
 
@@ -119,7 +119,7 @@ python -m pip check
 **Installation Notes**:
 - `requirements.txt` acts as a strict full-lock snapshot to guarantee reproducibility.
 - `--no-build-isolation` is strongly recommended due to build-sensitive packages (e.g., `flash_attn`).
-- Experiment reproduction scripts automatically export the repository root to `PYTHONPATH` via `scripts/reproduce/common_env.sh`.
+- Experiment reproduction scripts automatically export the repository root to `PYTHONPATH` via `scripts/_lib/common_env.sh`.
 - For lightweight local development or CI checks, an editable install is supported: `python -m pip install -e .[test]`
 
 ## 30-Second Quickstart
@@ -129,10 +129,10 @@ python -m pip check
 python -m pip install -r requirements.txt --no-build-isolation
 
 # 2. Prepare local datasets (datasets are not shipped with the repo)
-bash scripts/data/prepare_all.sh --out_dir data
+bash scripts/10_data/prepare_all.sh --out_dir data
 
 # 3. Run a fast E2E wiring smoke test
-bash scripts/reproduce/smoke.sh --task math --limit 1 --print_example 0
+bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0
 ```
 
 ## Data Preparation
@@ -140,10 +140,10 @@ bash scripts/reproduce/smoke.sh --task math --limit 1 --print_example 0
 Prepared datasets are generated locally from strictly pinned upstream sources. They are not bundled with the codebase.
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data
+bash scripts/10_data/prepare_all.sh --out_dir data
 ```
 
-The authoritative source of truth for all data derivations is [configs/data_manifest.yaml](configs/data_manifest.yaml). See [Data Sources](docs/DATA_SOURCES.md) and [Third-Party Notices](THIRD_PARTY_NOTICES.md) for provenance details.
+The authoritative source of truth for all data derivations is [configs/data_manifest.yaml](configs/data_manifest.yaml). See [Data Sources](docs/30_data_sources.md) and [Third-Party Notices](THIRD_PARTY_NOTICES.md) for provenance details.
 
 ## Model Preparation
 
@@ -154,7 +154,7 @@ While Transformers/vLLM will automatically download weights on first use, we pro
 huggingface-cli login
 
 # Pre-download all base models referenced in the results registry
-bash scripts/models/download_models.sh \
+bash scripts/20_models/download_models.sh \
   --registry configs/main_results_registry.yaml \
   --out_dir models
 ```
@@ -164,13 +164,13 @@ bash scripts/models/download_models.sh \
 ### Smoke Test
 Fast end-to-end wiring check to verify environment and protocol integrity:
 ```bash
-bash scripts/reproduce/smoke.sh
+bash scripts/30_smoke/smoke.sh
 ```
 
 ### SFT-only Main Results Sweep
 Run the evaluation matrix exclusively for the SFT baseline:
 ```bash
-bash scripts/reproduce/paper_main_results.sh sweep \
+bash scripts/50_eval/paper_main_results.sh sweep \
   --registry configs/main_results_registry.yaml \
   --only_methods SFT
 ```
@@ -179,20 +179,20 @@ bash scripts/reproduce/paper_main_results.sh sweep \
 Execute the complete set of model training runs:
 ```bash
 export PRETRAIN='Qwen/Qwen2.5-3B-Instruct'
-bash scripts/reproduce/paper_train.sh
+bash scripts/40_train/paper_train.sh
 ```
 
 ### Full Main Results Sweep
 Run the full paper evaluation matrix across all methods:
 ```bash
-bash scripts/reproduce/paper_main_results.sh sweep \
+bash scripts/50_eval/paper_main_results.sh sweep \
   --registry configs/main_results_registry.yaml
 ```
 
 ### Paper Analyses
 Generate analysis figures directly from local run directories:
 ```bash
-bash scripts/reproduce/paper_analysis_figs.sh fig2 \
+bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
   --suite math \
   --run_c3 ckpt/_runs/<C3_run_dir> \
   --run_mappo ckpt/_runs/<MAPPO_run_dir> \
@@ -203,29 +203,29 @@ bash scripts/reproduce/paper_analysis_figs.sh fig2 \
 
 ## Implementation Note
 
-**Note on C3 Algorithm Location:** The primary credit assignment mechanism discussed in the paper is **not** located in `c3/algorithms/c3.py` (which serves as a fallback compatibility calculator). The paper-facing C3 implementation is deeply integrated into the experience generation phase. Key entry points include:
+**Note on C3 Algorithm Location:** The primary credit assignment mechanism discussed in the paper is **not** located in `c3/algorithms/group_baseline.py` (which serves as a fallback compatibility calculator). The paper-facing C3 implementation is deeply integrated into the experience generation phase. Key entry points include:
 
 - [openrlhf/trainer/ppo_utils/experience_maker.py](openrlhf/trainer/ppo_utils/experience_maker.py)
-- [c3/credit/c3/](c3/credit/c3/)
+- [c3/credit/counterfactual/](c3/credit/counterfactual/)
 
-Please consult the [Implementation Audit](docs/IMPLEMENTATION_AUDIT.md) for a comprehensive mapping between the paper's theoretical framework and the codebase.
+Please consult the [Implementation Audit](docs/20_implementation_audit.md) for a comprehensive mapping between the paper's theoretical framework and the codebase.
 
 ## Audit and Release Gate
 
 Before making any public release, execute the pre-release checks:
 
 ```bash
-bash scripts/audit/pre_release.sh
+bash scripts/90_audit/pre_release.sh
 ```
 
 To run the complete local release gate (including syntax checks and unit tests):
 ```bash
-bash scripts/audit/release_gate.sh
+bash scripts/90_audit/release_gate.sh
 ```
 
 For a single-command preflight reproduction check:
 ```bash
-bash scripts/reproduce/preflight_repro.sh --task math
+bash scripts/30_smoke/preflight_repro.sh --task math
 ```
 
 These gating scripts rigorously verify:
@@ -250,7 +250,7 @@ This repository includes standard open-source policy files:
 - Code license: [Apache-2.0](LICENSE)
 - Citation metadata: [CITATION.cff](CITATION.cff)
 - Third-party notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
-- Upstream provenance: [docs/UPSTREAM.md](docs/UPSTREAM.md)
+- Upstream provenance: [docs/40_upstream.md](docs/40_upstream.md)
 
 ## Acknowledgements
 

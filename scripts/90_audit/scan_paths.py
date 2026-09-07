@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-scripts/audit/scan_paths.py
+scripts/90_audit/scan_paths.py
 
 Fail if the repository contains hard-coded private/cluster/local absolute paths.
 
@@ -13,7 +13,7 @@ by a boundary that typically introduces an absolute path (start-of-line,
 whitespace, quote, backtick, '=', ':', '(').
 
 Usage:
-  python scripts/audit/scan_paths.py [--root .]
+  python scripts/90_audit/scan_paths.py [--root .]
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def _iter_text_files(root: Path) -> Iterable[Path]:
         parts = set(rel.parts)
 
         # Avoid self-matching on regex literals inside audit scripts.
-        if len(rel.parts) >= 2 and rel.parts[0] == "scripts" and rel.parts[1] == "audit":
+        if len(rel.parts) >= 2 and rel.parts[0] == "scripts" and rel.parts[1] == "90_audit":
             continue
 
         if any(d in parts for d in DEFAULT_EXCLUDE_DIRS):

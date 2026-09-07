@@ -1,6 +1,6 @@
 # Derived from OpenRLHF (Apache-2.0).
 # Modified by the C3 authors for the C3 project.
-# See docs/UPSTREAM.md and docs/CHANGES_FROM_OPENRLHF.md for provenance.
+# See docs/40_upstream.md and docs/41_changes_from_openrlhf.md for provenance.
 
 # Adapted from
 # https://github.com/skypilot-org/skypilot/blob/86dc0f6283a335e4aa37b3c10716f90999f48ab6/sky/sky_logging.py

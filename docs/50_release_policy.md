@@ -27,14 +27,14 @@ The one intended exception is tiny synthetic fixture data kept under `tests/fixt
 
 ## Reproducibility contract
 
-- Prepared datasets are generated locally from pinned upstream sources via `scripts/data/prepare_all.sh`.
+- Prepared datasets are generated locally from pinned upstream sources via `scripts/10_data/prepare_all.sh`.
 - Dataset provenance and SHA256 pins are tracked in `configs/data_manifest.yaml`.
-- Release hygiene is enforced by `scripts/audit/pre_release.sh` and `scripts/audit/no_data_check.py`.
+- Release hygiene is enforced by `scripts/90_audit/pre_release.sh` and `scripts/90_audit/no_data_check.py`.
 
 ## Maintainer checklist
 
 Before publishing or packaging the repository:
 
 1. Remove or regenerate any local outputs under the directories listed above.
-2. Run `bash scripts/audit/pre_release.sh`.
+2. Run `bash scripts/90_audit/pre_release.sh`.
 3. Verify that documentation still matches the release policy and the expected local generation workflow.

@@ -20,16 +20,16 @@ This document is a quick navigation guide to the repository. It is intentionally
 4. [c3/integration/task_datasets.py](../c3/integration/task_datasets.py)
 5. [c3/mas/rollout_generator.py](../c3/mas/rollout_generator.py)
 6. [openrlhf/trainer/ppo_utils/experience_maker.py](../openrlhf/trainer/ppo_utils/experience_maker.py)
-7. [c3/credit/c3/](../c3/credit/c3)
+7. [c3/credit/counterfactual/](../c3/credit/counterfactual)
 
 ### I want to run the repository
 
-- fast smoke: [scripts/reproduce/smoke.sh](../scripts/reproduce/smoke.sh)
-- data prep: [scripts/data/prepare_all.sh](../scripts/data/prepare_all.sh)
-- training matrix: [scripts/reproduce/paper_train.sh](../scripts/reproduce/paper_train.sh)
-- main-results sweep: [scripts/reproduce/paper_main_results.sh](../scripts/reproduce/paper_main_results.sh)
-- analysis figures: [scripts/reproduce/paper_analysis_figs.sh](../scripts/reproduce/paper_analysis_figs.sh)
-- release audit: [scripts/audit/pre_release.sh](../scripts/audit/pre_release.sh)
+- fast smoke: [scripts/30_smoke/smoke.sh](../scripts/30_smoke/smoke.sh)
+- data prep: [scripts/10_data/prepare_all.sh](../scripts/10_data/prepare_all.sh)
+- training matrix: [scripts/40_train/paper_train.sh](../scripts/40_train/paper_train.sh)
+- main-results sweep: [scripts/50_eval/paper_main_results.sh](../scripts/50_eval/paper_main_results.sh)
+- analysis figures: [scripts/60_analysis/paper_analysis_figs.sh](../scripts/60_analysis/paper_analysis_figs.sh)
+- release audit: [scripts/90_audit/pre_release.sh](../scripts/90_audit/pre_release.sh)
 
 ### I want to understand the environments
 
@@ -42,7 +42,7 @@ This document is a quick navigation guide to the repository. It is intentionally
 
 - MAPPO baseline: [c3/algorithms/mappo.py](../c3/algorithms/mappo.py)
 - MAGRPO baseline: [c3/algorithms/magrpo.py](../c3/algorithms/magrpo.py)
-- C3 fallback: [c3/algorithms/c3.py](../c3/algorithms/c3.py)
+- C3 fallback: [c3/algorithms/group_baseline.py](../c3/algorithms/group_baseline.py)
 - algorithm naming and normalization: [c3/algorithms/registry.py](../c3/algorithms/registry.py)
 
 ### I want to understand evaluation and paper tables
@@ -62,17 +62,17 @@ Tasks["configs/tasks/*.yaml"] --> Loader["c3/integration/marl_specs.py"]
 Loader --> Data["c3/integration/task_datasets.py"]
 Loader --> MAS["c3/mas/rollout_generator.py"]
 MAS --> Experience["openrlhf/trainer/ppo_utils/experience_maker.py"]
-Experience --> Credit["c3/credit/c3/*"]
+Experience --> Credit["c3/credit/counterfactual/*"]
 Credit --> PPO["openrlhf/trainer/ppo_trainer.py"]
 ```
 
 ### Important note
 
-The paper-facing C3 implementation is **not** centered on `c3/algorithms/c3.py`. That file exists for compatibility and fallback behavior. The primary node-level credit path is:
+The paper-facing C3 implementation is **not** centered on `c3/algorithms/group_baseline.py`. That file exists for compatibility and fallback behavior. The primary node-level credit path is:
 
 - [openrlhf/trainer/ppo_utils/experience_maker.py](../openrlhf/trainer/ppo_utils/experience_maker.py)
-- [c3/credit/c3/provider.py](../c3/credit/c3/provider.py)
-- [c3/credit/c3/materialize.py](../c3/credit/c3/materialize.py)
+- [c3/credit/counterfactual/provider.py](../c3/credit/counterfactual/provider.py)
+- [c3/credit/counterfactual/materialize.py](../c3/credit/counterfactual/materialize.py)
 
 ## Configuration single sources of truth
 

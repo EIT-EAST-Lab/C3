@@ -29,13 +29,13 @@ python -m pip install -e .[test]
 The public repository does not ship prepared datasets. Generate them locally:
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data
+bash scripts/10_data/prepare_all.sh --out_dir data
 ```
 
 Strict verification:
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data --strict 1
+bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
 ```
 
 See [DATA_SOURCES.md](DATA_SOURCES.md) for provenance and SHA256 pinning.
@@ -45,13 +45,13 @@ See [DATA_SOURCES.md](DATA_SOURCES.md) for provenance and SHA256 pinning.
 This checks task loading, prompt rendering, and evaluator wiring. It is not a model-quality regression test.
 
 ```bash
-bash scripts/reproduce/smoke.sh --task math --limit 1 --print_example 0
+bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0
 ```
 
 You can also run:
 
 ```bash
-bash scripts/reproduce/smoke.sh --task code --limit 1 --print_example 0
+bash scripts/30_smoke/smoke.sh --task code --limit 1 --print_example 0
 ```
 
 ## 4. Run paper-facing workflows
@@ -59,7 +59,7 @@ bash scripts/reproduce/smoke.sh --task code --limit 1 --print_example 0
 ### SFT-only eval sweep
 
 ```bash
-bash scripts/reproduce/paper_main_results.sh sweep \
+bash scripts/50_eval/paper_main_results.sh sweep \
   --registry configs/main_results_registry.yaml \
   --only_methods SFT
 ```
@@ -68,20 +68,20 @@ bash scripts/reproduce/paper_main_results.sh sweep \
 
 ```bash
 export PRETRAIN='Qwen/Qwen2.5-3B-Instruct'
-bash scripts/reproduce/paper_train.sh
+bash scripts/40_train/paper_train.sh
 ```
 
 ### Full main-results sweep
 
 ```bash
-bash scripts/reproduce/paper_main_results.sh sweep \
+bash scripts/50_eval/paper_main_results.sh sweep \
   --registry configs/main_results_registry.yaml
 ```
 
 ### Paper analyses
 
 ```bash
-bash scripts/reproduce/paper_analysis_figs.sh fig2 \
+bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
   --suite math \
   --run_c3 ckpt/_runs/<C3_run_dir> \
   --run_mappo ckpt/_runs/<MAPPO_run_dir> \
@@ -100,13 +100,13 @@ bash scripts/reproduce/paper_analysis_figs.sh fig2 \
 Before publishing the repository, run:
 
 ```bash
-bash scripts/audit/pre_release.sh
+bash scripts/90_audit/pre_release.sh
 ```
 
 Single-command preflight:
 
 ```bash
-bash scripts/reproduce/preflight_repro.sh --task math
+bash scripts/30_smoke/preflight_repro.sh --task math
 ```
 
 The release surface must not include local generated directories such as `data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb/`, or `models/`. See [RELEASE_POLICY.md](RELEASE_POLICY.md).
@@ -114,5 +114,5 @@ The release surface must not include local generated directories such as `data/`
 For the full local release gate, use:
 
 ```bash
-bash scripts/audit/release_gate.sh
+bash scripts/90_audit/release_gate.sh
 ```

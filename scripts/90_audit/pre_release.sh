@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/audit/pre_release.sh
+# scripts/90_audit/pre_release.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -102,13 +102,13 @@ export PYTHONPYCACHEPREFIX="${TMP_PYCACHE}"
 export PYTHONDONTWRITEBYTECODE=1
 
 echo "[1/6] Scan for hard-coded absolute paths..."
-"${PY}" "${ROOT}/scripts/audit/scan_paths.py" --root "${ROOT}"
+"${PY}" "${ROOT}/scripts/90_audit/scan_paths.py" --root "${ROOT}"
 
 echo "[2/6] Scan for obvious secrets..."
-"${PY}" "${ROOT}/scripts/audit/scan_secrets.py" --root "${ROOT}"
+"${PY}" "${ROOT}/scripts/90_audit/scan_secrets.py" --root "${ROOT}"
 
 echo "[3/6] Check for bundled data/large artifacts..."
-"${PY}" "${ROOT}/scripts/audit/no_data_check.py" --root "${ROOT}" --max_mb 20
+"${PY}" "${ROOT}/scripts/90_audit/no_data_check.py" --root "${ROOT}" --max_mb 20
 
 echo "[4/6] Bash syntax check for *.sh..."
 # shellcheck disable=SC2044

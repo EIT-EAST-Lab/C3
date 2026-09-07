@@ -128,9 +128,9 @@ dmypy.json
 .pyre/
 
 # Local generated outputs. Anchored to the repository root on purpose: unanchored
-# patterns such as `data/` or `models/` also match `scripts/data/`, `scripts/models/`
-# and `tests/fixtures/data/`, which silently kept the data and model preparation
-# scripts out of the public release.
+# patterns such as `data/` or `models/` also match nested directories such as
+# `tests/fixtures/data/` and the data and model preparation script directories,
+# which silently kept those scripts out of an earlier public release.
 /data/
 /ckpt/
 /wandb/

@@ -71,7 +71,7 @@ def test_experience_maker_no_longer_forces_mappo_to_single_sample() -> None:
 
 
 def test_no_data_check_flags_non_empty_generated_dirs(tmp_path) -> None:
-    mod = _load_module('scripts/audit/no_data_check.py', 'no_data_check')
+    mod = _load_module('scripts/90_audit/no_data_check.py', 'no_data_check')
     (tmp_path / 'data').mkdir()
     (tmp_path / 'data' / 'mini.jsonl').write_text('{}\n', encoding='utf-8')
     (tmp_path / 'artifacts').mkdir()

@@ -1,6 +1,6 @@
 # Derived from OpenRLHF (Apache-2.0).
 # Modified by the C3 authors for the C3 project.
-# See docs/UPSTREAM.md and docs/CHANGES_FROM_OPENRLHF.md for provenance.
+# See docs/40_upstream.md and docs/41_changes_from_openrlhf.md for provenance.
 
 from typing import List
 

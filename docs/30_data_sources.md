@@ -1,7 +1,7 @@
 # Data Sources & Deterministic Preparation (No Dataset Redistribution)
 
 This repository **does not** redistribute third-party raw datasets.  
-Instead, scripts under `scripts/data/` download from pinned upstream sources and produce canonical JSONL files under `data/`.
+Instead, scripts under `scripts/10_data/` download from pinned upstream sources and produce canonical JSONL files under `data/`.
 
 Generated files under `data/` are local reproducibility outputs, not public-release assets. The public repository ships scripts, manifests, and documentation, but not prepared dataset files.
 
@@ -46,7 +46,7 @@ If `--out_dir` is provided, scripts emit files under that directory with the sam
 ### 1) Prepare all datasets
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data
+bash scripts/10_data/prepare_all.sh --out_dir data
 ```
 
 (You can omit `--out_dir data`; it defaults to `data/`.)
@@ -54,7 +54,7 @@ bash scripts/data/prepare_all.sh --out_dir data
 ### 2) Release verification (strict)
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data --strict 1
+bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
 ```
 
 `--strict 1` fails if:
@@ -68,7 +68,7 @@ bash scripts/data/prepare_all.sh --out_dir data --strict 1
 If you intentionally changed preprocessing logic or bumped upstream pins, regenerate SHA256 pins:
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data --update_manifest_sha256 1
+bash scripts/10_data/prepare_all.sh --out_dir data --update_manifest_sha256 1
 ```
 
 Then commit:
@@ -109,7 +109,7 @@ Preparation scripts:
 
 The following list is the **current release target set**, and matches the manifest exactly.
 
-### Math (`scripts/data/prepare_math.py`)
+### Math (`scripts/10_data/prepare_math.py`)
 
 - `data/MATH/train.jsonl`  (manifest name: `MATH-train`)
 - `data/GSM8K/test.jsonl`  (manifest name: `GSM8K-test`)
@@ -117,7 +117,7 @@ The following list is the **current release target set**, and matches the manife
 - `data/CMATH/train.jsonl` (manifest name: `CMATH-train`)
 - `data/CMATH/test.jsonl`  (manifest name: `CMATH-test`)
 
-### Code (`scripts/data/prepare_code.py`)
+### Code (`scripts/10_data/prepare_code.py`)
 
 - `data/HumanEval/test.jsonl` (manifest name: `HumanEval`)
 - `data/APPS/test.jsonl`      (manifest name: `APPS`)

@@ -21,7 +21,7 @@ RoleGraph --> PromptRender["c3/mas/prompt_render.py"]
 DatasetLoader --> RolloutGen["c3/mas/rollout_generator.py"]
 PromptRender --> RolloutGen
 RolloutGen --> ExperienceMaker["openrlhf/trainer/ppo_utils/experience_maker.py"]
-ExperienceMaker --> CreditProvider["c3/credit/c3/*"]
+ExperienceMaker --> CreditProvider["c3/credit/counterfactual/*"]
 ExperienceMaker --> EnvReward["c3/envs/math/* + c3/envs/code/*"]
 CreditProvider --> Trainer["openrlhf/trainer/ppo_trainer.py"]
 EnvReward --> Trainer
@@ -37,15 +37,15 @@ Trainer --> Analysis["c3/analysis/* + c3/tools/analysis_results.py"]
 | Task loading | `c3/integration/marl_specs.py` | Canonical loader for task and role configs | `TaskSpec` must expose environment, role graph, and dataset specs in a stable shape |
 | Dataset loading | `c3/integration/task_datasets.py` | Converts task configs into HF datasets | Local dataset paths must resolve independent of cwd; eval suite names must remain stable |
 | Multi-agent execution | `c3/mas/role_graph.py`, `c3/mas/prompt_render.py`, `c3/mas/rollout_generator.py` | Builds topo order, renders prompts, materializes MAS rollouts | Topology must remain acyclic; prompt rendering must be deterministic; rollout metadata feeds downstream credit/reward |
-| C3 credit path | `openrlhf/trainer/ppo_utils/experience_maker.py`, `c3/credit/c3/provider.py`, `c3/credit/c3/materialize.py`, `c3/credit/c3/baselines.py` | Computes per-node credit and broadcasts token-level advantages | This is the real C3 path used by training |
+| C3 credit path | `openrlhf/trainer/ppo_utils/experience_maker.py`, `c3/credit/counterfactual/provider.py`, `c3/credit/counterfactual/materialize.py`, `c3/credit/counterfactual/baselines.py` | Computes per-node credit and broadcasts token-level advantages | This is the real C3 path used by training |
 | MAPPO baseline | `c3/algorithms/mappo.py` | Step-level GAE baseline | Consumes step-ordered episode tensors and returns scalar advantages/returns |
 | MAGRPO baseline | `c3/algorithms/magrpo.py` | Group-based baseline | Computes group-centered advantages, then broadcasts them over action tokens |
-| C3 fallback | `c3/algorithms/c3.py` | Compatibility and fallback path only | Not the paper’s primary C3 implementation |
+| C3 fallback | `c3/algorithms/group_baseline.py` | Compatibility and fallback path only | Not the paper’s primary C3 implementation |
 | Training entry | `openrlhf/cli/train_ppo_ray_tooling.py`, `openrlhf/cli/train_ppo_ray.py`, `openrlhf/trainer/ppo_trainer.py` | Normalizes args, creates critics, drives PPO/Q-critic training | `marl_algorithm=auto` does not imply `c3`; Q-critic is enabled only for specific C3 variants |
 | Math evaluation | `c3/envs/math/reward.py`, `c3/envs/math/backends/marft/*` | Math reward and answer checking | Current paper path scores only the final actor output |
 | Code evaluation | `c3/envs/code/reward.py`, `c3/envs/code/executor.py` | Code reward and sandboxed execution | Reward is a pass-rate style score based on hidden tests in metadata |
-| Paper main results | `scripts/reproduce/paper_main_results.sh`, `c3/tools/main_results.py`, `configs/main_results_registry.yaml` | Eval-only sweep and table aggregation | Datasource names must match task-suite names and registry expectations |
-| Paper analyses | `scripts/reproduce/paper_analysis_figs.sh`, `c3/analysis/*`, `c3/tools/analysis_results.py`, `c3/tools/plot_paper_figures.py` | Credit, influence, variance, and plotting pipeline | Bucket metadata is the contract for downstream metrics |
+| Paper main results | `scripts/50_eval/paper_main_results.sh`, `c3/tools/main_results.py`, `configs/main_results_registry.yaml` | Eval-only sweep and table aggregation | Datasource names must match task-suite names and registry expectations |
+| Paper analyses | `scripts/60_analysis/paper_analysis_figs.sh`, `c3/analysis/*`, `c3/tools/analysis_results.py`, `c3/tools/plot_paper_figures.py` | Credit, influence, variance, and plotting pipeline | Bucket metadata is the contract for downstream metrics |
 
 ## Primary paper-facing defaults
 
@@ -61,10 +61,10 @@ Trainer --> Analysis["c3/analysis/* + c3/tools/analysis_results.py"]
 
 ### Main-results entrypoints
 
-- training: `scripts/reproduce/paper_train.sh`
-- eval-only sweep: `scripts/reproduce/paper_main_results.sh`
-- analyses: `scripts/reproduce/paper_analysis_figs.sh`
-- fast wiring check: `scripts/reproduce/smoke.sh`
+- training: `scripts/40_train/paper_train.sh`
+- eval-only sweep: `scripts/50_eval/paper_main_results.sh`
+- analyses: `scripts/60_analysis/paper_analysis_figs.sh`
+- fast wiring check: `scripts/30_smoke/smoke.sh`
 
 ## Core-path vs compatibility-path
 
@@ -76,12 +76,12 @@ The paper’s C3 path is:
 2. `train_ppo_ray.py` decides whether a Q-critic is needed,
 3. `ppo_trainer.py` prepares Q-critic batches,
 4. `experience_maker.py` materializes tree groups and requests node-level C3 credit,
-5. `c3/credit/c3/provider.py` computes scalar credit values,
+5. `c3/credit/counterfactual/provider.py` computes scalar credit values,
 6. the scalar credit is broadcast back to token-level PPO advantages.
 
 ### Compatibility or fallback paths
 
-- `c3/algorithms/c3.py` is a fallback and compatibility calculator, not the main C3 algorithm.
+- `c3/algorithms/group_baseline.py` is a fallback and compatibility calculator, not the main C3 algorithm.
 - `c3_env_smoke.py` contains compatibility bridging for task loading and should not be used as proof that the training path is correct.
 - `configs/roles/critic_preamble.json` is not part of the default paper path and should be treated as optional or experimental until its consumer contract is documented more clearly.
 
@@ -90,7 +90,7 @@ The paper’s C3 path is:
 1. `TaskSpec` must expose `train_datasets` and `eval_suites` in a shape directly consumable by `load_task_datasets()`.
 2. Eval suite names in task YAML must propagate into dataset `datasource` names unchanged, because `main_results.py` aggregates by benchmark name.
 3. Local dataset paths such as `data/MATH/train.jsonl` must resolve from any working directory, not only when the process runs from repo root.
-4. The public release must document that the actual C3 credit path lives in `experience_maker.py` plus `c3/credit/c3/*`, not in `c3/algorithms/c3.py`.
+4. The public release must document that the actual C3 credit path lives in `experience_maker.py` plus `c3/credit/counterfactual/*`, not in `c3/algorithms/group_baseline.py`.
 5. The public release must keep generated directories (`data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb/`, `models/`) out of the shipped repository surface.
 
 ## Known interpretation notes

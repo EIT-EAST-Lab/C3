@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# scripts/reproduce/preflight_repro.sh
+# scripts/30_smoke/preflight_repro.sh
 #
 # One-command preflight for public-release readiness.
 # This is intentionally "fast-fail + explicit diagnostics", not long-running training.
@@ -9,7 +9,7 @@ set -euo pipefail
 _usage() {
   cat <<'USAGE'
 Usage:
-  bash scripts/reproduce/preflight_repro.sh [options]
+  bash scripts/30_smoke/preflight_repro.sh [options]
 
 Options:
   --out_dir DIR            Output report directory (default: artifacts/preflight)
@@ -22,7 +22,7 @@ USAGE
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
-source "${SCRIPT_DIR}/common_env.sh"
+source "${REPO_ROOT}/scripts/_lib/common_env.sh"
 
 OUT_DIR="${REPO_ROOT}/artifacts/preflight"
 TASK="math"
@@ -91,7 +91,7 @@ _run_audit_with_generated_dirs_shelved_if_needed() {
   done
 
   local rc=0
-  if ! bash scripts/audit/pre_release.sh; then
+  if ! bash scripts/90_audit/pre_release.sh; then
     rc=1
   fi
 
@@ -107,13 +107,13 @@ _run_audit_with_generated_dirs_shelved_if_needed() {
 _run_step "audit_pre_release" _run_audit_with_generated_dirs_shelved_if_needed
 
 if [[ "${SKIP_DATA_STRICT}" != "1" ]]; then
-  _run_step "data_strict" bash scripts/data/prepare_all.sh --out_dir data --strict 1
+  _run_step "data_strict" bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
 else
   echo "[preflight] SKIP data_strict (--skip_data_strict=1)" | tee -a "$LOG_TXT"
   STEP_STATUS+=("data_strict:skip")
 fi
 
-_run_step "smoke_${TASK}" bash scripts/reproduce/smoke.sh --task "$TASK" --limit 1 --print_example 0
+_run_step "smoke_${TASK}" bash scripts/30_smoke/smoke.sh --task "$TASK" --limit 1 --print_example 0
 
 "$PYTHON_BIN" - <<'PY' "$REPORT_JSON" "${STEP_STATUS[@]}"
 import json

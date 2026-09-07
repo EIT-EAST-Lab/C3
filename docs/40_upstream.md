@@ -55,7 +55,7 @@ git show f372a2d41e26c3c47a0f6653fb94c31f5c257942 --oneline
 
 The authoritative file-level change log lives in:
 
-- `docs/CHANGES_FROM_OPENRLHF.md`
+- `docs/41_changes_from_openrlhf.md`
 
 To **reproduce** the “Added / Modified / Removed (not vendored)” lists in that document, do:
 
@@ -131,7 +131,7 @@ PY
 
 All intentional differences are documented in:
 
-- `docs/CHANGES_FROM_OPENRLHF.md`
+- `docs/41_changes_from_openrlhf.md`
 
 In short:
 
@@ -150,6 +150,6 @@ When rebasing onto a newer OpenRLHF version:
 1. Keep the `openrlhf/` namespace intact.
 2. Keep C3 logic under `c3/`.
 3. Minimize edits to upstream files; if unavoidable, update:
-   - `docs/UPSTREAM.md` (new pinned commit),
-   - `docs/CHANGES_FROM_OPENRLHF.md` (file-level change log).
-4. Re-run the release gate: `bash scripts/audit/pre_release.sh`.
+   - `docs/40_upstream.md` (new pinned commit),
+   - `docs/41_changes_from_openrlhf.md` (file-level change log).
+4. Re-run the release gate: `bash scripts/90_audit/pre_release.sh`.

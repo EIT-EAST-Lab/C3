@@ -1,6 +1,6 @@
 # Defaults for bucket construction in: c3.analysis.c3_analysis build-buckets
 #
-# scripts/reproduce/paper_analysis_figs.sh calls build-buckets twice:
+# scripts/60_analysis/paper_analysis_figs.sh calls build-buckets twice:
 #   - target_role=actor    -> defaults_section auto -> "credit"
 #   - target_role=reasoner -> defaults_section auto -> "influence"
 #

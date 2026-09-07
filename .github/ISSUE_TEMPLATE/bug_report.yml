@@ -46,6 +46,6 @@ body:
     attributes:
       label: Preflight checks
       options:
-        - label: I ran `bash scripts/audit/pre_release.sh`
-        - label: I ran `bash scripts/reproduce/smoke.sh`
-        - label: I verified data files via `bash scripts/data/prepare_all.sh --out_dir data --strict 1`
+        - label: I ran `bash scripts/90_audit/pre_release.sh`
+        - label: I ran `bash scripts/30_smoke/smoke.sh`
+        - label: I verified data files via `bash scripts/10_data/prepare_all.sh --out_dir data --strict 1`

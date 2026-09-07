@@ -7,7 +7,7 @@
 #   - a seed (0..4)  [required by c3.tools.main_results]
 #   - a source:
 #       - hf_base: a HuggingFace model id (SFT baseline)
-#       - train_run_dir: a local run directory produced by scripts/reproduce/paper_train.sh
+#       - train_run_dir: a local run directory produced by scripts/40_train/paper_train.sh
 #
 # The main-results sweep script will produce:
 #   <run_root>/<out_subdir>/<task>/<profile>/{eval_only.jsonl, eval_only.jsonl.metrics.jsonl}
@@ -131,7 +131,7 @@ runs:
   # Training outputs are expected at:
   #   ckpt/_runs/<run_id>/final_hf
   # and are produced by:
-  #   bash scripts/reproduce/paper_train.sh
+  #   bash scripts/40_train/paper_train.sh
 
   # MAPPO (5 seeds)
   - id: "paper_MAPPO_math_seed0"

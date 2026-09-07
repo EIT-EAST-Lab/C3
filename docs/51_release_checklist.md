@@ -13,7 +13,7 @@ Use this checklist before publishing the repository or cutting a release snapsho
 Run the unified local gate:
 
 ```bash
-bash scripts/audit/release_gate.sh
+bash scripts/90_audit/release_gate.sh
 ```
 
 This gate currently runs:
@@ -22,7 +22,7 @@ This gate currently runs:
 2. fixture-based math smoke
 3. fixture-based code smoke
 4. dummy figure generation for the plotting path
-5. `bash scripts/audit/pre_release.sh`
+5. `bash scripts/90_audit/pre_release.sh`
 
 ## Extended paper-facing checks
 
@@ -31,13 +31,13 @@ These are recommended before a public paper artifact release:
 1. Strict data verification:
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data --strict 1
+bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
 ```
 
 2. SFT-only main-results sweep:
 
 ```bash
-bash scripts/reproduce/paper_main_results.sh sweep \
+bash scripts/50_eval/paper_main_results.sh sweep \
   --registry configs/main_results_registry.yaml \
   --only_methods SFT
 ```
@@ -45,15 +45,15 @@ bash scripts/reproduce/paper_main_results.sh sweep \
 3. Optional release gate with a real HF base model:
 
 ```bash
-HF_BASE='Qwen/Qwen2.5-3B-Instruct' RUN_SFT_EVAL=1 bash scripts/audit/release_gate.sh
+HF_BASE='Qwen/Qwen2.5-3B-Instruct' RUN_SFT_EVAL=1 bash scripts/90_audit/release_gate.sh
 ```
 
 ## Documentation
 
 - `README.md` matches the current release policy and entrypoints.
-- `docs/GETTING_STARTED.md` matches actual installation and smoke commands.
-- `docs/CODE_MAP.md` and `docs/IMPLEMENTATION_AUDIT.md` still match the primary implementation path.
-- `docs/DATA_SOURCES.md` and `configs/data_manifest.yaml` remain consistent.
+- `docs/00_getting_started.md` matches actual installation and smoke commands.
+- `docs/10_code_map.md` and `docs/20_implementation_audit.md` still match the primary implementation path.
+- `docs/30_data_sources.md` and `configs/data_manifest.yaml` remain consistent.
 
 ## Governance and metadata
 

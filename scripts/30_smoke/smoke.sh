@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/reproduce/smoke.sh
+# scripts/30_smoke/smoke.sh
 set -euo pipefail
 
 _usage() {
@@ -11,7 +11,7 @@ Default behavior:
   - run a tiny end-to-end env+evaluator pass (NO model inference)
 
 Usage:
-  bash scripts/reproduce/smoke.sh [options]
+  bash scripts/30_smoke/smoke.sh [options]
 
 Options:
   --task PATH|math|code     Task YAML path (or shorthand). Default: math.
@@ -44,7 +44,7 @@ SMOKE_MOD="${SMOKE_MOD:-c3.tools.c3_env_smoke}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
-source "${SCRIPT_DIR}/common_env.sh"
+source "${REPO_ROOT}/scripts/_lib/common_env.sh"
 
 TASK="math"
 LIMIT="1"
@@ -145,7 +145,7 @@ if missing:
         print(f"  - [{section}] {p}", file=sys.stderr)
     print("", file=sys.stderr)
     print("Prepare datasets first:", file=sys.stderr)
-    print("  bash scripts/data/prepare_all.sh --out_dir data", file=sys.stderr)
+    print("  bash scripts/10_data/prepare_all.sh --out_dir data", file=sys.stderr)
     raise SystemExit(1)
 PY
 
@@ -159,7 +159,7 @@ _echo "5) c3_env_smoke: limit=${LIMIT} seed=${SEED} print_example=${PRINT_EXAMPL
 if [[ "${EVAL_SFT}" == "1" ]]; then
   [[ -n "${HF_BASE}" ]] || { echo "ERROR: --hf_base (or SMOKE_HF_BASE) is required when --eval_sft=1" >&2; exit 2; }
   _echo "6) eval-only via paper_main_results.sh (SFT baseline): hf_base=${HF_BASE} profile=${PROFILE}"
-  bash scripts/reproduce/paper_main_results.sh one \
+  bash scripts/50_eval/paper_main_results.sh one \
     --id "SMOKE_SFT" \
     --method "SFT" \
     --task "${TASK}" \

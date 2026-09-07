@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/reproduce/paper_analysis_figs.sh
+# scripts/60_analysis/paper_analysis_figs.sh
 set -euo pipefail
 
 # Paper analysis/diagnostics figure pipeline.
@@ -12,7 +12,7 @@ _usage() {
   cat <<'USAGE'
 Usage:
   # Fig2 (paper): mechanism diagnostics (C3 / MAPPO / MAGRPO / SFT)
-  bash scripts/reproduce/paper_analysis_figs.sh fig2 \
+  bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
     --suite math \
     --out_dir artifacts/fig2_mechanism \
     --run_c3 ckpt/_runs/<C3_run_dir> \
@@ -56,7 +56,7 @@ USAGE
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
-source "${SCRIPT_DIR}/common_env.sh"
+source "${REPO_ROOT}/scripts/_lib/common_env.sh"
 
 PYTHON_BIN="python"
 RESUME=1

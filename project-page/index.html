@@ -67,8 +67,8 @@
             <a class="button button-primary" href="https://github.com/EIT-EAST-Lab/C3">Code</a>
             <a class="button" href="https://arxiv.org/abs/2603.06859">arXiv Abstract</a>
             <a class="button" href="https://arxiv.org/pdf/2603.06859">PDF</a>
-            <a class="button" href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/GETTING_STARTED.md">Getting Started</a>
-            <a class="button" href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/IMPLEMENTATION_AUDIT.md">Implementation Audit</a>
+            <a class="button" href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/00_getting_started.md">Getting Started</a>
+            <a class="button" href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/20_implementation_audit.md">Implementation Audit</a>
             <a class="button" href="#citation">Citation</a>
           </div>
 
@@ -310,26 +310,26 @@
         <div class="repro-grid">
           <article class="repro-card">
             <h3>Quickstart</h3>
-            <pre><code>python -m pip install -r requirements.txt --no-build-isolation
-bash scripts/data/prepare_all.sh --out_dir data
-bash scripts/reproduce/smoke.sh --task math --limit 1 --print_example 0</code></pre>
+            <pre><code>python -m pip install -e ".[cpu,test]"
+bash scripts/10_data/prepare_all.sh --out_dir data
+bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0</code></pre>
           </article>
           <article class="repro-card">
             <h3>Core paths</h3>
             <ul>
-              <li><code>c3/credit/c3/</code> for credit assignment logic</li>
+              <li><code>c3/credit/counterfactual/</code> for credit assignment logic</li>
               <li><code>openrlhf/trainer/ppo_utils/experience_maker.py</code> for paper-facing integration</li>
               <li><code>configs/main_results_registry.yaml</code> for experiment references</li>
-              <li><code>scripts/reproduce/</code> for smoke tests, training, and analysis</li>
+              <li><code>scripts/</code> numbered stages for data, smoke tests, training, and analysis</li>
             </ul>
           </article>
           <article class="repro-card">
             <h3>Release hygiene</h3>
             <ul>
-              <li><code>bash scripts/audit/release_gate.sh</code></li>
-              <li><code>bash scripts/reproduce/preflight_repro.sh --task math</code></li>
-              <li><a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/RELEASE_CHECKLIST.md">Release checklist</a></li>
-              <li><a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/IMPLEMENTATION_AUDIT.md">Paper-to-code audit</a></li>
+              <li><code>bash scripts/90_audit/release_gate.sh</code></li>
+              <li><code>bash scripts/30_smoke/preflight_repro.sh --task math</code></li>
+              <li><a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/51_release_checklist.md">Release checklist</a></li>
+              <li><a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/20_implementation_audit.md">Paper-to-code audit</a></li>
             </ul>
           </article>
         </div>
@@ -374,7 +374,7 @@ bash scripts/reproduce/smoke.sh --task math --limit 1 --print_example 0</code></
         <a href="https://arxiv.org/pdf/2603.06859">PDF</a>
         <a href="assets/C3.bib">BibTeX</a>
         <a href="https://github.com/EIT-EAST-Lab/C3/blob/main/README.md">README</a>
-        <a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/GETTING_STARTED.md">Docs</a>
+        <a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/00_getting_started.md">Docs</a>
       </div>
     </footer>
   </div>

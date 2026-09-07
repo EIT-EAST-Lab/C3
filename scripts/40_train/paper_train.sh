@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# scripts/reproduce/paper_train.sh
+# scripts/40_train/paper_train.sh
 #
 # One-command launcher for the paper training matrix:
 #   METHODS  : MAPPO, MAGRPO, C3
@@ -17,7 +17,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-source "${SCRIPT_DIR}/common_env.sh"
+source "${REPO_ROOT}/scripts/_lib/common_env.sh"
 
 c3_repro_export_common_env "${REPO_ROOT}"
 export WANDB_DISABLED=true

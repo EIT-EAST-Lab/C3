@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-scripts/audit/no_data_check.py
+scripts/90_audit/no_data_check.py
 
 Fail if the repository contains bundled raw datasets or large artifacts that
 should not be distributed (weights, cached datasets, etc.).
@@ -12,7 +12,7 @@ Policy (default):
 - forbid files over a size threshold
 
 Usage:
-  python scripts/audit/no_data_check.py [--root .] [--max_mb 20]
+  python scripts/90_audit/no_data_check.py [--root .] [--max_mb 20]
 """
 
 from __future__ import annotations

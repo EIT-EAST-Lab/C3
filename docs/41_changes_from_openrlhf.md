@@ -204,7 +204,7 @@ PY
 
 When updating the upstream anchor:
 
-1. Update `docs/UPSTREAM.md` with the new commit (and describe string).
+1. Update `docs/40_upstream.md` with the new commit (and describe string).
 2. Re-diff `openrlhf/` against upstream `openrlhf/` and refresh Section B lists:
    - Added / Modified / Removed
 3. Ensure integration touchpoints remain minimal and stable:
@@ -213,4 +213,4 @@ When updating the upstream anchor:
    - `trainer/ppo_utils/experience_maker.py`
    - `trainer/ray/ppo_critic.py`
    - `utils/run_metadata.py`
-4. Run the release gate: `bash scripts/audit/pre_release.sh`
+4. Run the release gate: `bash scripts/90_audit/pre_release.sh`

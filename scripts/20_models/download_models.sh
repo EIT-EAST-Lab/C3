@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/models/download_models.sh
+# scripts/20_models/download_models.sh
 set -euo pipefail
 
 # Download / cache HuggingFace base models referenced by a registry YAML.
@@ -21,7 +21,7 @@ set -euo pipefail
 _usage() {
   cat <<'USAGE'
 Usage:
-  bash scripts/models/download_models.sh [options]
+  bash scripts/20_models/download_models.sh [options]
 
 Options:
   --registry PATH       Registry YAML (default: configs/main_results_registry.yaml)

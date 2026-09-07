@@ -21,7 +21,7 @@ echo "[INFO] FALLBACK_TO_OFFICIAL=${FALLBACK_TO_OFFICIAL}"
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/data/prepare_all.sh \
+  bash scripts/10_data/prepare_all.sh \
     [--data_dir <dir>] [--out_dir <dir>] [--overwrite 0|1] [--strict 0|1] [--update_manifest_sha256 0|1] \
     [--prepare_humaneval 0|1] [--prepare_apps 0|1] [--prepare_mbpp 0|1] [--prepare_mbpp_plus 0|1]
 
@@ -108,10 +108,10 @@ run_with_hf_fallback() {
 }
 
 echo "[INFO] Preparing math datasets..."
-run_with_hf_fallback scripts/data/prepare_math.py "${ARGS_COMMON[@]}"
+run_with_hf_fallback scripts/10_data/prepare_math.py "${ARGS_COMMON[@]}"
 
 echo "[INFO] Preparing code datasets..."
-run_with_hf_fallback scripts/data/prepare_code.py \
+run_with_hf_fallback scripts/10_data/prepare_code.py \
   "${ARGS_COMMON[@]}" \
   --prepare_humaneval "$PREPARE_HUMANEVAL" \
   --prepare_apps "$PREPARE_APPS" \

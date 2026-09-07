@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-scripts/audit/scan_secrets.py
+scripts/90_audit/scan_secrets.py
 
 Best-effort secret scanner to catch common credential/token leaks before release.
 
@@ -13,7 +13,7 @@ Design notes:
 - Prefer context-aware patterns for services whose keys resemble random hex.
 
 Usage:
-  python scripts/audit/scan_secrets.py [--root .]
+  python scripts/90_audit/scan_secrets.py [--root .]
 """
 
 from __future__ import annotations

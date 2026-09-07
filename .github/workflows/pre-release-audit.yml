@@ -19,4 +19,4 @@ jobs:
 
       - name: Run pre-release audit
       run: |
-        bash scripts/audit/pre_release.sh
+        bash scripts/90_audit/pre_release.sh

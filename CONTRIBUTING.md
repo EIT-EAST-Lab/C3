@@ -25,14 +25,14 @@ python -m pip check
 3. Prepare datasets:
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data
+bash scripts/10_data/prepare_all.sh --out_dir data
 ```
 
 4. Run sanity checks:
 
 ```bash
-bash scripts/reproduce/smoke.sh
-bash scripts/audit/pre_release.sh
+bash scripts/30_smoke/smoke.sh
+bash scripts/90_audit/pre_release.sh
 ```
 
 ## Pull request expectations
@@ -50,14 +50,14 @@ If your change modifies dataset preparation outputs:
 1. Recompute hashes:
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data --update_manifest_sha256 1
+bash scripts/10_data/prepare_all.sh --out_dir data --update_manifest_sha256 1
 ```
 
 2. Commit `configs/data_manifest.yaml`.
 3. Verify strict mode:
 
 ```bash
-bash scripts/data/prepare_all.sh --out_dir data --strict 1
+bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
 ```
 
 ## Security and disclosure
