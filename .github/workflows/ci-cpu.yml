@@ -1,0 +1,77 @@
+name: ci-cpu
+
+# Everything here runs on a CPU-only runner. The GPU tier (training, vLLM, Ray,
+# DeepSpeed) cannot be exercised in CI; see requirements/gpu.lock.txt for the
+# list of checks that still need a GPU.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  cpu-tier:
+    name: cpu-tier
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPYCACHEPREFIX: ".cache/pycache"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the CPU tier
+        run: |
+          python -m pip install -U pip
+          python -m pip install -r requirements/cpu.lock.txt
+          python -m pip install -e . --no-deps
+
+      - name: Check dependency consistency
+        run: |
+          python -m pip check
+
+      - name: Run unit tests
+        run: |
+          pytest -q -p no:cacheprovider tests
+
+      - name: Run fixture math smoke
+        run: |
+          bash scripts/30_smoke/smoke.sh \
+            --tier cpu \
+            --task tests/fixtures/tasks/mini_math.yaml \
+            --limit 1 \
+            --print_example 0
+
+      - name: Run fixture code smoke
+        run: |
+          bash scripts/30_smoke/smoke.sh \
+            --tier cpu \
+            --task tests/fixtures/tasks/mini_code.yaml \
+            --limit 1 \
+            --print_example 0 \
+            --skip_import_checks 1
+
+      - name: Scan prose
+        run: |
+          python scripts/90_audit/scan_prose.py --root .
+
+  release-audit:
+    name: release-audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run the pre-release audit
+        run: |
+          bash scripts/90_audit/pre_release.sh

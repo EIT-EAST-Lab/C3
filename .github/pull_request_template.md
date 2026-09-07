@@ -20,8 +20,9 @@
 
 ## How to test
 
+- [ ] `pytest -q tests`
 - [ ] `bash scripts/90_audit/pre_release.sh`
-- [ ] `bash scripts/30_smoke/smoke.sh`
+- [ ] `bash scripts/30_smoke/smoke.sh --task tests/fixtures/tasks/mini_math.yaml --limit 1 --print_example 0`
 - [ ] Additional task-specific commands:
 
 ## Reviewer checklist
