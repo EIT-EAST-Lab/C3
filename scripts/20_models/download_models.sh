@@ -36,6 +36,9 @@ Environment:
   PYTHON    Python executable (default: python)
   HF_TOKEN / HUGGINGFACE_HUB_TOKEN
             Token for gated/private models (optional).
+  HF_ENDPOINT
+            Hugging Face endpoint. Defaults to the official one; see
+            docs/31_network_mirrors.md to route downloads through a mirror.
 USAGE
 }
 
@@ -63,6 +66,11 @@ done
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
 cd "${REPO_ROOT}"
+
+# shellcheck source=../_lib/mirrors.sh
+source "${REPO_ROOT}/scripts/_lib/mirrors.sh"
+c3_mirrors_validate
+c3_mirrors_report
 
 [[ -f "${REGISTRY}" ]] || { echo "[download_models] ERROR: registry not found: ${REGISTRY}" >&2; exit 1; }
 
@@ -146,10 +154,13 @@ try:
 except Exception as e:
     raise SystemExit(
         "huggingface_hub is required for download_models.sh. "
-        "Install requirements.txt or `pip install huggingface_hub`."
+        "Install the CPU or GPU tier (see the README), or `pip install huggingface_hub`."
     ) from e
 
 # Token is automatically picked up from env (HF_TOKEN / HUGGINGFACE_HUB_TOKEN).
+# HF_ENDPOINT is honored by huggingface_hub itself, so a mirror needs no argument here.
+# Downloads always resume, and local_dir never uses symlinks: both former keyword
+# arguments were removed from the huggingface_hub API.
 for mid in models:
     mid = mid.strip()
     if not mid:
@@ -158,11 +169,6 @@ for mid in models:
     local_dir = os.path.join(out_dir, safe)
     os.makedirs(local_dir, exist_ok=True)
     print(f"[download_models] downloading {mid} -> {local_dir}", file=sys.stderr)
-    snapshot_download(
-        repo_id=mid,
-        local_dir=local_dir,
-        local_dir_use_symlinks=False,
-        resume_download=True,
-    )
+    snapshot_download(repo_id=mid, local_dir=local_dir)
 print("[download_models] OK", file=sys.stderr)
 PY
