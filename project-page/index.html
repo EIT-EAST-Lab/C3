@@ -310,7 +310,8 @@
         <div class="repro-grid">
           <article class="repro-card">
             <h3>Quickstart</h3>
-            <pre><code>python -m pip install -e ".[cpu,test]"
+            <pre><code>python -m pip install -r requirements/cpu.lock.txt
+python -m pip install -e . --no-deps
 bash scripts/10_data/prepare_all.sh --out_dir data
 bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0</code></pre>
           </article>
