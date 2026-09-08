@@ -42,7 +42,10 @@ config values, prompts or role definitions were touched.
   must stay byte for byte identical.
 - `tests/test_release_surface.py`, contract tests for the mistakes that actually
   reached a release: untracked preparation scripts, dangling documentation
-  links, unanchored ignore patterns, and workflow YAML that never parsed.
+  links, unanchored ignore patterns, and workflow YAML that never parsed. It
+  also resolves every `c3.*` and `openrlhf.*` import statement statically
+  against the files git tracks, so a package that is never committed cannot
+  ship again.
 - `CHANGELOG.md`, this file.
 
 ### Changed
@@ -99,6 +102,15 @@ config values, prompts or role definitions were touched.
 
 ### Fixed
 
+- The vendored `openrlhf/models` package is in the release. Its six modules
+  (`__init__`, `actor`, `loss`, `model`, `ring_attn_utils`, `utils`) were never
+  committed, for the same reason the preparation scripts were missing: the
+  unanchored `models/` ignore pattern matched `openrlhf/models/` too. On a fresh
+  clone the training CLI, the evaluation sweep and
+  `scripts/30_smoke/smoke.sh --tier gpu` all failed with
+  `ModuleNotFoundError: No module named 'openrlhf.models'`, in every
+  environment. The package is restored byte for byte from the release packaging
+  snapshot, so no behavior changed.
 - The README quickstart works: `scripts/10_data/prepare_all.sh` and
   `scripts/20_models/download_models.sh` are in the release. They were excluded
   from the previous release by unanchored `.gitignore` patterns, which are now
