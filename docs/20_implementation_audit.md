@@ -82,7 +82,7 @@ The paper’s C3 path is:
 ### Compatibility or fallback paths
 
 - `c3/algorithms/group_baseline.py` is a fallback and compatibility calculator, not the main C3 algorithm.
-- `c3_env_smoke.py` contains compatibility bridging for task loading and should not be used as proof that the training path is correct.
+- `env_smoke.py` contains compatibility bridging for task loading and should not be used as proof that the training path is correct.
 - `configs/roles/critic_preamble.json` is not part of the default paper path and should be treated as optional or experimental until its consumer contract is documented more clearly.
 
 ## Release-critical invariants

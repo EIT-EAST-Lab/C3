@@ -61,7 +61,7 @@ source "${REPO_ROOT}/scripts/_lib/common_env.sh"
 PYTHON_BIN="python"
 RESUME=1
 
-ANALYSIS_MOD="${ANALYSIS_MOD:-c3.analysis.c3_analysis}"
+ANALYSIS_MOD="${ANALYSIS_MOD:-c3.analysis.analysis}"
 ANALYSIS_RESULTS_MOD="${ANALYSIS_RESULTS_MOD:-c3.tools.analysis_results}"
 PLOT_MOD="${PLOT_MOD:-c3.tools.plot_paper_figures}"
 
@@ -201,7 +201,7 @@ _compute_credit_influence() {
   if [[ "$credit_mode" == "mappo_v" ]]; then
     [[ -n "$MAPPO_CRITIC_CKPT" ]] || { echo "ERROR: --mappo_critic_ckpt required for MAPPO credit" >&2; exit 1; }
     cmd+=( --mappo_critic_ckpt "$MAPPO_CRITIC_CKPT" )
-    # When critic ckpt is DeepSpeed, c3_analysis may need a policy base HF dir for tokenizer/model skeleton.
+    # When critic ckpt is DeepSpeed, the analysis CLI may need a policy base HF dir for tokenizer/model skeleton.
     cmd+=( --policy_ckpt "$policy_ckpt" )
     if [[ -n "$MAPPO_CRITIC_BASE_CKPT" ]]; then
       cmd+=( --mappo_critic_base_ckpt "$MAPPO_CRITIC_BASE_CKPT" )

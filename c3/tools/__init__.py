@@ -17,7 +17,7 @@ from __future__ import annotations
 
 # Public modules (kept minimal on purpose).
 __all__ = [
-    "c3_env_smoke",
+    "env_smoke",
     "main_results",
     "analysis_results",
     "plot_paper_figures",

@@ -8,8 +8,8 @@
 #   <analysis_root>/seed*/metrics/credit_<method>_<split>.json
 #   <analysis_root>/seed*/metrics/influence_<method>_<split>.json
 #
-# Each credit json is produced by: python -m c3.analysis.c3_analysis credit
-# Each influence json is produced by: python -m c3.analysis.c3_analysis influence
+# Each credit json is produced by: python -m c3.analysis.analysis credit
+# Each influence json is produced by: python -m c3.analysis.analysis influence
 #
 # Outputs:
 #   <out_dir>/<out_prefix>.raw.json

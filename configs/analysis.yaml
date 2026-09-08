@@ -1,10 +1,10 @@
-# Defaults for bucket construction in: c3.analysis.c3_analysis build-buckets
+# Defaults for bucket construction in: c3.analysis.analysis build-buckets
 #
 # scripts/60_analysis/paper_analysis_figs.sh calls build-buckets twice:
 #   - target_role=actor    -> defaults_section auto -> "credit"
 #   - target_role=reasoner -> defaults_section auto -> "influence"
 #
-# Keys are consumed by c3.analysis.c3_analysis:
+# Keys are consumed by c3.analysis.analysis:
 #   num_instances, num_candidates, num_completions
 #   decoding, prefix_decoding
 #   fidelity.include_real_as_j0, fidelity.num_extra_samples_for_V

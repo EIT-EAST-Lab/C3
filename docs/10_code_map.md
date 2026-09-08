@@ -67,7 +67,7 @@ This document is a quick navigation guide to the repository. It is intentionally
 - main-results aggregation: [c3/tools/main_results.py](../c3/tools/main_results.py)
 - analysis aggregation: [c3/tools/analysis_results.py](../c3/tools/analysis_results.py)
 - plotting: [c3/tools/plot_paper_figures.py](../c3/tools/plot_paper_figures.py)
-- analysis CLI: [c3/analysis/c3_analysis.py](../c3/analysis/c3_analysis.py)
+- analysis CLI: [c3/analysis/analysis.py](../c3/analysis/analysis.py)
 
 ## Core path vs fallback path
 

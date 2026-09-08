@@ -69,14 +69,16 @@ config values, prompts or role definitions were touched.
   | `docs/RELEASE_POLICY.md` | `docs/50_release_policy.md` |
   | `docs/RELEASE_CHECKLIST.md` | `docs/51_release_checklist.md` |
 
-- Three package-internal renames. The registered algorithm names, CLI flags and
-  config values are unchanged; only the module paths moved:
+- Five package-internal renames. The registered algorithm names, CLI flags,
+  subcommands and config values are unchanged; only the module paths moved:
 
   | Before | After | Why |
   |---|---|---|
   | `c3/credit/c3/` | `c3/credit/counterfactual/` | the doubled name `c3.credit.c3` confused readers |
   | `c3/algorithms/c3.py` | `c3/algorithms/group_baseline.py` | the module is the group-baseline fallback, not the paper method |
   | `c3/text_sanitize.py` | `c3/utils/text_sanitize.py` | it was a loose module at the package root |
+  | `c3/tools/c3_env_smoke.py` | `c3/tools/env_smoke.py` | inside a package named `c3` the `c3_` prefix is redundant |
+  | `c3/analysis/c3_analysis.py` | `c3/analysis/analysis.py` | same reason; `c3.analysis.c3_analysis` read as badly as `c3.credit.c3` |
 
 - Continuous integration is a single workflow, `.github/workflows/ci-cpu.yml`,
   with a `cpu-tier` job that runs the README quickstart end to end and a
@@ -112,9 +114,12 @@ config values, prompts or role definitions were touched.
 
 ### Deprecated
 
-- `c3.credit.c3`, `c3.algorithms.c3` and `c3.text_sanitize` are import shims that
+- `c3.credit.c3`, `c3.algorithms.c3`, `c3.text_sanitize`,
+  `c3.tools.c3_env_smoke` and `c3.analysis.c3_analysis` are import shims that
   re-export the public symbols from their new locations and raise a
-  `DeprecationWarning` naming the replacement. They will be removed in a future
+  `DeprecationWarning` naming the replacement. The last two also keep
+  `python -m <old path>` working, so existing scripts and `SMOKE_MOD` or
+  `ANALYSIS_MOD` overrides do not break. They will be removed in a future
   release.
 - The root `requirements.txt` is removed. Use `requirements/cpu.lock.txt`,
   `requirements/gpu.lock.txt`, or `requirements/gpu-paper.lock.txt`.
