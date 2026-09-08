@@ -4,8 +4,29 @@
 
 import torch
 import torch.distributed as dist
-from flash_attn.bert_padding import index_first_axis, pad_input, rearrange, unpad_input
-from flash_attn.utils.distributed import all_gather
+
+# flash-attn ships no wheels: it builds from source and needs a CUDA toolchain, so it cannot be
+# pinned in the lock files that CPU users install. Only the two ring-attention helpers at the
+# bottom of this file use these five names, so the import is guarded here and the requirement is
+# reported at the point of use instead of failing every import of openrlhf.models.
+try:
+    from flash_attn.bert_padding import index_first_axis, pad_input, rearrange, unpad_input
+    from flash_attn.utils.distributed import all_gather
+
+    _FLASH_ATTN_IMPORT_ERROR = None
+except ImportError as import_error:
+    index_first_axis = pad_input = rearrange = unpad_input = all_gather = None
+    _FLASH_ATTN_IMPORT_ERROR = import_error
+
+
+def _require_flash_attn():
+    """Raise if flash-attn is missing, naming the feature that needs it and how to install it."""
+    if _FLASH_ATTN_IMPORT_ERROR is not None:
+        raise RuntimeError(
+            "Ring attention (the sequence-packing path across ranks) requires flash-attn; "
+            'install it on a machine with nvcc: pip install -e ".[flash]" --no-build-isolation'
+        ) from _FLASH_ATTN_IMPORT_ERROR
+
 
 RING_ATTN_GROUP = None
 
@@ -115,6 +136,7 @@ def unpad_and_slice_tensor(sequences, attention_mask, ring_attn_group):
     Returns:
         tuple: Processed sequences and related tensors for ring attention
     """
+    _require_flash_attn()
     rolled_sequences = torch.roll(sequences, shifts=-1, dims=1)
     sequences, indices, cu_seqlens, _, _ = unpad_input(sequences.unsqueeze(-1), attention_mask)
     sequences = sequences.transpose(0, 1)  # (1, total_seqs)
@@ -163,6 +185,7 @@ def gather_and_pad_tensor(tensor, ring_attn_group, ring_attn_pad_len, indices, b
     Returns:
         Padded tensor
     """
+    _require_flash_attn()
     if ring_attn_group is not None:
         tensor = all_gather(tensor.transpose(0, 1), ring_attn_group).transpose(0, 1)  # (1, total_seqs)
         if ring_attn_pad_len > 0:

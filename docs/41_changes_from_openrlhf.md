@@ -47,7 +47,7 @@ environment hints).
 
 Counts (within `openrlhf/`):
 - **Added:** 4 files
-- **Modified:** 22 files
+- **Modified:** 23 files
 - **Removed (not vendored):** 20 files
 
 > These lists are reproducible. See the "How to regenerate this summary" section below.
@@ -81,6 +81,19 @@ Counts (within `openrlhf/`):
 - `openrlhf/trainer/ray/ppo_critic.py`  
   Extended critic actor variants used by C3 pipeline.
 
+**Packaging only (no behavioral difference when flash-attn is installed):**
+- `openrlhf/models/ring_attn_utils.py`  
+  Upstream imports `flash_attn.bert_padding` and `flash_attn.utils.distributed` at module level,
+  which makes flash-attn a hard requirement of `import openrlhf.models` and therefore of the
+  training CLI, the evaluation sweep and `scripts/30_smoke/smoke.sh --tier gpu`. flash-attn ships
+  no wheels (it builds from source against a CUDA toolchain), so it cannot be pinned in the lock
+  files that CPU users install. The two imports are wrapped in a `try`/`except ImportError` that
+  binds the same five names (`index_first_axis`, `pad_input`, `rearrange`, `unpad_input`,
+  `all_gather`) to `None` when the package is absent, and the only two functions that use them,
+  `unpad_and_slice_tensor` and `gather_and_pad_tensor`, now open with a `_require_flash_attn()`
+  call that raises `RuntimeError` naming ring attention and the install command. With flash-attn
+  installed the imported names, the call sites and every code path are unchanged.
+
 **Complete modified-file list (for audit):**
 - `openrlhf/cli/train_ppo_ray.py`
 - `openrlhf/datasets/__init__.py`
@@ -88,6 +101,7 @@ Counts (within `openrlhf/`):
 - `openrlhf/models/actor.py`
 - `openrlhf/models/loss.py`
 - `openrlhf/models/model.py`
+- `openrlhf/models/ring_attn_utils.py`
 - `openrlhf/models/utils.py`
 - `openrlhf/trainer/ppo_trainer.py`
 - `openrlhf/trainer/ppo_trainer_async.py`

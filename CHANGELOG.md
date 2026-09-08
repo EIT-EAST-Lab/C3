@@ -99,6 +99,10 @@ config values, prompts or role definitions were touched.
 - The audit scanners scope their generated-directory exclusions to the
   repository root. An unanchored `data` exclusion meant the data preparation
   scripts were never scanned for hard-coded paths.
+- The training entry point imports without flash-attn: the two module-level
+  imports in `openrlhf/models/ring_attn_utils.py` are guarded. Ring attention,
+  the sequence-packing path across ranks, still requires flash-attn and now says
+  so at the point of use instead of at import time.
 
 ### Fixed
 
