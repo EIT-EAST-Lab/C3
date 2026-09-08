@@ -2,17 +2,19 @@
 
 These tests encode the mistakes that actually reached a release: preparation
 scripts that were never committed, documentation links pointing at moved files,
-unanchored ignore patterns that swallowed source directories, and a workflow
-whose YAML never parsed.
+unanchored ignore patterns that swallowed source directories, a workflow whose
+YAML never parsed, and a vendored package that no import could resolve because
+it was never committed.
 """
 
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 import pytest
 import yaml
@@ -198,3 +200,126 @@ def test_workflows_parse_and_every_step_has_uses_or_run() -> None:
                     )
 
     assert not problems, "Workflow problems:\n" + "\n".join(problems)
+
+
+# ---------------------------------------------------------------------------
+# Intra-repository import resolution
+#
+# `openrlhf/models/` was imported by nine modules of the vendored subtree and by
+# the analysis CLI, yet it was never committed: an unanchored `models/` ignore
+# pattern swallowed it. Every fresh clone therefore failed to import the
+# training entry point. This test resolves import statements statically, so it
+# needs neither the GPU stack nor any third-party package to be installed.
+# ---------------------------------------------------------------------------
+
+INTRA_REPO_PACKAGES = ("c3", "openrlhf")
+
+
+def _tracked_files() -> Set[str]:
+    return {line.strip() for line in _git("ls-files").splitlines() if line.strip()}
+
+
+def _tracked_directories(tracked: Set[str]) -> Set[str]:
+    directories: Set[str] = set()
+    for path in tracked:
+        parts = path.split("/")[:-1]
+        for depth in range(1, len(parts) + 1):
+            directories.add("/".join(parts[:depth]))
+    return directories
+
+
+def _module_name_for(rel_path: str) -> str:
+    parts = rel_path.split("/")
+    if parts[-1] == "__init__.py":
+        parts = parts[:-1]
+    else:
+        parts[-1] = parts[-1][: -len(".py")]
+    return ".".join(parts)
+
+
+def _intra_repo_imports(rel_path: str, tree: ast.AST) -> Tuple[List[str], List[str]]:
+    """Return (absolute module names imported, structural problems) for one file."""
+    module = _module_name_for(rel_path)
+    package = module if rel_path.endswith("/__init__.py") else module.rpartition(".")[0]
+
+    names: List[str] = []
+    problems: List[str] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.extend(alias.name for alias in node.names)
+            continue
+
+        if not isinstance(node, ast.ImportFrom):
+            continue
+
+        if not node.level:
+            if node.module:
+                names.append(node.module)
+            continue
+
+        base = package
+        for _ in range(node.level - 1):
+            base = base.rpartition(".")[0]
+        if not base:
+            problems.append(
+                f"{rel_path}:{node.lineno}: relative import climbs above the "
+                f"top-level package (level={node.level}, module={node.module!r})"
+            )
+            continue
+
+        head = f"{base}.{node.module}" if node.module else base
+        names.append(head)
+        if node.module is None:
+            # `from . import x` always names submodules, never symbols.
+            names.extend(f"{head}.{alias.name}" for alias in node.names if alias.name != "*")
+
+    return names, problems
+
+
+def _resolves_to_tracked_module(name: str, tracked: Set[str], directories: Set[str]) -> bool:
+    stem = name.replace(".", "/")
+    return f"{stem}.py" in tracked or f"{stem}/__init__.py" in tracked or stem in directories
+
+
+def test_every_intra_repository_import_resolves_to_a_tracked_file() -> None:
+    """Every `c3.*` and `openrlhf.*` import must resolve inside the release.
+
+    Only the module being imported from is checked. `from pkg import name`
+    cannot tell a submodule from a symbol without importing, and importing
+    would require the GPU training stack; the module head is enough to catch a
+    package that is missing from the release.
+    """
+    tracked = _tracked_files()
+    directories = _tracked_directories(tracked)
+    sources = sorted(
+        path
+        for path in tracked
+        if path.endswith(".py") and path.split("/", 1)[0] in INTRA_REPO_PACKAGES
+    )
+    assert sources, "no tracked python sources found under c3/ or openrlhf/"
+
+    problems: List[str] = []
+    unresolved: List[str] = []
+
+    for rel_path in sources:
+        text = (REPO_ROOT / rel_path).read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(text, filename=rel_path)
+        except SyntaxError as exc:
+            problems.append(f"{rel_path}: does not parse: {exc}")
+            continue
+
+        names, file_problems = _intra_repo_imports(rel_path, tree)
+        problems.extend(file_problems)
+        for name in names:
+            if name.split(".", 1)[0] not in INTRA_REPO_PACKAGES:
+                continue
+            if not _resolves_to_tracked_module(name, tracked, directories):
+                unresolved.append(f"{rel_path} -> {name}")
+
+    assert not problems, "Import statements could not be analyzed:\n" + "\n".join(problems)
+    assert not unresolved, (
+        "These imports name a module of this repository that git does not "
+        "track, so a fresh clone cannot import them:\n" + "\n".join(sorted(set(unresolved)))
+    )
