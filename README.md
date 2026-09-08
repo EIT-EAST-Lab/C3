@@ -189,7 +189,10 @@ bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0
 
 On a CPU machine the smoke test import-checks the `c3` entrypoints only.
 `--tier gpu` additionally import-checks the training CLI, which needs the GPU tier;
-`--tier auto` (the default) picks the tier from `torch.cuda.is_available()`.
+`--tier auto` (the default) picks `gpu` only when torch reports a usable CUDA
+device and the training stack (`vllm` and `ray`) is importable, so a GPU machine
+with only the CPU tier installed still gets `cpu`. The resolved tier and the
+reason are printed.
 
 ## GPU Path
 

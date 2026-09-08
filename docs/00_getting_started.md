@@ -89,7 +89,9 @@ bash scripts/30_smoke/smoke.sh --task code --limit 1 --print_example 0
 ```
 
 `--tier auto` (the default) import-checks the training CLI only when torch reports
-a usable CUDA device. Force it either way with `--tier cpu` or `--tier gpu`.
+a usable CUDA device and the training stack (`vllm` and `ray`) is importable, so a
+GPU machine with only the CPU tier installed still resolves to `cpu`. Force it
+either way with `--tier cpu` or `--tier gpu`.
 
 ## 5. Run the paper-facing workflows (GPU tier)
 

@@ -21,7 +21,9 @@ Options:
   --tier auto|cpu|gpu      Which import checks to run. Default: auto.
                            cpu:  check the c3 entrypoints only.
                            gpu:  also import-check the training CLI (needs the GPU tier install).
-                           auto: gpu when torch reports a usable CUDA device, cpu otherwise.
+                           auto: gpu only when torch reports a usable CUDA device AND
+                                 the training stack (vllm, ray) is importable; cpu
+                                 otherwise. The reason is printed.
 
   # Optional (slower): run ONE eval-only call through the OpenRLHF CLI using an HF base model.
   # This does NOT require checkpoints, but it may require GPU/vLLM depending on your setup.
@@ -93,16 +95,62 @@ c3_repro_export_common_env "${REPO_ROOT}"
 
 _echo() { echo "[smoke] $*" >&2; }
 
+RESOLVED_TIER=""
+TIER_REASON=""
+
+# Resolve --tier auto into cpu or gpu, and say why.
+#
+# A CUDA device is not enough to decide: someone who followed the CPU quickstart
+# on a GPU workstation has torch.cuda available but no training stack, and the
+# GPU tier would then fail while import-checking the training CLI. So auto asks
+# for both a usable device and an importable vllm and ray. Explicit --tier gpu
+# is left alone on purpose: it must fail loudly when the stack is missing.
 _resolve_tier() {
   case "${TIER}" in
-    cpu|gpu)
-      echo "${TIER}"
+    cpu)
+      RESOLVED_TIER="cpu"
+      TIER_REASON="requested explicitly"
+      ;;
+    gpu)
+      RESOLVED_TIER="gpu"
+      TIER_REASON="requested explicitly"
       ;;
     auto)
-      if "${PYTHON_BIN}" -c "import sys, torch; sys.exit(0 if torch.cuda.is_available() else 1)" >/dev/null 2>&1; then
-        echo "gpu"
+      local probe=""
+      probe="$(
+        "${PYTHON_BIN}" -c '
+import importlib.util
+
+try:
+    import torch
+except Exception:
+    print("cpu torch is not importable")
+    raise SystemExit(0)
+
+if not torch.cuda.is_available():
+    print("cpu torch reports no usable CUDA device")
+    raise SystemExit(0)
+
+missing = []
+for name in ("vllm", "ray"):
+    try:
+        if importlib.util.find_spec(name) is None:
+            missing.append(name)
+    except Exception:
+        missing.append(name)
+
+if missing:
+    print("cpu the training stack is not installed (missing: %s)" % ", ".join(missing))
+else:
+    print("gpu a CUDA device and the training stack are both available")
+' 2>/dev/null || true
+      )"
+      if [[ -z "${probe}" ]]; then
+        RESOLVED_TIER="cpu"
+        TIER_REASON="the tier probe could not run, so the CPU tier is assumed"
       else
-        echo "cpu"
+        RESOLVED_TIER="${probe%% *}"
+        TIER_REASON="${probe#* }"
       fi
       ;;
     *)
@@ -112,12 +160,12 @@ _resolve_tier() {
   esac
 }
 
-RESOLVED_TIER="$(_resolve_tier)"
+_resolve_tier
 
 _echo "repo_root=${REPO_ROOT}"
 _echo "python=${PYTHON_BIN}"
 _echo "task_yaml=${TASK_YAML}"
-_echo "tier=${TIER} (resolved: ${RESOLVED_TIER})"
+_echo "tier=${TIER} (resolved: ${RESOLVED_TIER}; ${TIER_REASON})"
 
 if [[ "${SKIP_IMPORT_CHECKS}" != "1" ]]; then
   if [[ "${RESOLVED_TIER}" == "gpu" ]]; then
