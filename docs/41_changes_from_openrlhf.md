@@ -50,6 +50,15 @@ Counts (within `openrlhf/`):
 - **Modified:** 23 files
 - **Removed (not vendored):** 20 files
 
+> These counts and lists compare **non-blank, non-provenance lines**. 39 of the
+> 44 vendored `.py` files start with the three-line C3 provenance comment
+> (`# Derived from OpenRLHF ...`, `# Modified by the C3 authors ...`,
+> `# See docs/40_upstream.md ...`), and adding it also moved the blank line next
+> to it in a few files, so a raw byte comparison against upstream marks all 39 as
+> modified and does not reproduce the numbers above. The regeneration script
+> below skips both kinds of line before hashing; the counts here were last
+> regenerated with it against upstream at the pinned commit.
+>
 > These lists are reproducible. See the "How to regenerate this summary" section below.
 
 ### B.1 Added files
@@ -158,10 +167,9 @@ This section describes how to reproduce Section B.
 
 ### 1) Prepare upstream at the pinned commit
 
-If using the provided `OpenRLHF.zip`:
-
 ```bash
-cd <path-to-OpenRLHF>/OpenRLHF
+git clone https://github.com/OpenRLHF/OpenRLHF.git <path-to-OpenRLHF>
+cd <path-to-OpenRLHF>
 git checkout f372a2d41e26c3c47a0f6653fb94c31f5c257942
 ```
 
@@ -175,7 +183,17 @@ from pathlib import Path
 import hashlib
 
 c3 = Path("openrlhf")
-up = Path("<path-to-OpenRLHF>/OpenRLHF/openrlhf")
+up = Path("<path-to-OpenRLHF>/openrlhf")
+
+# 39 of the 44 vendored files start with the three-line C3 provenance comment,
+# and adding it also moved the blank line next to it in a few files. Hash the
+# non-blank, non-provenance lines, or every one of those files reports as
+# modified.
+PROVENANCE = (
+    b"# Derived from OpenRLHF",
+    b"# Modified by the C3 authors",
+    b"# See docs/40_upstream.md",
+)
 
 def files(root: Path):
     return sorted([p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()])
@@ -183,8 +201,10 @@ def files(root: Path):
 def sha256(p: Path):
     h = hashlib.sha256()
     with p.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
+        for line in f:
+            if line.startswith(PROVENANCE) or not line.strip():
+                continue
+            h.update(line)
     return h.hexdigest()
 
 c3_files = set(files(c3))

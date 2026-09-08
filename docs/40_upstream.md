@@ -31,22 +31,16 @@ This anchor is recorded to make the upstream base **fully reproducible and audit
 
 ### How this anchor can be verified
 
-If you have the provided `OpenRLHF.zip` (it includes git metadata):
-
-```bash
-cd <path-to-OpenRLHF>/OpenRLHF
-git rev-parse HEAD
-git describe --tags --always
-git show -s --format=%cI HEAD
-cat version.txt
-```
-
-If you use a fresh clone from GitHub, you can verify that the commit exists:
+Clone upstream and check the anchor out:
 
 ```bash
 git clone https://github.com/OpenRLHF/OpenRLHF.git
 cd OpenRLHF
-git show f372a2d41e26c3c47a0f6653fb94c31f5c257942 --oneline
+git checkout f372a2d41e26c3c47a0f6653fb94c31f5c257942
+git rev-parse HEAD
+git describe --tags --always
+git show -s --format=%cI HEAD
+cat version.txt
 ```
 
 ---
@@ -59,19 +53,28 @@ The authoritative file-level change log lives in:
 
 To **reproduce** the “Added / Modified / Removed (not vendored)” lists in that document, do:
 
-### Option A (recommended): use the provided `OpenRLHF.zip`
+### 1) Prepare upstream at the pinned commit
 
 ```bash
-# 1) Prepare upstream at the pinned commit
-cd <path-to-OpenRLHF>/OpenRLHF
+git clone https://github.com/OpenRLHF/OpenRLHF.git <path-to-OpenRLHF>
+cd <path-to-OpenRLHF>
 git checkout f372a2d41e26c3c47a0f6653fb94c31f5c257942
-
-# 2) Compare openrlhf/ package trees (from your C3 repo root)
-cd <path-to-C3>
-diff -rq <path-to-OpenRLHF>/OpenRLHF/openrlhf ./openrlhf
 ```
 
-### Option B: compute Added/Modified/Removed lists programmatically
+### 2) Compare the `openrlhf/` package trees
+
+From your C3 repo root:
+
+```bash
+diff -rq <path-to-OpenRLHF>/openrlhf ./openrlhf
+```
+
+This is a raw byte comparison, so it also reports the 39 vendored `.py` files
+that carry the three-line C3 provenance comment at the top of the file. The
+lists in `docs/41_changes_from_openrlhf.md` compare non-blank, non-provenance
+lines instead; the script in step 3 does that.
+
+### 3) Compute the Added / Modified / Removed lists programmatically
 
 From your C3 repo root:
 
@@ -81,7 +84,17 @@ from pathlib import Path
 import hashlib
 
 c3 = Path("openrlhf")
-up = Path("<path-to-OpenRLHF>/OpenRLHF/openrlhf")
+up = Path("<path-to-OpenRLHF>/openrlhf")
+
+# 39 of the 44 vendored files start with the three-line C3 provenance comment,
+# and adding it also moved the blank line next to it in a few files. Hash the
+# non-blank, non-provenance lines, or every one of those files reports as
+# modified.
+PROVENANCE = (
+    b"# Derived from OpenRLHF",
+    b"# Modified by the C3 authors",
+    b"# See docs/40_upstream.md",
+)
 
 def files(root: Path):
     return sorted([p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()])
@@ -89,8 +102,10 @@ def files(root: Path):
 def sha256(p: Path):
     h = hashlib.sha256()
     with p.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
+        for line in f:
+            if line.startswith(PROVENANCE) or not line.strip():
+                continue
+            h.update(line)
     return h.hexdigest()
 
 c3_files = set(files(c3))
