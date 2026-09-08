@@ -159,11 +159,13 @@ python -m pip install -e . --no-deps
 python -m pip check
 ```
 
-The GPU tier needs one more step. FlashAttention is absent from every lock file
-because it builds from source and needs a CUDA toolchain, but the training entry
-point requires it: `openrlhf/models/ring_attn_utils.py` imports `flash_attn` at
-module level, so `import openrlhf.cli.train_ppo_ray` fails with
-`ModuleNotFoundError: No module named 'flash_attn'` until you add it:
+FlashAttention is optional and is absent from every lock file because it has no
+wheels: it builds from source and needs a CUDA toolchain (`nvcc`). The training
+entry point imports and the smoke test passes without it. Two paths do need it,
+both on a real GPU: ring attention (the sequence-packing path across ranks),
+which raises a `RuntimeError` naming the command below if it is missing, and
+`attn_implementation="flash_attention_2"`, which is the default of
+`--attn_implementation`. Install it on the GPU machine:
 
 ```bash
 python -m pip install -e ".[flash]" --no-build-isolation

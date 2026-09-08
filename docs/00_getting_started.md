@@ -45,11 +45,13 @@ To reproduce the published numbers against the exact stack that produced them,
 install `requirements/gpu-paper.lock.txt` instead. It is a verbatim snapshot of
 the maintainers' training environment and is intentionally not repaired.
 
-FlashAttention is absent from every lock file because it builds from source and
-needs a CUDA toolchain, but the training tier requires it:
-`openrlhf/models/ring_attn_utils.py` imports `flash_attn` at module level, so
-`import openrlhf.cli.train_ppo_ray` and `smoke.sh --tier gpu` fail with
-`ModuleNotFoundError: No module named 'flash_attn'` until you run
+FlashAttention is optional and is absent from every lock file because it has no
+wheels: it builds from source and needs a CUDA toolchain (`nvcc`). Both
+`import openrlhf.cli.train_ppo_ray` and `smoke.sh --tier gpu` succeed without it.
+Two paths do need it, both on a real GPU: ring attention (the sequence-packing
+path across ranks), which raises a `RuntimeError` naming the install command if
+the package is missing, and `attn_implementation="flash_attention_2"`, which is
+the default of `--attn_implementation`. On the GPU machine, add it with
 `pip install -e ".[flash]" --no-build-isolation`.
 
 ## 2. Check the installation
