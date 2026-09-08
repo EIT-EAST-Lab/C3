@@ -20,6 +20,7 @@ Use this checklist when changing protocol, data loading, credit assignment, eval
 - The paper-facing C3 path remains centered on `openrlhf/trainer/ppo_utils/experience_maker.py` plus `c3/credit/counterfactual/*`.
 - `c3/algorithms/group_baseline.py` remains documented as a fallback path, not the primary implementation.
 - Changes to `marl_algorithm=auto` behavior are intentional and documented.
+- `pytest -q tests/test_credit_mechanism.py` passes (LOO and full-mean advantages match the hand-derived values on the paper's fanout).
 
 ## Evaluation and aggregation contracts
 

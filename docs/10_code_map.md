@@ -10,7 +10,7 @@ This document is a quick navigation guide to the repository. It is intentionally
 - `requirements/`: lock files for the CPU tier, the GPU tier, and the paper environment
 - `scripts/`: entrypoints, numbered in the order a new user runs them
 - `docs/`: documentation, numbered in reading order
-- `tests/`: unit tests, release-surface contract tests, and tiny fixtures
+- `tests/`: unit tests, release-surface contract tests, the CPU mechanism test, and tiny fixtures
 
 ## The numbered stages
 
@@ -101,13 +101,17 @@ confusion the rename removes.
 
 ## Deprecated import paths
 
-These three shims re-export their replacements and raise a `DeprecationWarning`:
+These five shims re-export their replacements and raise a `DeprecationWarning`:
 
 | Old import | New import |
 |---|---|
 | `c3.credit.c3` | `c3.credit.counterfactual` |
 | `c3.algorithms.c3` | `c3.algorithms.group_baseline` |
 | `c3.text_sanitize` | `c3.utils.text_sanitize` |
+| `c3.tools.c3_env_smoke` | `c3.tools.env_smoke` |
+| `c3.analysis.c3_analysis` | `c3.analysis.analysis` |
+
+The last two also keep `python -m <old path>` working.
 
 ## Configuration single sources of truth
 

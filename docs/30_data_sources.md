@@ -125,6 +125,8 @@ The following list is the **current release target set**, and matches the manife
 - `data/MBPP/test.jsonl`      (manifest name: `MBPP-test`)
 - `data/MBPP_PLUS/test.jsonl` (manifest name: `MBPP+`)
 
+> Note: HumanEval and APPS are prepared only when you pass `--prepare_humaneval 1` and `--prepare_apps 1` to `scripts/10_data/prepare_all.sh`. Both default to `0`, so the default run prepares MBPP and MBPP+ only.
+
 > Note: `MBPP_PLUS` (underscore) is intentional and is the only canonical directory name in this release.
 
 ---

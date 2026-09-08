@@ -30,7 +30,9 @@ python -m pip check
 
 The CPU build of PyTorch lives on PyTorch's own index; the required
 `--extra-index-url` line is inside the lock file. To resolve current versions
-rather than the lock, use `python -m pip install -e ".[cpu,test]"`.
+rather than the lock, use `python -m pip install -e ".[cpu,test]"`. On Linux that
+command resolves PyPI's default PyTorch wheel, which is the CUDA build; add
+`--extra-index-url https://download.pytorch.org/whl/cpu` to stay CPU-only.
 
 ### GPU tier
 
@@ -45,21 +47,26 @@ To reproduce the published numbers against the exact stack that produced them,
 install `requirements/gpu-paper.lock.txt` instead. It is a verbatim snapshot of
 the maintainers' training environment and is intentionally not repaired.
 
-FlashAttention is optional and is absent from every lock file because it has no
-wheels: it builds from source and needs a CUDA toolchain (`nvcc`). Both
-`import openrlhf.cli.train_ppo_ray` and `smoke.sh --tier gpu` succeed without it.
-Two paths do need it, both on a real GPU: ring attention (the sequence-packing
-path across ranks), which raises a `RuntimeError` naming the install command if
-the package is missing, and `attn_implementation="flash_attention_2"`, which is
-the default of `--attn_implementation`. On the GPU machine, add it with
-`pip install -e ".[flash]" --no-build-isolation`.
+FlashAttention has no wheels: it builds from source and needs a CUDA toolchain
+(`nvcc`). It is therefore absent from `requirements/cpu.lock.txt` and
+`requirements/gpu.lock.txt`, and recorded in `requirements/gpu-paper.lock.txt`
+(`flash_attn==2.8.3`) because the paper environment had it installed.
+
+The plain consequence: `import openrlhf.cli.train_ppo_ray` and
+`smoke.sh --tier gpu` do not need flash-attn, but a training run as scripted
+does, because the CLI's `--attn_implementation` defaults to
+`flash_attention_2` (`openrlhf/cli/train_ppo_ray_tooling.py`) and
+`scripts/40_train/paper_train.sh` does not override it. Install flash-attn on the
+GPU machine with `pip install -e ".[flash]" --no-build-isolation` before running
+`scripts/40_train`. Ring attention (the sequence-packing path across ranks) needs
+it too and raises a `RuntimeError` naming the install command at the point of use.
 
 ## 2. Check the installation
 
 ```bash
 pytest -q tests
 bash scripts/30_smoke/smoke.sh --task tests/fixtures/tasks/mini_math.yaml --limit 1 --print_example 0
-bash scripts/30_smoke/smoke.sh --task tests/fixtures/tasks/mini_code.yaml --limit 1 --print_example 0 --skip_import_checks 1
+bash scripts/30_smoke/smoke.sh --task tests/fixtures/tasks/mini_code.yaml --limit 1 --print_example 0
 ```
 
 The fixture smokes use the tiny bundled data under `tests/fixtures/` and download

@@ -20,8 +20,9 @@ The release ships two installable tiers plus one historical record:
   tests, prepare and verify the datasets, run the smoke tests, and produce the
   analysis figures.
 - `requirements/gpu.lock.txt`: the current training stack. Installation, imports
-  and unit tests are verified on CPU; GPU execution is validated separately and
-  the file header lists what that covers.
+  and unit tests are verified on CPU; GPU execution has not yet been validated
+  against this lock, and the file header lists what remains to be validated on a
+  GPU.
 - `requirements/gpu-paper.lock.txt`: the maintainers' training environment, kept
   verbatim so the published numbers remain reproducible. It is a record, not a
   recommendation, and it is never repaired.

@@ -88,6 +88,7 @@ Corresponding local directories (`data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb
 - [requirements/](requirements/): Lock files for the CPU tier, the current GPU tier, and the paper environment.
 - [scripts/](scripts/): Entrypoints, numbered in the order a new user runs them.
 - [docs/](docs/): Documentation, numbered in reading order.
+- [tests/](tests/): Unit tests, release-surface contract tests, the CPU mechanism test, and tiny fixtures.
 - [project-page/](project-page/): Static companion site for the paper, deployed via GitHub Pages.
 
 The `scripts/` numbers are the workflow:
@@ -148,7 +149,9 @@ python -m pip check
 The lock file pins the CPU build of PyTorch, which is published on PyTorch's own
 index. The required `--extra-index-url` line is inside the lock file, so no extra
 flag is needed. To resolve current versions instead of using the lock, run
-`python -m pip install -e ".[cpu,test]"`.
+`python -m pip install -e ".[cpu,test]"`. On Linux that command resolves PyPI's
+default PyTorch wheel, which is the CUDA build; add
+`--extra-index-url https://download.pytorch.org/whl/cpu` to stay CPU-only.
 
 ### GPU tier
 
@@ -159,13 +162,22 @@ python -m pip install -e . --no-deps
 python -m pip check
 ```
 
-FlashAttention is optional and is absent from every lock file because it has no
-wheels: it builds from source and needs a CUDA toolchain (`nvcc`). The training
-entry point imports and the smoke test passes without it. Two paths do need it,
-both on a real GPU: ring attention (the sequence-packing path across ranks),
-which raises a `RuntimeError` naming the command below if it is missing, and
-`attn_implementation="flash_attention_2"`, which is the default of
-`--attn_implementation`. Install it on the GPU machine:
+FlashAttention has no wheels: it builds from source and needs a CUDA toolchain
+(`nvcc`). It is therefore absent from [requirements/cpu.lock.txt](requirements/cpu.lock.txt)
+and [requirements/gpu.lock.txt](requirements/gpu.lock.txt), and recorded in
+[requirements/gpu-paper.lock.txt](requirements/gpu-paper.lock.txt)
+(`flash_attn==2.8.3`) because the paper environment had it installed.
+
+The plain consequence: importing the training entry point and running the smoke
+test do not need flash-attn, but a training run as scripted does, because the
+CLI's `--attn_implementation` defaults to `flash_attention_2`
+([openrlhf/cli/train_ppo_ray_tooling.py](openrlhf/cli/train_ppo_ray_tooling.py))
+and [scripts/40_train/paper_train.sh](scripts/40_train/paper_train.sh) does not
+override it. Install flash-attn on the GPU machine before running
+`scripts/40_train`. Ring attention (the sequence-packing path across ranks) needs
+it too and raises a `RuntimeError` naming the command below at the point of use.
+
+The command is:
 
 ```bash
 python -m pip install -e ".[flash]" --no-build-isolation

@@ -46,6 +46,10 @@ config values, prompts or role definitions were touched.
   also resolves every `c3.*` and `openrlhf.*` import statement statically
   against the files git tracks, so a package that is never committed cannot
   ship again.
+- `tests/test_credit_mechanism.py`, a CPU-runnable test of the paper's
+  mechanism. It builds a rollout tree by hand on the paper's fanout and checks
+  the LOO and full-mean advantages against values derived independently, in 13
+  cases. It was verified to fail when the LOO baseline is broken.
 - `CHANGELOG.md`, this file.
 
 ### Changed
