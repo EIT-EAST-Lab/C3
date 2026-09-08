@@ -8,7 +8,8 @@ implementation audit.
 
 | | CPU tier | GPU tier |
 |---|---|---|
-| Hardware | any x86_64 machine, no GPU | NVIDIA GPUs, CUDA 12.8 compatible runtime |
+| Hardware | any x86_64 machine, no GPU | NVIDIA GPUs |
+| CUDA runtime | not used | CUDA 13 with `requirements/gpu.lock.txt` (torch 2.13.0, which pulls the CUDA 13 runtime wheels), CUDA 12.8 with `requirements/gpu-paper.lock.txt` (torch 2.9.0+cu128, the paper environment) |
 | Python | 3.11 | 3.11 |
 | Enables | unit tests, dataset preparation and verification, smoke tests, analysis and plotting, the release gate | everything above, plus training and full paper reproduction |
 | Lock file | `requirements/cpu.lock.txt` | `requirements/gpu.lock.txt` |
