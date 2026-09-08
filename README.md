@@ -159,9 +159,15 @@ python -m pip install -e . --no-deps
 python -m pip check
 ```
 
-FlashAttention is optional and deliberately absent from every lock file: it builds
-from source and needs a CUDA toolchain. Add it with
-`python -m pip install -e ".[flash]" --no-build-isolation` if you want it.
+The GPU tier needs one more step. FlashAttention is absent from every lock file
+because it builds from source and needs a CUDA toolchain, but the training entry
+point requires it: `openrlhf/models/ring_attn_utils.py` imports `flash_attn` at
+module level, so `import openrlhf.cli.train_ppo_ray` fails with
+`ModuleNotFoundError: No module named 'flash_attn'` until you add it:
+
+```bash
+python -m pip install -e ".[flash]" --no-build-isolation
+```
 
 Reproduction scripts export the repository root on `PYTHONPATH` themselves, through
 [scripts/_lib/common_env.sh](scripts/_lib/common_env.sh).

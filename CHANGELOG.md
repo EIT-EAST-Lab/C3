@@ -110,7 +110,11 @@ config values, prompts or role definitions were touched.
   `scripts/30_smoke/smoke.sh --tier gpu` all failed with
   `ModuleNotFoundError: No module named 'openrlhf.models'`, in every
   environment. The package is restored byte for byte from the release packaging
-  snapshot, so no behavior changed.
+  snapshot, so no behavior changed. One consequence is now visible that the
+  missing package used to hide: `openrlhf/models/ring_attn_utils.py` imports
+  `flash_attn` at module level, so the training entry point also needs the
+  `flash` extra, which no lock file can pin because it builds from source
+  against a CUDA toolchain. The GPU tier installation notes say so.
 - The README quickstart works: `scripts/10_data/prepare_all.sh` and
   `scripts/20_models/download_models.sh` are in the release. They were excluded
   from the previous release by unanchored `.gitignore` patterns, which are now

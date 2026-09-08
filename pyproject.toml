@@ -63,9 +63,12 @@ train = [
   "wandb>=0.18",
 ]
 
-# FlashAttention is never imported directly: it is selected through the
-# `attn_implementation="flash_attention_2"` string. It is kept out of every lock
-# file because its source build needs a CUDA toolchain (nvcc).
+# FlashAttention is required by the training tier, not decorative: the vendored
+# `openrlhf/models/ring_attn_utils.py` imports `flash_attn` at module level, so
+# `import openrlhf.cli.train_ppo_ray` fails without it. It stays an extra rather
+# than a `train` dependency because its source build needs a CUDA toolchain
+# (nvcc) and usually `--no-build-isolation`, which would break `pip install` on
+# every machine that only prepares data. Install it on the GPU machine.
 flash = [
   "flash-attn>=2.6",
 ]
