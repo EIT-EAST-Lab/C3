@@ -33,8 +33,11 @@ ALWAYS_EXCLUDE_DIRS = {
 }
 
 # Excluded only at the repository root: these are generated local outputs.
-# Scoping them to the root matters. An unscoped "models" also skipped the
-# vendored openrlhf/models package, so it was never scanned for credentials.
+# Scoping them to the root matters. The unscoped "data" this list used to carry
+# skipped tests/fixtures/data as well, so the bundled fixtures were never
+# scanned for credentials. "models" is listed here for parity with the other two
+# scanners, and root scoping is what keeps it from hiding the vendored
+# openrlhf/models package the same way.
 ROOT_ONLY_EXCLUDE_DIRS = {
     ".venv",
     "venv",
