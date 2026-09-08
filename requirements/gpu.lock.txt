@@ -33,12 +33,13 @@
 #   (vllm imports on a CPU box without VLLM_TARGET_DEVICE). The full unit test
 #   suite passes in this environment.
 #
-#   NOT VERIFIED, and not a packaging problem: `import openrlhf.cli.train_ppo_ray`
-#   fails on a fresh clone with `ModuleNotFoundError: No module named
-#   'openrlhf.models'`. That package is imported by nine modules of the vendored
-#   subtree but has never been committed to this repository. No dependency set
-#   can fix that; the sources have to be added. Until then the GPU tier installs
-#   but the training entry point cannot be imported.
+#   The training entry point also imports on that CPU-only machine:
+#   `TRANSFORMERS_NO_TF=1 python -c "import openrlhf.cli.train_ppo_ray"` succeeds.
+#   That environment variable is needed because transformers still carries a
+#   TensorFlow compatibility shim, and probing for TensorFlow trips over Keras 3;
+#   the variable tells transformers not to probe. The vendored `openrlhf/models`
+#   package that this import needs was missing from the 0.1.0 release, swallowed
+#   by an unanchored ignore pattern, and is shipped again since 0.2.0.
 #
 #   GPU EXECUTION IS NOT YET VALIDATED. The following need a real NVIDIA GPU and
 #   are unverified against this version set:
