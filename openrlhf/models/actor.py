@@ -136,9 +136,10 @@ class Actor(nn.Module):
 
         output = self.model(sequences, attention_mask=forward_attention_mask, position_ids=position_ids)
 
-        # ❗️关键修复：
-        # 不要把 logits 整体 .to(float32) —— 这会复制一份 (B,T,V) 的超大张量，直接 OOM。
-        # 需要更高精度时，log_probs_from_logits 内部会选择合适的 CE 实现；entropy 也用 chunked。
+        # Critical fix: do not cast the whole logits tensor with .to(float32). That copies a
+        # (B, T, V) tensor and goes straight to OOM. When more precision is needed,
+        # log_probs_from_logits selects a suitable cross-entropy implementation internally,
+        # and the entropy path is chunked as well.
         logits = output["logits"]
 
         if return_entropy:
