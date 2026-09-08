@@ -83,6 +83,9 @@ for v in \
   fi
 done
 
+# Interpreter override, same knob as the other entrypoints.
+PYTHON_BIN="${PYTHON:-python}"
+
 ARGS_COMMON=()
 if [[ -n "$DATA_DIR" ]]; then
   ARGS_COMMON+=(--data_dir "$DATA_DIR")
@@ -98,7 +101,7 @@ run_with_hf_fallback() {
   local script="$1"; shift
 
   local rc=0
-  python "$script" "$@" || rc=$?
+  "$PYTHON_BIN" "$script" "$@" || rc=$?
   if [[ "$rc" -eq 0 ]]; then
     return 0
   fi
@@ -108,7 +111,7 @@ run_with_hf_fallback() {
     echo "[WARN] ${script} failed against the Hugging Face mirror ${endpoint}."
     echo "[WARN] Retrying with the official endpoint ${C3_HF_OFFICIAL_ENDPOINT}..."
     export HF_ENDPOINT="${C3_HF_OFFICIAL_ENDPOINT}"
-    python "$script" "$@"
+    "$PYTHON_BIN" "$script" "$@"
     return $?
   fi
   return "$rc"
@@ -122,7 +125,7 @@ seed_evalplus_mbpp_plus_cache() {
   [[ -n "${GITHUB_MIRROR_PREFIX:-}" ]] || return 0
   [[ "$PREPARE_MBPP_PLUS" == "1" ]] || return 0
 
-  python - <<'PY'
+  "$PYTHON_BIN" - <<'PY'
 import gzip
 import os
 import shutil

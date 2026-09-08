@@ -238,7 +238,6 @@ def _pick_repo_files_for_split(files: List[str], split: str) -> List[str]:
 
 
 def _iter_rows_from_repo_files(repo_id: str, revision: str, split: str) -> Iterator[Dict[str, Any]]:
-    endpoint = (Path(".").resolve() and None)  # keep static analyzers quiet
     endpoint = None
     # respect HF_ENDPOINT if present
     import os

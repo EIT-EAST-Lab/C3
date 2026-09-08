@@ -72,9 +72,11 @@ The same checks run in CI on every pull request, in
 Public prose is English. `scripts/90_audit/scan_prose.py` enforces two rules and
 runs in CI:
 
-- no em dash and no en dash in `.md`, `.py`, `.sh`, `.yaml`, `.yml`, `.toml` or
-  `.cff` files: use a colon, a comma, a semicolon or brackets;
-- no CJK characters outside `scripts/90_audit/cjk_allowlist.txt`.
+- no em dash and no en dash in `.md`, `.py`, `.sh`, `.yaml`, `.yml`, `.toml`,
+  `.cff` or `.txt` files (the last covers the lock file headers): use a colon, a
+  comma, a semicolon or brackets;
+- no CJK characters outside `scripts/90_audit/cjk_allowlist.txt`. That file is
+  exempt from the CJK rule, since it quotes the allowed strings by design.
 
 The allowlist holds the functional CMATH answer cues and punctuation sets, which
 must stay byte for byte identical. If you touch one of those lines, keep the

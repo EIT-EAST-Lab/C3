@@ -14,7 +14,9 @@ Two rules:
 2. No CJK characters, except the ones listed in scripts/90_audit/cjk_allowlist.txt.
    The repository is public and English, but a handful of CJK strings are
    functional: they are the answer cue words and punctuation sets that the CMATH
-   benchmark parsers must match byte for byte.
+   benchmark parsers must match byte for byte. The allowlist file itself is
+   exempt from this rule, since it quotes those strings by design; rule 1 still
+   applies to it.
 
 Allowlist format, one entry per line, `#` starts a comment:
 
@@ -39,7 +41,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Set, Tuple
 
 
-SCANNED_SUFFIXES = {".md", ".py", ".sh", ".yaml", ".yml", ".toml", ".cff"}
+SCANNED_SUFFIXES = {".md", ".py", ".sh", ".yaml", ".yml", ".toml", ".cff", ".txt"}
 
 # Excluded wherever they occur: they nest anywhere and never hold public prose.
 ALWAYS_EXCLUDE_DIRS = {".git", "__pycache__", ".mypy_cache", ".pytest_cache"}
@@ -60,6 +62,10 @@ ROOT_ONLY_EXCLUDE_DIRS = {
 }
 
 DEFAULT_ALLOWLIST = "scripts/90_audit/cjk_allowlist.txt"
+
+# The allowlist quotes the functional CJK strings it allows, so the CJK rule
+# cannot apply to it. The dash rule still does.
+CJK_EXEMPT_FILES = {DEFAULT_ALLOWLIST}
 
 FORBIDDEN_DASHES = {
     chr(0x2013): "en dash (U+2013)",
@@ -120,11 +126,15 @@ def _scan_file(path: Path, rel: str, allow: Dict[str, Set[str]]) -> List[Tuple[i
         return hits
 
     needles = allow.get(rel, set())
+    cjk_exempt = rel in CJK_EXEMPT_FILES
     for lineno, line in enumerate(text.splitlines(), start=1):
         for char, label in FORBIDDEN_DASHES.items():
             if char in line:
                 hits.append((lineno, f"forbidden {label}", line.strip()))
                 break
+
+        if cjk_exempt:
+            continue
 
         match = _CJK.search(line)
         if match and not any(needle in line for needle in needles):

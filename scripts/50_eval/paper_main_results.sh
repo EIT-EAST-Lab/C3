@@ -280,6 +280,10 @@ _run_eval_one() {
     --l2 0
 
     --init_kl_coef 0
+
+    # NOTE: this is the evaluation entry point (the learning rates are set to 0 above, so no
+    # optimization happens). The batch sizes below are conservative single-GPU generation defaults;
+    # training batch configuration follows the paper (Table 3) and scripts/40_train/paper_train.sh.
     --train_batch_size 1
     --micro_train_batch_size 1
     --rollout_batch_size 1

@@ -15,7 +15,7 @@ set -euo pipefail
 #
 # NOTE: Some models (e.g., Qwen) may require accepting terms on Hugging Face.
 #       If the download fails with 401/403, login first:
-#         huggingface-cli login
+#         hf auth login
 #       or set HF_TOKEN / HUGGINGFACE_HUB_TOKEN in your environment.
 
 _usage() {
