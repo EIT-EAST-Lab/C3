@@ -263,6 +263,8 @@ def build_meta(
         "dataset": split,
         "question_order_seed": int(seed),
         "include_real_as_j0": bool(sampling["include_real_as_j0"]),
+        # generation-time context is the transitive ancestors of a role (WP-R8; contract revision 2)
+        "context_scope": "ancestors",
     }
 
 
