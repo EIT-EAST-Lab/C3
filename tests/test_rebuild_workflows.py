@@ -87,9 +87,15 @@ MANIFEST = REPO_ROOT / "configs" / "data_manifest.yaml"
 # The one evaluation suite the workflow files carry and the paper task does not.
 MATHPOOL_SUITE = {"name": "MATHPOOL", "path": "data/MATH/pool_informative.jsonl", "limit": None}
 
+# What configs/tasks/math.yaml evaluates: the five suites of the main table, which
+# is what the evaluation that runs during training measures. The two saturation
+# controls (GSM8K-test, CMATH-test) are reported once, after training, and live in
+# configs/tasks/math_final_eval.yaml with the rest of the final protocol.
+MAIN_TABLE_SUITES = ["MATH500", "Minerva-Math", "AMC23", "AIME24", "AIME25"]
+
 # Every math task file whose evaluation suites have to resolve to a prepared
-# artifact. The probe task has its own equivalent check in
-# tests/test_rebuild_eval_probe.py.
+# artifact. The probe task and the final-evaluation task have their own equivalent
+# checks in tests/test_rebuild_eval_probe.py and tests/test_rebuild_final_eval.py.
 MATH_TASK_YAMLS = (
     "configs/tasks/math.yaml",
     "configs/tasks/math_screen.yaml",
@@ -429,9 +435,16 @@ def test_task_yaml_differs_from_math_yaml_only_in_name_roles_path_and_the_pool_s
     assert spec.roles_path != base.roles_path
 
 
-def test_the_paper_task_does_not_evaluate_on_the_screened_pool() -> None:
+def test_the_paper_task_evaluates_the_main_table_suites_and_not_the_screened_pool() -> None:
+    """The evaluation that runs during training is the five main-table suites.
+
+    The two saturation controls are not among them: they are reported once, from
+    the evaluation of record after training, and carrying them here would pay for
+    1,098 plus 1,319 problems at every monitoring evaluation for a curve nobody
+    reads. The screened pool is absent for the reason the neighbouring test gives.
+    """
     base = load_task(str(REPO_ROOT / "configs/tasks/math.yaml"))
-    assert [str(s.get("name", "")) for s in base.eval_suites] == ["MATH500", "CMATH-test", "GSM8K-test"]
+    assert [str(s.get("name", "")) for s in base.eval_suites] == MAIN_TABLE_SUITES
 
 
 @pytest.mark.parametrize("workflow", WORKFLOW_IDS)

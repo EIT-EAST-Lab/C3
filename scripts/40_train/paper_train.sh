@@ -93,6 +93,15 @@ run_one() {
   local task_yaml="configs/tasks/${task}.yaml"
   n_samples_per_prompt="$(_paper_train_n_samples "$alg")"
 
+  # Decoding and evaluation follow docs/32_evaluation_protocol.md:
+  #   - generation cap 2048 for training and evaluation alike, because 512
+  #     truncates the harder suites before they reach an answer;
+  #   - temperature 0.7, top-p 0.8, top-k 20 for the rollouts, and the same
+  #     top-p and top-k for the evaluation, which reads them off these flags and
+  #     overrides only the temperature and the sample count;
+  #   - one evaluation every ten percent of the run, four samples per problem,
+  #     which is the monitoring curve. The numbers of the main table come from
+  #     scripts/70_rebuild/final_eval.py after training, not from these.
   "$PYTHON_BIN" -m openrlhf.cli.train_ppo_ray \
     --c3_task "$task_yaml" \
     --marl_algorithm "${alg,,}" \
@@ -100,11 +109,14 @@ run_one() {
     --pretrain "$PRETRAIN" \
     --seed "$seed" \
     --prompt_max_len 2560 \
-    --generate_max_len 512 \
+    --generate_max_len 2048 \
     --temperature 0.7 \
     --top_p 0.8 \
     --top_k 20 \
     --n_samples_per_prompt "$n_samples_per_prompt" \
+    --eval_every_ratio 0.10 \
+    --eval_temperature 0.7 \
+    --eval_n_samples_per_prompt 4 \
     --ckpt_path "$CKPT_ROOT" \
     --run_id "$run_id" \
     --wandb_run_name "$run_id" \

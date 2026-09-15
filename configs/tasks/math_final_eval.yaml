@@ -1,0 +1,75 @@
+# ===== Task: math_final_eval (the evaluation of record, run after training) =====
+#
+# Evaluation only. The training block is the one in math.yaml, so the model is
+# measured on the same task definition it was trained under, and this file
+# differs from the main task in one place: the evaluation suites.
+#
+# Seven suites, none of them capped: the five main-table suites (MATH500,
+# Minerva-Math, AMC23, AIME24, AIME25) and the two saturation controls
+# (GSM8K-test, CMATH-test). AIME24 and AIME25 are two files here and one
+# 60-problem suite in the report; the merge happens in the evaluation record,
+# not in the data.
+#
+# The number of samples per problem is not in this file. It is per suite, and
+# one evaluation run has one sample count, so the driver
+# scripts/70_rebuild/final_eval.py splits these suites into one run per sample
+# count and writes a generated task file per group. See
+# docs/32_evaluation_protocol.md.
+#
+# configs/tasks/math.yaml carries the five main-table suites for the evaluation
+# that runs during training; this file is the one that produces the numbers of
+# the main table.
+
+experiment_name: "c3_math_final_eval"
+
+environment:
+  env_name: "MathEnv"
+  sampling_mode: concat        # every problem appears once per epoch; merge_epoch oversamples the smaller source
+  reshuffle_each_epoch: true   # reshuffle at the start of every epoch; set false to keep a fixed order
+
+  # Training set: identical to math.yaml. Present because the task schema requires
+  # it; this task only ever runs the evaluation path.
+  train_datasets:
+    - name: "MATH-train"
+      path: "data/MATH/train.jsonl"
+      weight: 1.0
+      limit: null
+    - name: "CMATH-train"
+      path: "data/CMATH/train.jsonl"
+      weight: 1.0
+      limit: null
+
+  # Evaluation: the five main-table suites and the two saturation controls, whole.
+  eval_suites:
+    - name: "MATH500"
+      path: "data/MATH500/test.jsonl"
+      limit: null
+    - name: "Minerva-Math"
+      path: "data/MINERVA_MATH/test.jsonl"
+      limit: null
+    - name: "AMC23"
+      path: "data/AMC23/test.jsonl"
+      limit: null
+    - name: "AIME24"
+      path: "data/AIME24/test.jsonl"
+      limit: null
+    - name: "AIME25"
+      path: "data/AIME25/test.jsonl"
+      limit: null
+    - name: "GSM8K-test"
+      path: "data/GSM8K/test.jsonl"
+      limit: null
+    - name: "CMATH-test"
+      path: "data/CMATH/test.jsonl"
+      limit: null
+
+  # Environment and reward conventions: the same scorer as math.yaml, unchanged.
+  episode_length: 1
+  math_backend: marft            # marft | simple
+  reward_mode: vote_binary       # vote_binary | avg_per_answer
+  use_math_verify: true
+  mix_seed: 42                   # deterministic seed for the mixed sampling
+
+# Roles (Duo by default).
+mas:
+  roles_path: "../roles/math/roles_duo.json"

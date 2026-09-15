@@ -115,6 +115,7 @@ The `scripts/` numbers are the workflow:
 - **Paper-to-Code Mapping**: [Implementation Audit](docs/20_implementation_audit.md)
 - **Development Invariants**: [Implementation Checklist](docs/21_implementation_checklist.md)
 - **Data Provenance**: [Data Sources](docs/30_data_sources.md)
+- **How Models Are Measured**: [Evaluation Protocol](docs/32_evaluation_protocol.md)
 - **Release Verification**: [Release Checklist](docs/51_release_checklist.md)
 - **Upstream Lineage**: [Upstream Provenance](docs/40_upstream.md)
 - **Release Notes**: [Changelog](CHANGELOG.md)
@@ -300,6 +301,31 @@ bash scripts/50_eval/paper_main_results.sh sweep \
   --registry configs/main_results_registry.yaml
 ```
 
+### Evaluation of Record
+
+The numbers of the main table come from one evaluation per trained model, run
+after training by [scripts/70_rebuild/final_eval.py](scripts/70_rebuild/final_eval.py).
+The estimator is avg@k, k is fixed per suite by a sampling-noise calculation, and
+one evaluation run has exactly one k, so the driver groups the suites by their k
+and runs one evaluation per group. Which suites, with what decoding, where k
+comes from and what the evaluation record holds are all in
+[Evaluation Protocol](docs/32_evaluation_protocol.md).
+
+```bash
+# Print the two commands and stop. Needs neither a GPU nor a model.
+python scripts/70_rebuild/final_eval.py --policy /models/Qwen3-4B-Instruct-2507 --dry-run
+
+# Evaluate one finished training run and write its record.
+python scripts/70_rebuild/final_eval.py \
+  --policy ckpt/_runs/paper_C3_math_seed0/final_hf \
+  --run_id paper_C3_math_seed0 \
+  --out /abs/path/final_eval_record.json
+```
+
+The evaluation that runs during training is a different thing: every ten percent
+of the run, on the five main-table suites at four samples per problem, and it
+feeds the monitoring curve only.
+
 ### Paper Analyses
 Generate analysis figures directly from local run directories:
 ```bash
@@ -314,7 +340,7 @@ bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
 
 ### Reliability and Ablation Drivers
 
-Three drivers under [scripts/70_rebuild/](scripts/70_rebuild/) measure the credit
+The drivers under [scripts/70_rebuild/](scripts/70_rebuild/) measure the credit
 estimator itself on a frozen policy. They are not on the training path and they
 change nothing in it. Each one takes `--dry-run`, which prints the commands it
 would run and the cell count without a GPU or a model, so you can read the full

@@ -17,16 +17,23 @@ environment:
       weight: 1.0
       limit: null
 
-  # Evaluation: several evaluation suites.
+  # Evaluation: the five main-table suites of math.yaml, plus the screened
+  # question pool this workflow is measured on.
   eval_suites:
     - name: "MATH500"
       path: "data/MATH500/test.jsonl"
       limit: null
-    - name: "CMATH-test"
-      path: "data/CMATH/test.jsonl"
+    - name: "Minerva-Math"
+      path: "data/MINERVA_MATH/test.jsonl"
       limit: null
-    - name: "GSM8K-test"
-      path: "data/GSM8K/test.jsonl"
+    - name: "AMC23"
+      path: "data/AMC23/test.jsonl"
+      limit: null
+    - name: "AIME24"
+      path: "data/AIME24/test.jsonl"
+      limit: null
+    - name: "AIME25"
+      path: "data/AIME25/test.jsonl"
       limit: null
     - name: "MATHPOOL"
       path: "data/MATH/pool_informative.jsonl"

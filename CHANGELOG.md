@@ -101,6 +101,25 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   regenerates downstream, for `E1.c10.median_prefix_tokens`, which needs a
   tokenizer and the model files and so cannot come from the aggregation. Its
   `--dry-run` reports what the bucket files carry without either.
+- `scripts/70_rebuild/final_eval.py` and `configs/tasks/math_final_eval.yaml`,
+  the evaluation of record: the one evaluation per trained model the main table
+  is read off. The estimator is avg@k with k fixed per suite (4 for MATH500,
+  Minerva-Math and the two saturation controls; 16 for AMC23 and the two AIME
+  files). One evaluation run has exactly one
+  `--eval_n_samples_per_prompt`, so the driver groups the suites by k, writes one
+  generated task file per group that is the source task with its suites narrowed,
+  and runs one evaluation per group through `paper_main_results.sh one`. It
+  writes an evaluation record carrying, per suite, the avg@k accuracy, k, the
+  problem count, the boxed rate, a Wilson interval and the k rewards of every
+  problem, plus the merged 60-problem `AIME` entry. `--dry-run` prints the
+  commands and needs neither a GPU nor a model; `FINAL_EVAL_EXTRA_ARGS` carries
+  the machine details.
+- `docs/32_evaluation_protocol.md` states the protocol: the benchmarks, the
+  decoding, the arithmetic that fixes k per suite, the definition of the boxed
+  rate and what the evaluation record holds. The README points at it.
+- `tests/test_rebuild_final_eval.py`, covering the grouping by sample count, the
+  generated per-group task file, avg@k, the boxed rate and its denominator, the
+  AIME merge on parts of unequal size, and the suites of the new task file.
 
 ### Changed
 
@@ -160,6 +179,22 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   order, so that prefix is the question and nothing else, the same text in every
   workflow; what the ten-agent chain costs is the downstream text each replay has
   to regenerate. The key keeps its name until the manifest renames it.
+- The evaluation suites of `configs/tasks/math.yaml` and of the five workflow
+  task files are the five suites of the main table (MATH500, Minerva-Math,
+  AMC23, AIME24, AIME25); the workflow files keep `MATHPOOL` as before. GSM8K-test
+  and CMATH-test left these files: they are saturation controls, reported once
+  after training and never tested, so paying for 2,417 problems at every
+  monitoring evaluation bought a curve nobody reads. They are evaluation suites
+  of `configs/tasks/math_final_eval.yaml` instead. Note that Minerva-Math,
+  AMC23, AIME24 and AIME25 are prepared only with `--prepare_eval_probe_sets 1`,
+  which the default preparation run does not pass.
+- `scripts/40_train/paper_train.sh` generates up to 2048 tokens rather than 512,
+  passes `--eval_temperature 0.7` so the evaluation samples the way the rollouts
+  do, and evaluates every ten percent of the run at four samples per problem
+  (`--eval_every_ratio 0.10`, `--eval_n_samples_per_prompt 4`). At 512 tokens the
+  harder suites were measuring truncation: not one AIME problem reached an
+  answer inside the cap. The evaluation reads top-p and top-k off the rollout
+  flags, which are unchanged at 0.8 and 20.
 
 ### Fixed
 
