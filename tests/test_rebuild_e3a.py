@@ -413,7 +413,7 @@ def test_the_deleted_form_is_recorded_with_its_note() -> None:
         for row in _rows(out):
             assert row["meta"]["null_form"] == "deleted"
             assert row["meta"]["null_form_note"] == analysis_cli.NULL_FORM_NOTE
-            assert "same assembly" in row["meta"]["null_form_note"]
+            assert "alias deleted" in row["meta"]["null_form_note"]
 
 
 def test_the_two_forms_differ_only_by_the_recorded_label() -> None:
@@ -835,7 +835,7 @@ def test_the_driver_emits_one_command_per_form(capsys: pytest.CaptureFixture) ->
     assert len(commands) == 2
 
     forms = [_flag(_argv_of(line), "--null_form") for line in commands]
-    assert forms == ["empty", "deleted"]
+    assert forms == ["empty", "placeholder"]
 
 
 def test_the_driver_asks_for_the_measurement_the_preregistration_fixed(
@@ -851,14 +851,14 @@ def test_the_driver_asks_for_the_measurement_the_preregistration_fixed(
         assert _flag(argv, "--num_completions") == "4"
         assert _flag(argv, "--seed") == "0"
         assert _flag(argv, "--split") == "MATH500"
-        assert _flag(argv, "--inject_literal_candidate") == ""
+        assert _flag(argv, "--inject_literal_candidate") == _e3a_cells().NULL_TEXTS[_flag(argv, "--null_form")]
 
 
 def test_the_driver_writes_where_the_contract_says(capsys: pytest.CaptureFixture) -> None:
     outs = [_flag(_argv_of(line), "--out") for line in _e3a_commands(capsys, "--results_root", "/abs/results")]
     assert outs == [
         "/abs/results/E3a/a3/4b/empty/buckets.jsonl",
-        "/abs/results/E3a/a3/4b/deleted/buckets.jsonl",
+        "/abs/results/E3a/a3/4b/placeholder/buckets.jsonl",
     ]
     assert len(set(outs)) == 2
 
@@ -879,7 +879,7 @@ def test_the_driver_stamps_the_meta_the_contract_requires(capsys: pytest.Capture
         "question_order_seed",
         "context_scope",
     }
-    for line, form in zip(_e3a_commands(capsys), ["empty", "deleted"]):
+    for line, form in zip(_e3a_commands(capsys), ["empty", "placeholder"]):
         meta = json.loads(_flag(_argv_of(line), "--meta_json"))
         assert required <= set(meta)
         assert meta["workflow"] == "a3"
@@ -909,9 +909,9 @@ def test_the_driver_reads_the_sampling_parameters_it_records(capsys: pytest.Capt
 
 
 def test_one_form_can_be_selected(capsys: pytest.CaptureFixture) -> None:
-    commands = _e3a_commands(capsys, "--only", "deleted")
+    commands = _e3a_commands(capsys, "--only", "placeholder")
     assert len(commands) == 1
-    assert _flag(_argv_of(commands[0]), "--null_form") == "deleted"
+    assert _flag(_argv_of(commands[0]), "--null_form") == "placeholder"
 
 
 def test_an_unknown_form_is_refused_by_the_driver() -> None:
@@ -926,9 +926,9 @@ def test_the_driver_reports_the_cell_count(capsys: pytest.CaptureFixture) -> Non
 def test_the_emitted_command_survives_a_shell_round_trip(capsys: pytest.CaptureFixture) -> None:
     """The injected text is empty, which a shell drops unless it is quoted."""
     for line in _e3a_commands(capsys):
-        assert "--inject_literal_candidate ''" in line
+        assert ("--inject_literal_candidate ''" in line) or ("--inject_literal_candidate 'No message.'" in line)
         argv = _argv_of(line)
-        assert argv[argv.index("--inject_literal_candidate") + 1] == ""
+        assert argv[argv.index("--inject_literal_candidate") + 1] in ("", "No message.")
 
 
 def test_the_driver_batches_by_default_and_can_be_told_not_to(capsys: pytest.CaptureFixture) -> None:
@@ -971,7 +971,7 @@ def test_the_emitted_command_builds_the_bucket_the_aggregator_expects(
         lambda: _make_runner(_Policy(), roles=["reasoner", "actor", "verifier"], tag="a3")
     )
 
-    for line, form in zip(commands, ["empty", "deleted"]):
+    for line, form in zip(commands, ["empty", "placeholder"]):
         out = tmp_path / f"{form}.jsonl"
         argv = _argv_of(line)[3:]  # drop python -m <module>
         analysis_cli.main(
@@ -994,7 +994,7 @@ def test_the_emitted_command_builds_the_bucket_the_aggregator_expects(
             meta = row["meta"]
             assert meta["null_arm"] == 0
             assert meta["null_form"] == form
-            assert meta["null_text"] == ""
+            assert meta["null_text"] == _e3a_cells().NULL_TEXTS[form]
             assert meta["rule"] == f"e3a_{form}"
             assert meta["context_scope"] == "ancestors"
             assert meta["record_next_teammate"] is True
@@ -1002,17 +1002,17 @@ def test_the_emitted_command_builds_the_bucket_the_aggregator_expects(
             assert meta["seed_scheme"] == batched_mod.SEED_SCHEME
             assert meta["credit_n"] == 5
             assert len(row["candidates"]) == 5
-            assert row["candidates"][0]["action_text"] == ""
+            assert row["candidates"][0]["action_text"] == _e3a_cells().NULL_TEXTS[form]
             assert all(c["next_actions"] for c in row["candidates"])
 
 
 def test_the_emitted_commands_parse_as_the_cli_would(capsys: pytest.CaptureFixture) -> None:
     """The strongest check available here: the real parser accepts them."""
     parser = analysis_cli._build_parser()
-    for line, form in zip(_e3a_commands(capsys), ["empty", "deleted"]):
+    for line, form in zip(_e3a_commands(capsys), ["empty", "placeholder"]):
         argv = _argv_of(line)
         args = parser.parse_args(argv[3:])  # drop python -m <module>
-        assert args.inject_literal_candidate == ""
+        assert args.inject_literal_candidate == _e3a_cells().NULL_TEXTS[form]
         assert args.null_form == form
         assert args.num_candidates == 4
         assert args.num_completions == 4

@@ -223,20 +223,25 @@ def _merge_extra_meta(bucket_dict: Dict[str, Any], extra_meta: Mapping[str, Any]
     return bucket_dict
 
 
-#: The two shapes the E3a null action can be reported as.
-NULL_ARM_FORMS = ("empty", "deleted")
+#: The shapes the E3a null action can be reported as (preregistration revision 15).
+#:   empty        the injected text is the empty string; the assembly drops the role's
+#:                paragraph, separator and label, so the downstream roles see the same
+#:                prompt as if the role had never acted (the leave-one-agent-out
+#:                counterfactual CCPO subtracts)
+#:   placeholder  a fixed literal message is injected; the role stays present in the
+#:                context but contributes nothing
+#:   deleted      accepted as an alias of empty: build_render_context filters falsy
+#:                outputs out of {context} and both prompt composers leave the Context
+#:                section out when nothing is left, so deletion and an empty message
+#:                are one assembly here
+NULL_ARM_FORMS = ("empty", "placeholder", "deleted")
 
-#: Written on every bucket that carries an injected null action. The assembly
-#: drops a role whose output is the empty string: build_render_context filters
-#: falsy outputs out of {context}, and both prompt composers leave the Context
-#: section out when what is left is empty. So an empty message and a deleted
-#: paragraph reach the downstream roles as the same prompt, with no separator
-#: and no label left behind. The flag is kept because the two are different
-#: claims in the paper; this note records that here they are one measurement.
+#: Written on every bucket that carries an injected null action.
 NULL_FORM_NOTE = (
-    "empty and deleted are the same assembly here: a role whose output is the "
-    "empty string contributes no paragraph, no separator and no label to the "
-    "downstream context, so both forms produce identical prompts."
+    "empty (alias deleted): the role's output is the empty string and the assembly "
+    "drops its paragraph, separator and label, so downstream prompts equal those of "
+    "a run in which the role never acted. placeholder: a fixed literal message is "
+    "injected, so the role is present but contributes nothing."
 )
 
 

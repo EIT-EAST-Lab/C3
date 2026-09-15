@@ -68,11 +68,13 @@ from e1_cells import (  # noqa: E402
 
 WORKFLOW = "a3"
 MODEL = "4b"
-FORMS = ("empty", "deleted")
+FORMS = ("empty", "placeholder")
 
-# The null action itself. Both forms inject the same text; see the module
-# docstring for why there is only one construction to inject.
-NULL_TEXT = ""
+# The null action itself, per form (preregistration revision 15): the empty string
+# is dropped by the context assembly, so the role vanishes from the downstream
+# prompts (the leave-one-agent-out counterfactual); the placeholder keeps the role
+# present with a fixed message that contributes nothing.
+NULL_TEXTS = {"empty": "", "placeholder": "No message."}
 
 DEFAULT_MODELS = "4b=Qwen3-4B-Instruct-2507"
 DEFAULT_RESULTS_ROOT = "20_data/results"
@@ -201,7 +203,7 @@ def build_argv(
         # The null arm. The empty argument is what makes the alternative empty,
         # so it has to survive the shell: the printed command quotes it.
         "--inject_literal_candidate",
-        NULL_TEXT,
+        NULL_TEXTS[form],
         "--null_form",
         form,
     ]
