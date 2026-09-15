@@ -12,12 +12,51 @@ We intentionally keep rendering conservative and predictable:
 
 from __future__ import annotations
 
-from typing import Dict, Mapping, List
+from typing import Dict, Mapping, List, Sequence, Set
 
 
 class _SafeDict(dict):
     def __missing__(self, key):  # type: ignore[override]
         return ""
+
+
+def ancestors_in_topo_order(
+    role: str,
+    roles_topo: Sequence[str],
+    depends_on: Mapping[str, Sequence[str]],
+) -> List[str]:
+    """Return the transitive dependencies of `role`, ordered by `roles_topo`.
+
+    This is the context scope used at generation time: a role reads what it
+    depends on, directly or indirectly, and nothing else. For a chain the
+    result is exactly the topological prefix, so chains are unaffected; for a
+    branching workflow the two parallel roles drop out of each other's context.
+
+    Conventions:
+      - `role` itself is never included.
+      - A name with no entry in `depends_on` is treated as having no parents.
+      - An ancestor absent from `roles_topo` is dropped: it has no position in
+        the order, and the topological prefix this replaces could not have
+        carried it either.
+      - Visited parents are remembered, so a malformed cyclic map terminates
+        instead of looping forever.
+    """
+
+    order = [str(r) for r in roles_topo]
+    target = str(role)
+
+    seen: Set[str] = set()
+    stack: List[str] = [target]
+    while stack:
+        cur = stack.pop()
+        for parent in depends_on.get(cur, ()) or ():
+            p = str(parent)
+            if p not in seen:
+                seen.add(p)
+                stack.append(p)
+    seen.discard(target)
+
+    return [r for r in order if r in seen]
 
 
 def build_render_context(
@@ -26,7 +65,11 @@ def build_render_context(
     role_outputs: Mapping[str, str],
     topo_so_far: List[str],
 ) -> Dict[str, str]:
-    """Build a rendering context for a role prompt."""
+    """Build a rendering context for a role prompt.
+
+    Callers pass the roles whose outputs this role is allowed to read, in
+    order. Every generation-time caller passes `ancestors_in_topo_order(...)`.
+    """
 
     ctx: Dict[str, str] = {"question": question}
 

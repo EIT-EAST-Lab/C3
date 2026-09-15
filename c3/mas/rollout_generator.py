@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from c3.integration.marl_specs import RoleSpec, TaskSpec, load_task
-from c3.mas.prompt_render import build_render_context, render_role_prompt
+from c3.mas.prompt_render import ancestors_in_topo_order, build_render_context, render_role_prompt
 from c3.mas.role_graph import RoleGraph
 from c3.utils.budget_ledger import append_ledger, make_budget_record
 from c3.utils.collision_guard import CollisionGuard
@@ -367,6 +367,8 @@ class MASRolloutGenerator:
     def _init_from_task(self, task_spec: TaskSpec) -> None:
         self.roles: Tuple[RoleSpec, ...] = tuple(task_spec.roles)
         self._role_by_name: Dict[str, RoleSpec] = {r.name: r for r in self.roles}
+        # Dependency map for the generation-time context scope (ancestors only).
+        self._depends_on: Dict[str, Tuple[str, ...]] = {r.name: tuple(r.depends_on) for r in self.roles}
 
         self.graph = RoleGraph(self.roles)
         self.topo = self.graph.topo_order()
@@ -399,15 +401,14 @@ class MASRolloutGenerator:
         for qi, q in enumerate(questions):
             for kid in range(int(k)):
                 role_outputs: StrMap = {}
-                topo_so_far: List[str] = []
                 prompts: List[Tuple[str, str]] = []
 
                 for role_name in topo:
                     role = self._role_by_name[role_name]
-                    ctx = build_render_context(question=q, role_outputs=role_outputs, topo_so_far=topo_so_far)
+                    ctx_roles = ancestors_in_topo_order(role_name, topo, self._depends_on)
+                    ctx = build_render_context(question=q, role_outputs=role_outputs, topo_so_far=ctx_roles)
                     rendered = render_role_prompt(role.prompt, ctx=ctx)
                     prompts.append((role_name, rendered))
-                    topo_so_far.append(role_name)
 
                 plans.append(MASRolloutPlan(question_id=int(qi), k_id=int(kid), role_prompts=prompts))
 
@@ -772,6 +773,9 @@ class MASRolloutGenerator:
         for depth, role_name in enumerate(topo):
             role = self._role_by_name[role_name]
             topo_so_far = topo[:depth]
+            # Role prompts read ancestors only, so two parallel roles never see each other.
+            # The centralized-critic state text below deliberately keeps the full prefix.
+            ctx_roles = ancestors_in_topo_order(role_name, topo, self._depends_on)
             fan = int(fanout[depth])
 
             prompts_batch: List[str] = []
@@ -793,7 +797,7 @@ class MASRolloutGenerator:
                 if sanitize_fn is not None and role_outputs_for_ctx:
                     role_outputs_for_ctx = {k: sanitize_fn(v) for k, v in role_outputs_for_ctx.items()}
 
-                ctx = build_render_context(question=st.question, role_outputs=role_outputs_for_ctx, topo_so_far=topo_so_far)
+                ctx = build_render_context(question=st.question, role_outputs=role_outputs_for_ctx, topo_so_far=ctx_roles)
                 system_prompt = render_role_prompt(role.prompt, ctx=ctx)
                 full_prompt = _compose_full_prompt_chat(
                     tokenizer=self.tokenizer,
@@ -928,7 +932,6 @@ class MASRolloutGenerator:
         def _rebuild_role_prompts_for_leaf(question: str, role_outputs_full: StrMap) -> StrMap:
             """Re-render full prompts per role for an episode (needed for reward meta)."""
             out: StrMap = {}
-            topo_so_far_local: List[str] = []
             rolling_outputs: StrMap = {}
 
             for rn in topo:
@@ -937,7 +940,10 @@ class MASRolloutGenerator:
                 if sanitize_fn is not None and role_outputs_for_ctx:
                     role_outputs_for_ctx = {k: sanitize_fn(v) for k, v in role_outputs_for_ctx.items()}
 
-                ctx = build_render_context(question=question, role_outputs=role_outputs_for_ctx, topo_so_far=topo_so_far_local)
+                # Same context scope as the expansion above, so the recorded prompt is
+                # the prompt the role actually saw.
+                ctx_roles_local = ancestors_in_topo_order(rn, topo, self._depends_on)
+                ctx = build_render_context(question=question, role_outputs=role_outputs_for_ctx, topo_so_far=ctx_roles_local)
                 system_prompt = render_role_prompt(role_spec.prompt, ctx=ctx)
                 full_prompt = _compose_full_prompt_chat(
                     tokenizer=self.tokenizer,
@@ -949,7 +955,6 @@ class MASRolloutGenerator:
 
                 rolling_outputs = dict(rolling_outputs)
                 rolling_outputs[rn] = role_outputs_full.get(rn, "")
-                topo_so_far_local.append(rn)
 
             return out
 

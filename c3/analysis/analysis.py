@@ -196,6 +196,31 @@ def _as_dict(x: Any) -> Dict[str, Any]:
     _die(f"Unsupported bucket object type: {type(x).__name__} (expected dict/dataclass or .to_dict()).")
 
 
+def _merge_extra_meta(bucket_dict: Dict[str, Any], extra_meta: Mapping[str, Any]) -> Dict[str, Any]:
+    """Add experiment-level meta keys to one bucket dict without overwriting.
+
+    Keys the runner already wrote win, so a caller cannot silently contradict
+    the recorded configuration of the run. With an empty `extra_meta` the input
+    object is returned unchanged, which keeps the default output byte identical.
+    """
+    if not extra_meta:
+        return bucket_dict
+
+    meta = bucket_dict.get("meta")
+    if isinstance(meta, Mapping):
+        merged: Dict[str, Any] = dict(meta)
+    elif meta is None:
+        merged = {}
+    else:
+        merged = {"meta_raw": meta}
+
+    for k, v in extra_meta.items():
+        merged.setdefault(str(k), v)
+
+    bucket_dict["meta"] = merged
+    return bucket_dict
+
+
 # -----------------------------------------------------------------------------
 # Imports from analysis package (fail-fast diagnostics)
 # -----------------------------------------------------------------------------
@@ -692,6 +717,16 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
         except Exception as e:
             _die(f"--prefix_decoding_json must be valid JSON object: {e}")
 
+    extra_meta: Dict[str, Any] = {}
+    if getattr(args, "meta_json", None):
+        try:
+            parsed_meta = json.loads(args.meta_json)
+        except Exception as e:
+            _die(f"--meta_json must be valid JSON object: {e}")
+        if not isinstance(parsed_meta, dict):
+            _die(f"--meta_json must be a JSON object, got {type(parsed_meta).__name__}.")
+        extra_meta = parsed_meta
+
     inc_real_cli = _as_bool_tri(args.include_real_as_j0)
     include_real_as_j0 = (
         bool(inc_real_cli) if inc_real_cli is not None else bool(_cfg_get(defaults, ["fidelity", "include_real_as_j0"], False))
@@ -737,49 +772,92 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
 
         n_written = 0
 
+        def _roles_topo_of(rs: Any) -> Sequence[str]:
+            roles_topo = getattr(rs, "roles_topo", None)
+            if not isinstance(roles_topo, list) or not roles_topo:
+                _die("RestartState missing roles_topo; cannot canonicalize roles.")
+            return roles_topo
+
+        def _make_cfg(roles_topo: Sequence[str]) -> Any:
+            canonical_target = _canonical_role(args.target_role, roles_topo)
+            canonical_next = _canonical_role(next_role_cli, roles_topo) if next_role_cli else _default_next_role(canonical_target, roles_topo)
+
+            if record_next_teammate_cli is None:
+                record_next = bool(_cfg_get(defaults, ["record_next_teammate"], canonical_target.lower() == "reasoner"))
+            else:
+                record_next = bool(record_next_teammate_cli)
+
+            if record_next and not canonical_next:
+                _die("record_next_teammate=True but next_role cannot be inferred; pass --next_role explicitly.")
+
+            return ReplayConfig(
+                target_role=canonical_target,
+                num_candidates=int(num_candidates),
+                num_completions_per_candidate=int(num_completions),
+                decoding=dict(decoding),
+                record_next_teammate=bool(record_next),
+                next_role=canonical_next,
+                include_real_as_j0=bool(include_real_as_j0),
+                num_extra_v_samples=int(num_extra_v_samples),
+                prefix_decoding=dict(prefix_decoding),
+            )
+
         def _gen() -> Iterator[Dict[str, Any]]:
             nonlocal n_written
             cfg_obj = None
             n = 0
 
             for rs in restart_states:
-                roles_topo = getattr(rs, "roles_topo", None)
-                if not isinstance(roles_topo, list) or not roles_topo:
-                    _die("RestartState missing roles_topo; cannot canonicalize roles.")
+                roles_topo = _roles_topo_of(rs)
 
                 if cfg_obj is None:
-                    canonical_target = _canonical_role(args.target_role, roles_topo)
-                    canonical_next = _canonical_role(next_role_cli, roles_topo) if next_role_cli else _default_next_role(canonical_target, roles_topo)
-
-                    if record_next_teammate_cli is None:
-                        record_next = bool(_cfg_get(defaults, ["record_next_teammate"], canonical_target.lower() == "reasoner"))
-                    else:
-                        record_next = bool(record_next_teammate_cli)
-
-                    if record_next and not canonical_next:
-                        _die("record_next_teammate=True but next_role cannot be inferred; pass --next_role explicitly.")
-
-                    cfg_obj = ReplayConfig(
-                        target_role=canonical_target,
-                        num_candidates=int(num_candidates),
-                        num_completions_per_candidate=int(num_completions),
-                        decoding=dict(decoding),
-                        record_next_teammate=bool(record_next),
-                        next_role=canonical_next,
-                        include_real_as_j0=bool(include_real_as_j0),
-                        num_extra_v_samples=int(num_extra_v_samples),
-                        prefix_decoding=dict(prefix_decoding),
-                    )
+                    cfg_obj = _make_cfg(roles_topo)
 
                 bucket_obj = run_bucket(rs, cfg_obj, forced_actions=None)
                 n_written += 1
-                yield _as_dict(bucket_obj)
+                yield _merge_extra_meta(_as_dict(bucket_obj), extra_meta)
 
                 n += 1
                 if n >= num_instances:
                     break
 
-        _call_by_signature(write_buckets_jsonl, path=str(out_jsonl), buckets_iter=_gen(), overwrite=bool(args.overwrite))
+        def _build_batched() -> list[Dict[str, Any]]:
+            """Run the whole cell with every generation stage batched across buckets.
+
+            The buckets are finished before the writer opens the file, so a
+            failure anywhere in the cell leaves no partial output behind.
+            """
+            states: list[Any] = []
+            for rs in restart_states:
+                _roles_topo_of(rs)
+                states.append(rs)
+                if len(states) >= num_instances:
+                    break
+            if not states:
+                return []
+
+            try:
+                batched_mod = importlib.import_module("c3.analysis.replay_batched")
+            except Exception as e:
+                _die(f"Cannot import c3.analysis.replay_batched. Import error: {e}")
+
+            cfg_obj = _make_cfg(_roles_topo_of(states[0]))
+            buckets = batched_mod.run_buckets_batched(
+                runner,
+                states,
+                cfg_obj,
+                target_role=cfg_obj.target_role,
+                next_role=cfg_obj.next_role,
+                batch_prompts=int(getattr(args, "batch_prompts", 4096)),
+            )
+            return [_merge_extra_meta(_as_dict(b), extra_meta) for b in buckets]
+
+        if bool(getattr(args, "batched", False)):
+            rows = _build_batched()
+            n_written = len(rows)
+            _call_by_signature(write_buckets_jsonl, path=str(out_jsonl), buckets_iter=iter(rows), overwrite=bool(args.overwrite))
+        else:
+            _call_by_signature(write_buckets_jsonl, path=str(out_jsonl), buckets_iter=_gen(), overwrite=bool(args.overwrite))
 
         if n_written == 0:
             _die(
@@ -1252,6 +1330,24 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     pb.add_argument("--decoding_json", default=None, help="JSON dict overriding rollout decoding params.")
     pb.add_argument("--prefix_decoding_json", default=None, help="JSON dict overriding prefix decoding params.")
+    pb.add_argument(
+        "--meta_json",
+        default=None,
+        help="JSON dict of experiment-level keys added to every bucket meta (existing keys are kept).",
+    )
+
+    # batched execution (default off: the sequential path is unchanged)
+    pb.add_argument(
+        "--batched",
+        action="store_true",
+        help="Batch every generation stage across buckets (c3.analysis.replay_batched).",
+    )
+    pb.add_argument(
+        "--batch_prompts",
+        type=int,
+        default=4096,  # keep in step with replay_batched.DEFAULT_BATCH_PROMPTS
+        help="Prompts per engine call when --batched is set.",
+    )
 
     # runner controls
     pb.add_argument("--device", default=None, help="Device for policy load (if supported).")

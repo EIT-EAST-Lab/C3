@@ -254,6 +254,25 @@ class SamplingPolicy(Protocol):
     def sample(self, prompt: str, n: int = 1, **decoding: Any) -> Sequence[str]:
         ...
 
+    def sample_many(
+        self,
+        prompts: Sequence[str],
+        n: int = 1,
+        seeds: Sequence[int] | None = None,
+        **decoding: Any,
+    ) -> list[list[str]]:
+        """Sample for many prompts in one call: result[i] holds n texts for prompts[i].
+
+        seeds[i], when given, is the sampling seed of prompt i and takes
+        precedence over a "seed" key inside decoding. Decoding parameters other
+        than the seed apply to every prompt in the call.
+
+        A policy that cannot batch may implement this by looping over sample().
+        Callers that also accept policies written before this method existed
+        should test for it with hasattr() first.
+        """
+        ...
+
 
 class Evaluator(Protocol):
     def evaluate(
@@ -775,13 +794,24 @@ class _OpenRLHFPromptRenderer:
                     target_role = r
                     break
 
-        t_idx = role_index.get(target_role, 0)
-        topo_so_far = list(roles_topo_names[:t_idx])
+        # Context scope is ancestors only, matching the generation path: a role reads
+        # what it depends on, so the two branching solvers never see each other. The
+        # wiring comes from the task spec; roles_topo carries names only.
+        from c3.mas.prompt_render import ancestors_in_topo_order
+
+        by_lower = {r.lower(): r for r in roles_topo_names}
+        depends_on = {
+            by_lower.get(_role_to_name(r).lower(), _role_to_name(r)): tuple(
+                by_lower.get(str(d).lower(), str(d)) for d in (getattr(r, "depends_on", ()) or ())
+            )
+            for r in self.task_spec.roles
+        }
+        context_roles = ancestors_in_topo_order(target_role, roles_topo_names, depends_on)
 
         ctx = self._build_render_context(
             question=question,
             role_outputs=dict(role_outputs),
-            topo_so_far=topo_so_far,
+            topo_so_far=context_roles,
         )
 
         for k, v in dict(meta or {}).items():
@@ -949,6 +979,32 @@ class _HFPolicy:
             outs.append(_strip_stop(text, stop))
         return outs
 
+    def sample_many(
+        self,
+        prompts: Sequence[str],
+        n: int = 1,
+        seeds: Sequence[int] | None = None,
+        **decoding: Any,
+    ) -> list[list[str]]:
+        """One prompt at a time through sample(); behaviour per prompt is unchanged.
+
+        HF generate() would need left padding and a per-sequence seed to batch
+        this honestly, so the loop stays. The batched replay runner still gets a
+        working policy, only without the speedup.
+        """
+        prompt_list = [str(p) for p in prompts]
+        seed_list = [int(s) for s in seeds] if seeds is not None else None
+        if seed_list is not None and len(seed_list) != len(prompt_list):
+            raise ValueError(f"seeds has {len(seed_list)} entries for {len(prompt_list)} prompts")
+
+        out: list[list[str]] = []
+        for i, prompt in enumerate(prompt_list):
+            dec = dict(decoding)
+            if seed_list is not None:
+                dec["seed"] = seed_list[i]
+            out.append(list(self.sample(prompt, n=int(n), **dec)))
+        return out
+
 
 def _filter_kwargs_by_signature(fn: Any, kwargs: Mapping[str, Any]) -> dict[str, Any]:
     """Best-effort filter for cross-version compatibility."""
@@ -1046,7 +1102,8 @@ class _VLLMPolicy:
         max_model_len = _env_int("C3_VLLM_MAX_MODEL_LEN", 8192)
         gpu_mem_util = _env_float("C3_VLLM_GPU_MEMORY_UTILIZATION", 0.75)
         max_num_seqs = _env_int("C3_VLLM_MAX_NUM_SEQS", 32)
-        swap_space_gb = _env_int("C3_VLLM_SWAP_SPACE_GB", 2)
+        # swap_space was dropped here on 2026-09-15: vLLM 0.28's EngineArgs rejects it
+        # (the V1 engine has no CPU swap), and LLM(**kwargs) forwards every key.
         enforce_eager = _env_bool("C3_VLLM_ENFORCE_EAGER", False)
         disable_log_stats = _env_bool("C3_VLLM_DISABLE_LOG_STATS", True)
 
@@ -1061,7 +1118,6 @@ class _VLLMPolicy:
                 "max_model_len": int(max_model_len),
                 "gpu_memory_utilization": float(gpu_mem_util),
                 "max_num_seqs": int(max_num_seqs),
-                "swap_space": int(swap_space_gb),
                 "enforce_eager": bool(enforce_eager),
                 "disable_log_stats": bool(disable_log_stats),
             }
@@ -1098,6 +1154,60 @@ class _VLLMPolicy:
         )
         out = self.llm.generate([prompt], params)
         return [_strip_stop(o.text, stop) for o in out[0].outputs]
+
+    def sample_many(
+        self,
+        prompts: Sequence[str],
+        n: int = 1,
+        seeds: Sequence[int] | None = None,
+        **decoding: Any,
+    ) -> list[list[str]]:
+        """All prompts in one engine call, one SamplingParams per prompt.
+
+        The decoding fields are read exactly as sample() reads them (keep the two
+        in sync); only the seed is per prompt, so that a batched replay stays as
+        reproducible as a sequential one.
+        """
+        SamplingParams = self.SamplingParams
+
+        prompt_list = [str(p) for p in prompts]
+        seed_list = [int(s) for s in seeds] if seeds is not None else None
+        if seed_list is not None and len(seed_list) != len(prompt_list):
+            raise ValueError(f"seeds has {len(seed_list)} entries for {len(prompt_list)} prompts")
+        if not prompt_list:
+            return []
+
+        temperature = float(decoding.get("temperature", 0.7))
+        top_p = float(decoding.get("top_p", 0.95))
+        top_k = int(decoding.get("top_k", -1))
+        max_tokens = int(decoding.get("max_new_tokens", 512))
+        stop = decoding.get("stop")
+        if isinstance(stop, str):
+            stop = [stop]
+
+        fallback_seed = decoding.get("seed")
+        fallback_seed = int(fallback_seed) if fallback_seed is not None else self.seed
+
+        params_list = [
+            SamplingParams(
+                n=int(n),
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                max_tokens=max_tokens,
+                stop=list(stop) if stop else None,
+                seed=(seed_list[i] if seed_list is not None else fallback_seed),
+            )
+            for i in range(len(prompt_list))
+        ]
+
+        outs = list(self.llm.generate(prompt_list, params_list))
+        if len(outs) != len(prompt_list):
+            raise RuntimeError(
+                f"engine returned {len(outs)} results for {len(prompt_list)} prompts; "
+                "batched replay needs one result per prompt, in prompt order"
+            )
+        return [[_strip_stop(o.text, stop) for o in item.outputs] for item in outs]
 
     def close(self) -> None:
         # Best-effort shutdown for vLLM to avoid EngineCore errors at process exit.

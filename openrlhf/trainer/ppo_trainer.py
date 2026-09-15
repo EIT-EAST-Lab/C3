@@ -135,7 +135,7 @@ _Q_CRITIC_VIEW_CFG = {
     "include_full": False,
     "expand_prefix": "all_roles",
     "max_texts_per_sample": 0,
-    "prefix_scope": "topo_prefix",
+    "prefix_scope": "ancestors_only",
 }
 
 
