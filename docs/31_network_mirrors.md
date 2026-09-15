@@ -14,7 +14,8 @@ from.
 
 | Variable | Default | What it changes |
 |---|---|---|
-| `HF_ENDPOINT` | `https://huggingface.co` | The Hugging Face Hub endpoint used by `datasets` and `huggingface_hub`, so it covers dataset and model downloads. |
+| `HF_ENDPOINT` | `https://huggingface.co` | The Hugging Face Hub endpoint used by `datasets` and `huggingface_hub`. It redirects the Hub API for both dataset and model downloads, but a mirror does not host the Xet content service, so a model download also needs `HF_HUB_DISABLE_XET` (the next row, which the scripts set for you). |
+| `HF_HUB_DISABLE_XET` | `1` in the preparation and download scripts | Turns off the Xet transfer backend of `huggingface_hub`. `scripts/_lib/mirrors.sh` sets it, so `scripts/10_data/prepare_all.sh` and `scripts/20_models/download_models.sh` default to the plain HTTP transfer. Set it to `0` to allow Xet transfers against the official endpoint. |
 | `GITHUB_MIRROR_PREFIX` | empty | A prefix prepended to a full `github.com` URL. Used to fetch the MBPP+ release asset that EvalPlus downloads from a GitHub release. Must end with a slash. |
 | `PIP_INDEX_URL` | PyPI | The package index pip installs from. |
 | `PIP_EXTRA_INDEX_URL` | empty | An additional index, for example a mirror of the PyTorch wheel index. |
@@ -48,6 +49,21 @@ SHA256 of every produced file and compares it against `configs/data_manifest.yam
 
 If a run fails against a mirror, `scripts/10_data/prepare_all.sh` retries once
 against the official endpoint. Set `FALLBACK_TO_OFFICIAL=0` to disable that retry.
+
+### `HF_HUB_DISABLE_XET`
+
+Some Hub repositories are Xet-backed: the Hub answers the metadata request, then
+the file transfer itself is redirected to `cas-server.xethub.hf.co`. A Hub mirror
+cannot authorize that redirect, so a mirrored download of such a repository stops
+partway with a 401 from the Xet content service. `hf-internal-testing/tiny-random-gpt2`
+through `https://hf-mirror.com` is one example.
+
+`scripts/_lib/mirrors.sh` therefore defaults `HF_HUB_DISABLE_XET` to `1`, which
+selects the plain HTTP transfer and makes the same download complete. The scripts
+that source it, `scripts/10_data/prepare_all.sh` and
+`scripts/20_models/download_models.sh`, print the resulting state in their
+`[INFO] Network sources:` block. Export `HF_HUB_DISABLE_XET=0` to use Xet, which
+is worth doing against the official endpoint, where it is the faster transport.
 
 ### `GITHUB_MIRROR_PREFIX`
 

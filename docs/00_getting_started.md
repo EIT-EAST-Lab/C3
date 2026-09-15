@@ -11,7 +11,7 @@ implementation audit.
 | Hardware | any x86_64 machine, no GPU | NVIDIA GPUs |
 | CUDA runtime | not used | CUDA 13 with `requirements/gpu.lock.txt` (torch 2.13.0, which pulls the CUDA 13 runtime wheels), CUDA 12.8 with `requirements/gpu-paper.lock.txt` (torch 2.9.0+cu128, the paper environment) |
 | Python | 3.11 | 3.11 |
-| Enables | unit tests, dataset preparation and verification, smoke tests, analysis and plotting, the release gate | everything above, plus training and full paper reproduction |
+| Enables | unit tests, dataset preparation and verification, smoke tests, analysis and plotting tooling on stored run artifacts (loading a critic checkpoint needs the GPU tier with flash-attn), the release gate | everything above, plus training and full paper reproduction |
 | Lock file | `requirements/cpu.lock.txt` | `requirements/gpu.lock.txt` |
 
 Start with the CPU tier. It is enough to check that the repository works, to
@@ -56,10 +56,14 @@ The plain consequence: `import openrlhf.cli.train_ppo_ray` and
 `smoke.sh --tier gpu` do not need flash-attn, but a training run as scripted
 does, because the CLI's `--attn_implementation` defaults to
 `flash_attention_2` (`openrlhf/cli/train_ppo_ray_tooling.py`) and
-`scripts/40_train/paper_train.sh` does not override it. Install flash-attn on the
-GPU machine with `pip install -e ".[flash]" --no-build-isolation` before running
-`scripts/40_train`. Ring attention (the sequence-packing path across ranks) needs
-it too and raises a `RuntimeError` naming the install command at the point of use.
+`scripts/40_train/paper_train.sh` does not override it. The analysis subcommand
+that loads a critic checkpoint also requests `flash_attention_2` and needs a GPU
+with flash-attn (`c3/analysis/analysis.py`); the rest of the analysis and
+plotting tooling runs on stored run artifacts and stays in the CPU tier. Install
+flash-attn on the GPU machine with `pip install -e ".[flash]" --no-build-isolation`
+before running `scripts/40_train`. That extra installs flash-attn and
+ring-flash-attn: ring attention (the sequence-packing path across ranks) needs
+both, and raises a `RuntimeError` naming the install command at the point of use.
 
 ## 2. Check the installation
 

@@ -8,13 +8,13 @@ cd "$ROOT"
 source "${ROOT}/scripts/_lib/mirrors.sh"
 
 # Hugging Face transfer hardening. These are timeouts, not mirrors: the endpoint
-# itself stays official unless the caller exported HF_ENDPOINT.
+# itself stays official unless the caller exported HF_ENDPOINT. HF_HUB_DISABLE_XET
+# is set by scripts/_lib/mirrors.sh, which is sourced above.
 : "${HF_HUB_ETAG_TIMEOUT:=60}"
 : "${HF_HUB_DOWNLOAD_TIMEOUT:=180}"
-: "${HF_HUB_DISABLE_XET:=1}"       # the plain HTTP transfer is steadier on many networks
 : "${FALLBACK_TO_OFFICIAL:=1}"     # 1: retry with huggingface.co when a mirror failed
 
-export HF_HUB_ETAG_TIMEOUT HF_HUB_DOWNLOAD_TIMEOUT HF_HUB_DISABLE_XET
+export HF_HUB_ETAG_TIMEOUT HF_HUB_DOWNLOAD_TIMEOUT
 if [[ -n "${HF_ENDPOINT:-}" ]]; then
   export HF_ENDPOINT
 fi

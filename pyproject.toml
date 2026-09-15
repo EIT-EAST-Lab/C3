@@ -63,20 +63,24 @@ train = [
   "wandb>=0.18",
 ]
 
-# FlashAttention is optional for importing: the training entry point imports
-# without it. A training run as scripted needs it, because the CLI's
-# `--attn_implementation` defaults to `flash_attention_2` and
-# `scripts/40_train/paper_train.sh` does not override it; ring attention (the
-# sequence-packing path across ranks, guarded in
-# `openrlhf/models/ring_attn_utils.py`) needs it too. It stays an extra rather
-# than a `train` dependency because it has no wheels: its source build needs a
-# CUDA toolchain (nvcc) and usually `--no-build-isolation`, which would break
-# `pip install` on every machine that only prepares data. For the same reason it
-# is absent from `requirements/cpu.lock.txt` and `requirements/gpu.lock.txt`;
+# The `flash` extra installs flash-attn and ring-flash-attn. Both are optional
+# for importing: the training entry point imports without either. A training run
+# as scripted needs flash-attn, because the CLI's `--attn_implementation`
+# defaults to `flash_attention_2` and `scripts/40_train/paper_train.sh` does not
+# override it. Ring attention (the sequence-packing path across ranks, guarded in
+# `openrlhf/models/ring_attn_utils.py`) needs both: `ring_flash_attn` is imported
+# by `openrlhf/models/ring_attn_utils.py` and
+# `openrlhf/utils/deepspeed/deepspeed.py`, and it is built on flash-attn.
+# They stay an extra rather than `train` dependencies because flash-attn has no
+# wheels: its source build needs a CUDA toolchain (nvcc) and usually
+# `--no-build-isolation`, which would break `pip install` on every machine that
+# only prepares data. For the same reason neither is in
+# `requirements/cpu.lock.txt` or `requirements/gpu.lock.txt`;
 # `requirements/gpu-paper.lock.txt` records `flash_attn==2.8.3` because the paper
 # environment had it installed.
 flash = [
   "flash-attn>=2.6",
+  "ring-flash-attn>=0.1",
 ]
 
 test = [

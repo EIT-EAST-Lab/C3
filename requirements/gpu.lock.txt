@@ -68,20 +68,25 @@
 #   training environment.
 #
 # What is deliberately absent
-#   flash-attn: absent because it builds from source and needs a CUDA toolchain
-#     (nvcc), which the machine that resolved this lock does not have. Pinning it
-#     here would make `pip install -r requirements/gpu.lock.txt` fail on every
-#     machine without nvcc, including the CPU machines that only prepare data.
-#     It is optional for importing: since 0.2.0 the two flash-attn imports in
-#     openrlhf/models/ring_attn_utils.py are guarded, so openrlhf.models, the
-#     training CLI, the evaluation sweep and `smoke.sh --tier gpu` all import
-#     without it. A training run as scripted still needs it, because the CLI's
-#     --attn_implementation defaults to flash_attention_2 and
-#     scripts/40_train/paper_train.sh does not override it; ring attention (the
-#     sequence-packing path across ranks) needs it too and raises a RuntimeError
-#     naming the install command at the point of use. Install it on the GPU
-#     machine with pip install -e ".[flash]" --no-build-isolation.
-#     requirements/cpu.lock.txt also omits it; requirements/gpu-paper.lock.txt
+#   flash-attn and ring-flash-attn, the two members of the `flash` extra:
+#     flash-attn is absent because it builds from source and needs a CUDA
+#     toolchain (nvcc), which the machine that resolved this lock does not have.
+#     Pinning it here would make `pip install -r requirements/gpu.lock.txt` fail
+#     on every machine without nvcc, including the CPU machines that only prepare
+#     data. ring-flash-attn is built on it and is left out for the same reason.
+#     Both are optional for importing: since 0.2.0 the two flash-attn imports in
+#     openrlhf/models/ring_attn_utils.py are guarded and the ring-flash-attn
+#     imports there and in openrlhf/utils/deepspeed/deepspeed.py are lazy, so
+#     openrlhf.models, the training CLI, the evaluation sweep and
+#     `smoke.sh --tier gpu` all import without either. A training run as scripted
+#     still needs flash-attn, because the CLI's --attn_implementation defaults to
+#     flash_attention_2 and scripts/40_train/paper_train.sh does not override it;
+#     the analysis subcommand that loads a critic checkpoint requests it too.
+#     Ring attention (the sequence-packing path across ranks) needs both, and
+#     raises a RuntimeError naming the install command at the point of use.
+#     Install them on the GPU machine with
+#     pip install -e ".[flash]" --no-build-isolation, which covers both.
+#     requirements/cpu.lock.txt also omits them; requirements/gpu-paper.lock.txt
 #     records flash_attn==2.8.3 because the paper environment had it installed.
 #   xformers: the only release that resolves against this torch would drag the
 #     resolver away from vLLM's own pin, and nothing in this repository imports

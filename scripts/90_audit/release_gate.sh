@@ -92,6 +92,7 @@ else
   echo "[release_gate] SKIP: ${DATA_DIR} is absent."
   echo "[release_gate]       Run 'bash scripts/10_data/prepare_all.sh --out_dir ${DATA_DIR}' first"
   echo "[release_gate]       to include the strict manifest check in this gate."
+  echo "[release_gate]       Until then this gate is 7 steps, not 8: it did not verify any dataset."
 fi
 
 echo "[release_gate] 7/8 model registry resolution (dry run)"

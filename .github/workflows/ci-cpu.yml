@@ -3,6 +3,25 @@ name: ci-cpu
 # Everything here runs on a CPU-only runner. The GPU tier (training, vLLM, Ray,
 # DeepSpeed) cannot be exercised in CI; see requirements/gpu.lock.txt for the
 # list of checks that still need a GPU.
+#
+# The install block below is the README's CPU tier block verbatim. The commands
+# after it differ from the README's CPU Quickstart in three deliberate ways, all
+# of them properties of the runner rather than of the repository. A reader who
+# follows the README on their own machine is not missing anything.
+#
+#   1. pytest runs with `-p no:cacheprovider`. The README says `pytest -q tests`.
+#      Disabling the cache plugin keeps the runner from writing a .pytest_cache
+#      directory into the checkout, so the release audit that follows sees a
+#      clean tree. Both forms pass.
+#   2. Both fixture smokes pass `--tier cpu` explicitly. The README relies on the
+#      default `--tier auto`, which probes for a usable CUDA device. The runner
+#      has no GPU, and CI's meaning must not depend on the outcome of a probe:
+#      naming the tier makes the job assert the CPU path rather than discover it.
+#   3. The code fixture smoke passes `--skip_import_checks 1`. The math fixture
+#      smoke in the step above it just ran those same import checks in the same
+#      environment, so repeating them buys nothing and costs a second import of
+#      the whole stack. The flag is not required: the code smoke passes without
+#      it, which is the form docs/00_getting_started.md shows.
 
 on:
   push:

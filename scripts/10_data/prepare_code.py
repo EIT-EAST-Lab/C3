@@ -641,7 +641,12 @@ def main() -> None:
 
             if force_evalplus and not used_evalplus:
                 raise SystemExit(
-                    "[FAIL] MBPP+: manifest pins EvalPlus, but EvalPlus MBPP+ could not be loaded."
+                    "[FAIL] MBPP+: manifest pins EvalPlus, but EvalPlus MBPP+ could not be loaded.\n"
+                    "  EvalPlus downloads MBPP+ from a GitHub release.\n"
+                    "  If your network cannot reach github.com, set GITHUB_MIRROR_PREFIX "
+                    "(see docs/31_network_mirrors.md) and rerun through "
+                    "scripts/10_data/prepare_all.sh, which seeds the EvalPlus cache "
+                    "through the mirror."
                 )
 
             if rows is None:

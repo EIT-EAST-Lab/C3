@@ -15,6 +15,15 @@
 #                         Example: https://ghproxy.net/
 #   PIP_INDEX_URL         Python package index used by pip.
 #   PIP_EXTRA_INDEX_URL   Additional index used by pip.
+#   HF_HUB_DISABLE_XET    Turn off the Xet transfer backend of huggingface_hub.
+#                         Default: 1, set by this library (plain HTTP transfer)
+#                         Xet-backed repositories redirect their file transfers
+#                         to cas-server.xethub.hf.co, which a Hub mirror cannot
+#                         authorize: a mirrored download then stops partway with
+#                         a 401. With the default, the plain HTTP transfer is
+#                         used and the same download completes. Set it to 0 to
+#                         allow Xet transfers; that works against the official
+#                         endpoint, not through a mirror.
 #
 # Functions:
 #   c3_mirrors_validate   Fail on a malformed value. Returns non-zero on error.
@@ -22,6 +31,12 @@
 #   c3_mirror_github_url  Echo a github.com URL, mirrored when a prefix is set.
 
 C3_HF_OFFICIAL_ENDPOINT="https://huggingface.co"
+
+# The one value this library sets rather than only reads. It is not a mirror: it
+# selects the transfer backend huggingface_hub uses against whatever endpoint is
+# configured. A caller who exports it keeps their own value.
+: "${HF_HUB_DISABLE_XET:=1}"
+export HF_HUB_DISABLE_XET
 
 _c3_mirrors_is_url() {
   case "$1" in
@@ -58,6 +73,12 @@ c3_mirrors_report() {
     any=1
   else
     echo "[INFO]   Hugging Face: ${HF_ENDPOINT:-${C3_HF_OFFICIAL_ENDPOINT}} (official)"
+  fi
+
+  if [[ "${HF_HUB_DISABLE_XET}" == "0" ]]; then
+    echo "[INFO]   Hugging Face transfer: Xet enabled (HF_HUB_DISABLE_XET=0)"
+  else
+    echo "[INFO]   Hugging Face transfer: plain HTTP, Xet off (HF_HUB_DISABLE_XET=${HF_HUB_DISABLE_XET})"
   fi
 
   if [[ -n "${GITHUB_MIRROR_PREFIX:-}" ]]; then

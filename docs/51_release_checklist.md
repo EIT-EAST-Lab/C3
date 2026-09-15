@@ -29,6 +29,10 @@ This gate currently runs:
 8. `bash scripts/90_audit/pre_release.sh`, which includes the prose scan
 9. a check that the gate itself left no artifacts in the working tree
 
+Step 6 is skipped when `data/` is absent, which is the state of a clean checkout,
+so a gate run that never prepared the datasets is a seven-step gate: prepare the
+datasets first if you want the full one.
+
 Run `tests/test_release_surface.py` on its own when you only want the release
 surface contracts:
 
