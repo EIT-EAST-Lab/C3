@@ -237,14 +237,19 @@ def test_an_empty_id_list_skips_and_writes_nothing(capsys: Any, tmp_path: Path) 
     assert capsys.readouterr().out.strip() == SKIP_LINE
 
 
-def test_the_shipped_id_list_is_still_empty(capsys: Any) -> None:
-    """What the repository ships: a list the screening pass has not written yet."""
+def test_the_shipped_id_list_is_the_screened_pool() -> None:
+    """What the repository ships: the 500 ids the E1 screening pass selected on 2026-09-15."""
     document = json.loads(SHIPPED_ID_LIST.read_text(encoding='utf-8'))
     assert document['source'] == 'MATH-test'
-    assert document['unique_ids'] == []
+    ids = document['unique_ids']
+    assert len(ids) == 500 and len(set(ids)) == 500
+    assert all(isinstance(i, str) and len(i) == 16 and int(i, 16) >= 0 for i in ids)
+    screen = document['screen']
+    assert screen['taken'] == len(ids)
+    assert screen['informative'] >= screen['taken'] and screen['screened'] >= screen['informative']
+    assert (screen['workflow'], screen['n'], screen['c'], screen['seed']) == ('a2', 2, 2, 7)
 
-    assert preparer._pool_ids_or_skip(_entry('MATH-pool')) is None
-    assert capsys.readouterr().out.strip() == SKIP_LINE
+    assert preparer._pool_ids_or_skip(_entry('MATH-pool')) == ids
 
 
 def test_a_filled_id_list_is_read_in_file_order(tmp_path: Path) -> None:

@@ -28,7 +28,7 @@ outputs:
 - name: MATH-test
   type: math
   output_path: data/MATH/test_full.jsonl
-  sha256: null
+  sha256: 3f766abd0b5be6571bbf81b94b274454e61bbdb909c9b7ecc841e3cc93d49cd7
   expected_rows: 5000
   source:
     kind: huggingface
