@@ -5,9 +5,11 @@ All notable changes to this repository are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-09-15
 
-0.2.0 candidate; the release date is set when the tag is cut.
+The first release after the maintenance pass of September 2026. The entries under
+"Prepared on 2026-09-08" further down belong to this same release; nothing between
+0.1.0 and this tag was published.
 
 ### Added
 
@@ -299,7 +301,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   aggregation family uses, so aggregating a tree by absolute path no longer puts
   the operator's own machine path into summary.json.
 
-## [0.2.0]
+### Prepared on 2026-09-08 for this same release
 
 A maintenance release focused on one thing: making the repository installable,
 runnable and verifiable by someone who is not us, without a GPU. It fixes the
@@ -308,7 +310,7 @@ broken quickstart reported in
 changed: no numerical logic, defaults, sampling, rewards, credit computation,
 config values, prompts or role definitions were touched.
 
-### Added
+#### Added
 
 - Dependency tiers in `pyproject.toml`: a minimal core, plus `cpu`, `train`,
   `flash`, `test` and `dev` extras, so a laptop user is not asked to install the
@@ -346,7 +348,7 @@ config values, prompts or role definitions were touched.
   cases. It was verified to fail when the LOO baseline is broken.
 - `CHANGELOG.md`, this file.
 
-### Changed
+#### Changed
 
 - `scripts/` and `docs/` are numbered in the order a new user follows them:
 
@@ -402,7 +404,7 @@ config values, prompts or role definitions were touched.
   the sequence-packing path across ranks, still requires flash-attn and now says
   so at the point of use instead of at import time.
 
-### Fixed
+#### Fixed
 
 - The vendored `openrlhf/models` package is in the release. Its six modules
   (`__init__`, `actor`, `loss`, `model`, `ring_attn_utils`, `utils`) were never
@@ -430,7 +432,7 @@ config values, prompts or role definitions were touched.
 - `.gitattributes` normalizes line endings for `.toml`, `.yaml`, `.json`,
   `.jsonl` and `.txt`, so a Windows checkout no longer shows spurious diffs.
 
-### Deprecated
+#### Deprecated
 
 - `c3.credit.c3`, `c3.algorithms.c3`, `c3.text_sanitize`,
   `c3.tools.c3_env_smoke` and `c3.analysis.c3_analysis` are import shims that
