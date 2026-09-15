@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -195,6 +196,26 @@ def _compose_full_prompt_fallback(*, system_prompt: str, question: str, context:
     return "\n".join(parts).strip() + "\n"
 
 
+def chat_template_kwargs(tokenizer) -> Dict[str, Any]:
+    """
+    Extra keyword arguments for tokenizer.apply_chat_template.
+
+    Hybrid-thinking chat templates (the Qwen3 base line, e.g. Qwen3-8B) open every reply with a
+    <think> block unless the template is told `enable_thinking=False`. A C3 role speaks in plain
+    action messages, the thing the credit instrument measures and the thing a downstream role
+    reads, so thinking stays off on any template that has the switch; the 2026-09-15 Qwen3-8B
+    probe ran with it on and every candidate carried a think block. Templates without the switch
+    (Qwen3-4B-Instruct-2507, Qwen2.5) receive no extra argument, so their prompts are byte for
+    byte what they were. C3_ENABLE_THINKING=1 turns thinking back on for a deliberate experiment.
+    """
+    template = getattr(tokenizer, "chat_template", None)
+    if not isinstance(template, str) or "enable_thinking" not in template:
+        return {}
+    if os.environ.get("C3_ENABLE_THINKING", "").strip() == "1":
+        return {"enable_thinking": True}
+    return {"enable_thinking": False}
+
+
 def _compose_full_prompt_chat(*, tokenizer, system_prompt: str, question: str, context: str) -> str:
     """Prefer tokenizer.apply_chat_template when available."""
     sys_content = _strip_chat_wrappers(system_prompt)
@@ -205,7 +226,9 @@ def _compose_full_prompt_chat(*, tokenizer, system_prompt: str, question: str, c
     if tokenizer is not None and hasattr(tokenizer, "apply_chat_template"):
         messages = [{"role": "system", "content": sys_content}, {"role": "user", "content": user_content}]
         try:
-            return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            return tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True, **chat_template_kwargs(tokenizer)
+            )
         except TypeError:
             try:
                 return tokenizer.apply_chat_template(messages, tokenize=False)

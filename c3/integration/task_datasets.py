@@ -450,6 +450,132 @@ def _load_one_dataset(
 
 
 # -----------------------------------------------------------------------------
+# Schema alignment before concatenation
+# -----------------------------------------------------------------------------
+
+# The columns the trainer reads from every row: the prompt, the label and the source tag.
+# Everything else travels as metadata and may differ between sources.
+REQUIRED_COLUMNS: Tuple[str, ...] = ("input", "answer", "datasource")
+
+
+@dataclass(frozen=True)
+class SchemaAlignment:
+    """What `align_dataset_schemas` did, for the log line that accompanies a concatenation."""
+
+    columns: Tuple[str, ...]
+    cast_to_string: Tuple[str, ...]
+    filled: Dict[str, Tuple[str, ...]]
+
+    def describe(self) -> str:
+        parts = [f"columns={list(self.columns)}"]
+        if self.cast_to_string:
+            parts.append(f"cast_to_string={list(self.cast_to_string)}")
+        for name, cols in self.filled.items():
+            parts.append(f"{name} lacked {list(cols)} (filled with None)")
+        return "; ".join(parts)
+
+
+def align_dataset_schemas(
+    named: Mapping[str, Any],
+    *,
+    required: Sequence[str] = REQUIRED_COLUMNS,
+) -> Tuple[Dict[str, Any], SchemaAlignment]:
+    """
+    Return copies of the map-style datasets in `named` that share one schema, so that
+    `datasets.concatenate_datasets` (or `interleave_datasets`) accepts all of them.
+
+    Sources prepared from different upstream files carry different extra columns (MATH500 has
+    level / solution / subject / unique_id, Minerva only input / answer / source), and the same
+    column can differ in type (MATH500 `level` is an int, OlympiadBench `level` a string). HF
+    refuses to concatenate the second case. The alignment keeps every column that appears in
+    any source, fills a source's missing columns with None, and casts a column whose feature
+    differs across sources to string everywhere; it is lossless up to that cast. The `required`
+    columns must be present in every source: a source that lacks one is an error, never a
+    silently dropped source.
+    """
+    datasets = _hf_datasets()
+    if not named:
+        raise ValueError("align_dataset_schemas: no datasets given")
+
+    order: List[str] = []
+    per_column: Dict[str, List[Tuple[str, Any]]] = {}
+    for name, ds in named.items():
+        features = getattr(ds, "features", None)
+        if features is None or not hasattr(ds, "cast") or not hasattr(ds, "select_columns"):
+            raise TypeError(
+                f"align_dataset_schemas: '{name}' is not a map-style datasets.Dataset ({type(ds)!r}); "
+                "streaming datasets cannot be aligned"
+            )
+        missing_required = [col for col in required if col not in features]
+        if missing_required:
+            raise ValueError(
+                f"align_dataset_schemas: '{name}' lacks required column(s) {missing_required}; "
+                f"its columns are {list(features)}"
+            )
+        for col, feature in features.items():
+            if col not in per_column:
+                per_column[col] = []
+                order.append(col)
+            per_column[col].append((name, feature))
+
+    target: Dict[str, Any] = {}
+    cast_to_string: List[str] = []
+    for col in order:
+        distinct = {repr(feature) for _, feature in per_column[col]}
+        if len(distinct) == 1:
+            target[col] = per_column[col][0][1]
+        else:
+            target[col] = datasets.Value("string")
+            cast_to_string.append(col)
+    target_features = datasets.Features({col: target[col] for col in order})
+
+    aligned: Dict[str, Any] = {}
+    filled: Dict[str, Tuple[str, ...]] = {}
+    for name, ds in named.items():
+        missing = tuple(col for col in order if col not in ds.features)
+        for col in missing:
+            ds = ds.add_column(col, [None] * len(ds))
+        if missing:
+            filled[name] = missing
+        ds = ds.select_columns(list(order))
+        if ds.features != target_features:
+            ds = ds.cast(target_features)
+        aligned[name] = ds
+
+    return aligned, SchemaAlignment(
+        columns=tuple(order),
+        cast_to_string=tuple(cast_to_string),
+        filled=filled,
+    )
+
+
+def concatenate_datasets_aligned(
+    named: Mapping[str, Any],
+    *,
+    required: Sequence[str] = REQUIRED_COLUMNS,
+) -> Tuple[Any, SchemaAlignment]:
+    """Concatenate map-style datasets after `align_dataset_schemas`; every source reaches the result."""
+    datasets = _hf_datasets()
+    aligned, alignment = align_dataset_schemas(named, required=required)
+    if len(aligned) == 1:
+        return next(iter(aligned.values())), alignment
+    return datasets.concatenate_datasets(list(aligned.values())), alignment
+
+
+def _name_train_sources(datasets_list: Sequence[Any]) -> Dict[str, Any]:
+    named: Dict[str, Any] = {}
+    for i, ds in enumerate(datasets_list):
+        label = f"train[{i}]"
+        try:
+            if "datasource" in getattr(ds, "column_names", []) and len(ds) > 0:
+                label = f"{label}:{ds[0]['datasource']}"
+        except Exception:
+            pass
+        named[label] = ds
+    return named
+
+
+# -----------------------------------------------------------------------------
 # Mixing modes
 # -----------------------------------------------------------------------------
 
@@ -466,15 +592,20 @@ def _interleave_train_datasets(
     if len(datasets_list) == 1:
         return datasets_list[0]
 
+    # Both HF mixers require one schema across the sources; align first, never drop a source.
+    aligned, alignment = align_dataset_schemas(_name_train_sources(datasets_list))
+    if alignment.cast_to_string or alignment.filled:
+        logger.info("train sources aligned before mixing: %s", alignment.describe())
+
     if mode == "concat":
-        return datasets.concatenate_datasets(list(datasets_list))
+        return datasets.concatenate_datasets(list(aligned.values()))
 
     # interleave
     w = [float(x) for x in weights]
     s = float(sum(w))
     probs = [x / s for x in w] if s > 0 else None
     return datasets.interleave_datasets(
-        list(datasets_list),
+        list(aligned.values()),
         probabilities=probs,
         seed=int(seed),
         stopping_strategy="all_exhausted",

@@ -9,6 +9,24 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Evaluation suites with different prepared columns are aligned before they are
+  concatenated (`c3.integration.task_datasets.concatenate_datasets_aligned`: a
+  missing column is filled with None, a column whose type differs across suites
+  is cast to string). The trainer used to fall back to the first suite alone when
+  `concatenate_datasets` raised, so a task that declared eight suites was
+  evaluated on one without an error. There is no fallback any more; a failure
+  raises. The training-side mixer goes through the same alignment.
+- Hybrid-thinking chat templates (Qwen3-8B) are rendered with
+  `enable_thinking=False`; every C3 role speaks in plain action messages. The
+  switch is passed only when the template has it, so Qwen3-4B-Instruct-2507
+  prompts are unchanged. `C3_ENABLE_THINKING=1` turns thinking back on.
+- `prepare_math.py`: the CMATH answer column is `golden` upstream, and the
+  prepared CMATH files used to carry an empty answer in every row while passing
+  the row-count and sha checks. The write path now refuses a row without an
+  input or an answer, the strict pass verifies existing files row by row, a bare
+  `\boxed 2` (no braces) is extracted, a row whose solution ends in an empty
+  `\boxed{}` is dropped and counted (MATH-train is 7,498 rows), and a re-pinning
+  run reports a changed sha instead of failing on it.
 - Data manifest v2: `MATH-train` is the canonical train split (the 7,500 problem
   train split, assembled from the seven subject configs of
   `EleutherAI/hendrycks_math`), `CMATH-test` is the real test split, and an

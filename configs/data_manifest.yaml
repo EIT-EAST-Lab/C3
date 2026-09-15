@@ -2,7 +2,7 @@ outputs:
 - name: MATH-train
   type: math
   output_path: data/MATH/train.jsonl
-  sha256: null
+  sha256: 05160800f5623cee1e3c1d3c22717c73b04d781efe64d74fb532b88b620b21d8
   source:
     kind: huggingface
     id: EleutherAI/hendrycks_math
@@ -19,12 +19,12 @@ outputs:
     license: check HF card
     notes: Canonical MATH training split. Upstream stores one config per subject,
       so the train split of the benchmark is the union of the seven subject train
-      splits listed above. They are read in that order and concatenated, then
-      deduplicated by unique_id when present and otherwise by the triple of input,
-      answer and solution. Each row keeps level, subject (upstream calls it type)
-      and solution. This replaces the mirror qwedsacf/competition_math, whose only
-      split was named train but held 12500 rows, the MATH train and test sets
-      together, and therefore contained every MATH500 problem.
+      splits listed above. They are read in that order and concatenated, then deduplicated
+      by unique_id when present and otherwise by the triple of input, answer and solution.
+      Each row keeps level, subject (upstream calls it type) and solution. This replaces
+      the mirror qwedsacf/competition_math, whose only split was named train but held
+      12500 rows, the MATH train and test sets together, and therefore contained every
+      MATH500 problem.
 - name: GSM8K-test
   type: math
   output_path: data/GSM8K/test.jsonl
@@ -36,8 +36,8 @@ outputs:
     split: test
     revision: e53f048856ff4f594e959d75785d2c2d37b678ee
     license: check HF card
-    notes: GSM8K test split, used for evaluation only. No deduplication and no
-      subtraction; the file is the upstream split as shipped.
+    notes: GSM8K test split, used for evaluation only. No deduplication and no subtraction;
+      the file is the upstream split as shipped.
 - name: MATH500
   type: math
   output_path: data/MATH500/test.jsonl
@@ -55,7 +55,7 @@ outputs:
 - name: CMATH-train
   type: math
   output_path: data/CMATH/train.jsonl
-  sha256: null
+  sha256: 7c7d16686241615bb930fd04dcc01ae0eef573140fd629bb4d350f0d84936c45
   expected_rows: 597
   source:
     kind: huggingface
@@ -73,7 +73,7 @@ outputs:
 - name: CMATH-test
   type: math
   output_path: data/CMATH/test.jsonl
-  sha256: null
+  sha256: a696799a0f7e2a558cbf762eb9c1667c104f67b40b8e94e75f83a5562f9372c4
   expected_rows: 1098
   source:
     kind: huggingface
@@ -98,9 +98,8 @@ outputs:
     split: test
     revision: d009b64cde5bb5a7d0915975916644532214c91a
     license: check HF card
-    notes: HumanEval benchmark, used for evaluation only. Prepared only when
-      prepare_all.sh is called with --prepare_humaneval 1. No deduplication and no
-      subtraction.
+    notes: HumanEval benchmark, used for evaluation only. Prepared only when prepare_all.sh
+      is called with --prepare_humaneval 1. No deduplication and no subtraction.
 - name: APPS
   type: code
   output_path: data/APPS/test.jsonl
@@ -112,9 +111,8 @@ outputs:
     split: test
     revision: ac6966973a0bd7bb274836fc34782df80e56dd93
     license: check HF card
-    notes: APPS benchmark, used for evaluation only. Prepared only when
-      prepare_all.sh is called with --prepare_apps 1. No deduplication and no
-      subtraction.
+    notes: APPS benchmark, used for evaluation only. Prepared only when prepare_all.sh
+      is called with --prepare_apps 1. No deduplication and no subtraction.
 - name: MBPP-train
   type: code
   output_path: data/MBPP/train.jsonl
@@ -127,8 +125,8 @@ outputs:
     revision: 4bb6404fdc6cacfda99d4ac4205087b89d32030c
     license: check HF card
     notes: MBPP train split of the full config, the training artifact of the code
-      task. Upstream keeps train, validation, test and prompt disjoint, so nothing is
-      subtracted here; check_overlap.py verifies that against MBPP-test and MBPP+.
+      task. Upstream keeps train, validation, test and prompt disjoint, so nothing
+      is subtracted here; check_overlap.py verifies that against MBPP-test and MBPP+.
 - name: MBPP-test
   type: code
   output_path: data/MBPP/test.jsonl
@@ -140,24 +138,24 @@ outputs:
     split: test
     revision: 4bb6404fdc6cacfda99d4ac4205087b89d32030c
     license: check HF card
-    notes: MBPP test split of the full config, used for evaluation only. Same
-      revision as MBPP-train.
+    notes: MBPP test split of the full config, used for evaluation only. Same revision
+      as MBPP-train.
 - name: MBPP+
   type: code
   output_path: data/MBPP_PLUS/test.jsonl
-  sha256: 5da2852e2611c2fd4373433024d6a7edaaeb5d1e08a9b88b4feae91acfc06c24
+  sha256: 6a51d5d01c25f37b957e9ea938a2e75ec5445154286822ec915378f2755d5f16
   source:
     kind: evalplus
     id: mbpp_plus
     license: check EvalPlus
-    revision: evalplus@0.3.1
-    notes: MBPP+ evaluation artifact, built from the MBPP test problems with the
-      EvalPlus test suites, so it holds no training problems either. Strictly
-      reproducible fallback path pinned to the MBPP HF commit above.
+    revision: fallback_mbpp@4bb6404fdc6cacfda99d4ac4205087b89d32030c
+    notes: MBPP+ evaluation artifact, built from the MBPP test problems with the EvalPlus
+      test suites, so it holds no training problems either. Strictly reproducible
+      fallback path pinned to the MBPP HF commit above.
 - name: Minerva-Math
   type: math
   output_path: data/MINERVA_MATH/test.jsonl
-  sha256: null
+  sha256: b18ee6dfe00bce535f350b7e52d6edbc67f40d4b3f43b68d530fbfedd71f4474
   expected_rows: 272
   source:
     kind: huggingface
@@ -168,13 +166,13 @@ outputs:
     license: check HF card
     notes: Minerva Math (the OCWCourses and MATH subset used by the Minerva paper),
       evaluation only. Upstream rows carry exactly two string columns, question and
-      answer, so the prepared row is question to input and answer to answer, with no
-      solution, level or subject. Candidate benchmark for the start-accuracy probe;
+      answer, so the prepared row is question to input and answer to answer, with
+      no solution, level or subject. Candidate benchmark for the start-accuracy probe;
       it is not used by any training or paper configuration yet.
 - name: OlympiadBench
   type: math
   output_path: data/OLYMPIADBENCH/test.jsonl
-  sha256: null
+  sha256: 49ad5b6388ccb9c640d0f69483fc04ced828db48689e8320fe3ef1fc2ae7562e
   source:
     kind: huggingface
     id: math-ai/olympiadbench
@@ -190,13 +188,14 @@ outputs:
       674 rows hold more than one answer while 9 carry a separate unit string, so
       multi_answer_policy (drop, first or join_comma) and unit_policy (drop, ignore
       or append) decide what the single answer string of a prepared row is. Both are
-      set to drop by the driver on 2026-09-15 (single-string scoring cannot take multi-answer or unit rows); the builder refuses to run while they
-      are. No expected_rows is pinned because the row count follows from those two
-      policies. Candidate benchmark for the start-accuracy probe.
+      set to drop by the driver on 2026-09-15 (single-string scoring cannot take multi-answer
+      or unit rows); the builder refuses to run while they are. No expected_rows is
+      pinned because the row count follows from those two policies. Candidate benchmark
+      for the start-accuracy probe.
 - name: AMC23
   type: math
   output_path: data/AMC23/test.jsonl
-  sha256: null
+  sha256: 5b501b1dd5a183f9911fdf20bf168fcca47f32ef30b3d25e7f3b2a91de558120
   expected_rows: 40
   source:
     kind: huggingface
@@ -213,7 +212,7 @@ outputs:
 - name: AIME24
   type: math
   output_path: data/AIME24/test.jsonl
-  sha256: null
+  sha256: a0a29b145782e1ffb8246cc8670ff2d34f2e76ee5c21c24300844c10d0f7b3b5
   expected_rows: 30
   source:
     kind: huggingface
@@ -230,7 +229,7 @@ outputs:
 - name: AIME25
   type: math
   output_path: data/AIME25/test.jsonl
-  sha256: null
+  sha256: f0078706267266aff26c81b2268530a10cb563d4849afc0eba6700412ac21603
   expected_rows: 30
   source:
     kind: huggingface
@@ -239,9 +238,9 @@ outputs:
     split: test
     revision: 563bb8404243c5f09de6ec262f2db674fe5bce9b
     license: check HF card
-    notes: The 30 problems of AIME 2025, evaluation only. Upstream rows carry
-      problem, answer and id, so the prepared row is problem to input and answer to
-      answer, with the upstream id kept as unique_id. The paper already reports AIME
-      2025, and this entry exists so that the same 30 problems can be prepared from a
-      pinned revision and, if the driver rules so, merged with AIME24 into one
-      60-problem suite.
+    notes: The 30 problems of AIME 2025, evaluation only. Upstream rows carry problem,
+      answer and id, so the prepared row is problem to input and answer to answer,
+      with the upstream id kept as unique_id. The paper already reports AIME 2025,
+      and this entry exists so that the same 30 problems can be prepared from a pinned
+      revision and, if the driver rules so, merged with AIME24 into one 60-problem
+      suite.

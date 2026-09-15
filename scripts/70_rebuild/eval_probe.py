@@ -576,9 +576,9 @@ def summarize_run(run: ProbeRun, *, task_path: Path, generate_max_len: int) -> D
         block["problems"].append(
             "the run covered "
             f"{len(observed)} of the {len(declared)} declared suites; missing {missing}. "
-            "The trainer concatenates the suites into one evaluation set and falls back to the "
-            "first suite alone when that concatenation raises, so a suite whose prepared columns "
-            "differ from the others disappears from the run without an error."
+            "The trainer concatenates the suites into one evaluation set after aligning their "
+            "columns (c3.integration.task_datasets.concatenate_datasets_aligned); a suite that "
+            "still produced no rows points at the trainer log for this run."
         )
     return block
 

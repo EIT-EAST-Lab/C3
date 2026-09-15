@@ -812,12 +812,20 @@ class BasePPOTrainer(PPOTrainerPluginsMixin, ABC):
                 if len(eval_list) == 1:
                     eval_data = eval_list[0]
                 elif len(eval_list) > 1:
-                    try:
-                        import datasets  # type: ignore
+                    # Every declared suite must reach the evaluation set. Suites prepared from
+                    # different upstream files differ in their extra columns and column types,
+                    # which HF concatenate_datasets refuses; align the schemas first. There is
+                    # no fallback to a subset of the suites: a suite that silently vanished
+                    # would turn into a wrong benchmark number, so a failure here raises.
+                    from c3.integration.task_datasets import concatenate_datasets_aligned
 
-                        eval_data = datasets.concatenate_datasets(eval_list)
-                    except Exception:
-                        eval_data = eval_list[0]
+                    eval_data, alignment = concatenate_datasets_aligned(task_eval_dict)
+                    if strategy.is_rank_0():
+                        print(
+                            f"[eval] concatenated {len(eval_list)} suites "
+                            f"({', '.join(task_eval_dict.keys())}) into {len(eval_data)} rows; "
+                            f"{alignment.describe()}"
+                        )
 
             if eval_data is not None:
                 eval_data = _safe_select(eval_data, getattr(args, "max_samples", -1))

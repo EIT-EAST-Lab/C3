@@ -129,7 +129,8 @@ def _write_jsonl_atomic(path: Path, rows: Iterable[Dict[str, Any]], *, overwrite
                 f.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
                 n += 1
         tmp.replace(path)
-    except Exception:
+    except BaseException:
+        # SystemExit from the row gate and KeyboardInterrupt included: no half-written artifact stays
         try:
             if tmp.exists():
                 tmp.unlink()
@@ -148,6 +149,7 @@ def _verify_or_record_sha(
     strict: bool,
     optional: bool,
     missing_sha: List[Tuple[str, str]],
+    allow_mismatch: bool = False,
 ) -> None:
     # An entry whose pin was deliberately cleared (null, or an empty string)
     # counts as unpinned, not as a mismatch against the empty string.
@@ -159,6 +161,11 @@ def _verify_or_record_sha(
 
     expected = str(expected_sha).strip().lower()
     if expected != computed_sha.lower():
+        if allow_mismatch:
+            # A run that re-pins (--update_manifest_sha256 1) rewrites the artifact on purpose;
+            # the old pin is reported, not enforced, and the new one lands in the manifest.
+            print(f"[INFO] {name}: sha256 pin changes {expected[:12]}... -> {computed_sha[:12]}... (re-pinning)")
+            return
         raise SystemExit(
             "\n".join(
                 [
@@ -174,6 +181,39 @@ def _verify_or_record_sha(
 
 def _has_sha_pin(expected_sha: Any) -> bool:
     return expected_sha is not None and bool(str(expected_sha).strip())
+
+
+def _require_complete_rows(name: str, rows: Iterable[Dict[str, Any]]) -> Iterable[Dict[str, Any]]:
+    """
+    Refuse to write a row without a problem text or without an answer.
+
+    The CMATH artifacts of 2026-09-15 were written with every answer empty (the upstream column
+    is `golden`, a name the row builder did not know) and still passed the row-count and sha
+    checks. An empty label is a wrong number waiting to happen, so it fails at the one door
+    every artifact goes through, not in a warning.
+    """
+    for i, r in enumerate(rows):
+        if not str(r.get("input", "") or "").strip():
+            raise SystemExit(f"[FAIL] {name}: row {i} has an empty input (problem text).")
+        if not str(r.get("answer", "") or "").strip():
+            raise SystemExit(
+                f"[FAIL] {name}: row {i} has an empty answer; the source columns are probably misnamed "
+                f"(row keys: {sorted(r.keys())})."
+            )
+        yield r
+
+
+def _check_rows_complete_on_disk(name: str, out_path: Path) -> None:
+    """The same gate for an artifact that already exists and is verified instead of written."""
+    with out_path.open("r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            if not str(r.get("input", "") or "").strip() or not str(r.get("answer", "") or "").strip():
+                raise SystemExit(f"[FAIL] {name}: {out_path} row {i} has an empty input or answer; regenerate it.")
+    print(f"[OK] {name}: every row carries an input and an answer.")
 
 
 def _check_expected_rows(
@@ -440,26 +480,44 @@ def _iter_hf_rows(src: Dict[str, Any], *, logical_name: str) -> Iterator[Dict[st
 # -----------------------------
 
 
+_RE_BOXED_BARE = re.compile(r"\\boxed\s+([^\s${}\\]+)")
+
+
 def _extract_boxed_answer(text: str) -> Optional[str]:
+    """
+    The content of the last \\boxed{...} in a solution, or None.
+
+    MATH solutions also write a one-token box without braces (`\\boxed 2$.`, two rows of the
+    training split), which the brace scanner used to miss, leaving those rows without an
+    answer. An empty box (`\\boxed{}`, two upstream rows) has no answer to extract and returns
+    None; the caller decides what to do with such a row.
+    """
     if not text:
         return None
-    key = r"\boxed{"
+    key = r"\boxed"
     i = text.rfind(key)
     if i < 0:
         return None
     j = i + len(key)
-    depth = 1
-    out: List[str] = []
-    while j < len(text):
-        ch = text[j]
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                return "".join(out).strip()
-        out.append(ch)
+    if j < len(text) and text[j] == "{":
         j += 1
+        depth = 1
+        out: List[str] = []
+        while j < len(text):
+            ch = text[j]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    inner = "".join(out).strip()
+                    return inner or None
+            out.append(ch)
+            j += 1
+        return None
+    m = _RE_BOXED_BARE.match(text, i)
+    if m:
+        return m.group(1).rstrip(".,;:") or None
     return None
 
 
@@ -564,6 +622,7 @@ def _prepare_math_train(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
     # Some mirrors may expose duplicate shards for this dataset.
     # Dedup with a stable key so output stays canonical and deterministic.
     seen: set[str] = set()
+    dropped_without_answer = 0
 
     for cfg in _source_configs(src):
         sub = _source_for_config(src, cfg)
@@ -603,7 +662,15 @@ def _prepare_math_train(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
             if key in seen:
                 continue
             seen.add(key)
+            if not str(row.get("answer", "") or "").strip():
+                # No label, no reward: a row whose solution ends in an empty \boxed{} cannot be
+                # trained on or scored. Dropped here, counted below, and the manifest carries the
+                # resulting row count.
+                dropped_without_answer += 1
+                continue
             yield row
+    if dropped_without_answer:
+        print(f"[INFO] MATH-train: dropped {dropped_without_answer} row(s) whose solution has no extractable answer")
 
 
 def _prepare_math500(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
@@ -628,7 +695,8 @@ def _cmath_rows(src: Dict[str, Any]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for x in _iter_hf_rows(src, logical_name=f"CMATH-{src.get('split')}"):
         q = _first_non_empty(x.get("question"), x.get("problem"), x.get("input"), x.get("prompt"))
-        a = _first_non_empty(x.get("answer"), x.get("output"), x.get("label"), x.get("target"))
+        # upstream weitianwen/cmath names the answer column `golden`
+        a = _first_non_empty(x.get("answer"), x.get("golden"), x.get("output"), x.get("label"), x.get("target"))
         r: Dict[str, Any] = {"input": q, "answer": a, "source": src_str}
         for k in ("id", "uid", "grade", "difficulty", "subject", "type"):
             if k in x and x.get(k) is not None:
@@ -973,6 +1041,8 @@ def main() -> None:
                 sha = _sha256(out_path)
                 computed_by_name[name] = sha
                 print(f"[SKIP] {out_path} exists (sha256={sha})")
+                if strict:
+                    _check_rows_complete_on_disk(name, out_path)
                 _verify_or_record_sha(
                     name=name,
                     out_path=out_path,
@@ -981,6 +1051,7 @@ def main() -> None:
                     strict=strict,
                     optional=optional,
                     missing_sha=missing_sha,
+                    allow_mismatch=update_manifest_sha256,
                 )
                 _check_expected_rows(
                     name=name,
@@ -991,7 +1062,7 @@ def main() -> None:
                 )
                 return
 
-        n = _write_jsonl_atomic(out_path, builder_fn(spec), overwrite=force_overwrite)
+        n = _write_jsonl_atomic(out_path, _require_complete_rows(name, builder_fn(spec)), overwrite=force_overwrite)
         sha = _sha256(out_path)
         computed_by_name[name] = sha
         print(f"[OK] wrote {n if n >= 0 else '?'} rows -> {out_path} (sha256={sha})")
@@ -1003,6 +1074,7 @@ def main() -> None:
             strict=strict,
             optional=optional,
             missing_sha=missing_sha,
+            allow_mismatch=update_manifest_sha256,
         )
         _check_expected_rows(
             name=name,
