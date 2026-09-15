@@ -125,8 +125,10 @@ outputs:
     revision: 4bb6404fdc6cacfda99d4ac4205087b89d32030c
     license: check HF card
     notes: MBPP train split of the full config, the training artifact of the code
-      task. Upstream keeps train, validation, test and prompt disjoint, so nothing
-      is subtracted here; check_overlap.py verifies that against MBPP-test and MBPP+.
+      task, minus the problems that also occur in the test split (this revision ships
+      three such problems, so the shipped split is not disjoint from MBPP-test and
+      MBPP+). The subtraction is by normalized problem text, the key check_overlap.py
+      compares; check_overlap.py verifies the result against MBPP-test and MBPP+.
 - name: MBPP-test
   type: code
   output_path: data/MBPP/test.jsonl
@@ -143,12 +145,12 @@ outputs:
 - name: MBPP+
   type: code
   output_path: data/MBPP_PLUS/test.jsonl
-  sha256: 6a51d5d01c25f37b957e9ea938a2e75ec5445154286822ec915378f2755d5f16
+  sha256: 5da2852e2611c2fd4373433024d6a7edaaeb5d1e08a9b88b4feae91acfc06c24
   source:
     kind: evalplus
     id: mbpp_plus
     license: check EvalPlus
-    revision: fallback_mbpp@4bb6404fdc6cacfda99d4ac4205087b89d32030c
+    revision: evalplus@0.3.1
     notes: MBPP+ evaluation artifact, built from the MBPP test problems with the EvalPlus
       test suites, so it holds no training problems either. Strictly reproducible
       fallback path pinned to the MBPP HF commit above.

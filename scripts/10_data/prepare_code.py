@@ -368,6 +368,39 @@ def _canon_mbpp_row(x: Dict[str, Any], source: str) -> Dict[str, Any]:
     }
 
 
+def _problem_key(row: Dict[str, Any]) -> str:
+    """Whitespace-normal form of an MBPP problem text; the same form check_overlap.py compares."""
+    return " ".join(str(row.get("text") or "").split())
+
+
+def _problem_keys_from_file(path: Path) -> set:
+    keys: set = set()
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                keys.add(_problem_key(json.loads(line)))
+    keys.discard("")
+    return keys
+
+
+def _subtract_test_problems(name: str, rows: Iterable[Dict[str, Any]], test_keys: set) -> Iterator[Dict[str, Any]]:
+    """
+    Yield the training rows whose problem does not occur in the test split.
+
+    Upstream MBPP (full config, revision 4bb6404) ships three problems in both the train and
+    the test split, so a training artifact taken as shipped fails the overlap gate against
+    MBPP-test and MBPP+. The subtraction is by normalized problem text, the key the gate uses.
+    """
+    dropped = 0
+    for r in rows:
+        if _problem_key(r) in test_keys:
+            dropped += 1
+            continue
+        yield r
+    print(f"[INFO] {name}: dropped {dropped} row(s) whose problem also occurs in MBPP-test")
+
+
 def _canon_mbpp_plus_row(x: Dict[str, Any], source: str, seed: int, max_tests: int) -> Dict[str, Any]:
     tests: List[str] = list(x.get("test_list") or [])
     if max_tests > 0 and len(tests) > max_tests:
@@ -576,7 +609,10 @@ def main() -> None:
 
     # ---------------- MBPP ----------------
     if bool(args.prepare_mbpp):
-        for name in ("MBPP-train", "MBPP-test"):
+        # MBPP-test first: MBPP-train is written minus the problems that also occur in the
+        # test split, so the training artifact and the evaluation artifacts stay disjoint.
+        test_keys: set = set()
+        for name in ("MBPP-test", "MBPP-train"):
             if name not in idx:
                 continue
             spec = _require(name)
@@ -584,10 +620,21 @@ def main() -> None:
             src = spec.get("source", {})
             out_path = _resolve_output_path(spec["output_path"], out_base)
             if _handle_existing(name, spec, out_path):
+                if name == "MBPP-test":
+                    test_keys = _problem_keys_from_file(out_path)
                 continue
 
             src_str = f"{src['id']}:{src.get('split')}@{src.get('revision')}"
-            rows = (_canon_mbpp_row(x, src_str) for x in _load_hf_rows(src, name))
+            rows: Iterable[Dict[str, Any]] = (_canon_mbpp_row(x, src_str) for x in _load_hf_rows(src, name))
+            if name == "MBPP-test":
+                test_rows = list(rows)
+                test_keys = {_problem_key(r) for r in test_rows}
+                test_keys.discard("")
+                rows = test_rows
+            else:
+                if "MBPP-test" in idx and not test_keys:
+                    raise SystemExit("[FAIL] MBPP-train: the MBPP-test problems are not available for subtraction.")
+                rows = _subtract_test_problems(name, rows, test_keys)
             n = _dump_jsonl(out_path, rows)
             sha = _sha256(out_path)
             _verify_or_record(
