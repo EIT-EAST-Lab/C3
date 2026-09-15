@@ -2,7 +2,7 @@
 
 The Qwen3-8B probe of 2026-09-15 (E1, two agents, n=4, 20 questions) produced 400 <think> tags
 in 20 buckets: the base Qwen3 template opens every reply with a think block unless it is told
-`enable_thinking=False`. The preregistration measures the second substrate in non-thinking mode,
+`enable_thinking=False`. The analysis plan measures the second substrate in non-thinking mode,
 so the prompt composer passes the switch whenever the template has it and nothing otherwise.
 """
 

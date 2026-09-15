@@ -5,7 +5,7 @@ E1 aggregation: scan the reliability cells, write 20_data/results/E1/summary.jso
     python -m c3.analysis.rebuild.aggregate_e1 \
         --results 20_data/results/E1 --manifest results/manifest.json --out summary.json
 
-Directory layout (results contract section 2, as revised on 2026-09-14):
+Directory layout (the results layout, section 2, as revised on 2026-09-14):
 
     <results>/<workflow>/<model>/sweep_n{2,3,4,6,8}/buckets.jsonl
 
@@ -19,17 +19,18 @@ every summary records the tree it read (`results_root`) and the prefix it wrote
 
 One key of this experiment is not produced here. `E1.c10.median_prefix_tokens`
 is the median number of tokens one replay of the ten-agent chain REGENERATES
-downstream (driver ruling 2, 2026-09-15), so it needs a tokenizer and the model
-files. It is produced platform side by `scripts/70_rebuild/replay_tokens.py`,
-which writes its own summary.json through this package's writer.
+downstream (the maintainers' decision of 2026-09-15), so it needs a tokenizer
+and the model files. It is produced platform side by
+`scripts/70_rebuild/replay_tokens.py`, which writes its own summary.json through
+this package's writer.
 
 That is not the length of the prefix, although the key is still named for one.
 Every E1 cell is measured at the first role in topological order, so the prefix
 at the measured position is the question and nothing else: the same text in
 every workflow, carrying no information about depth. What the ten-agent chain
 actually costs, and what makes its credit estimate noisy, is the downstream text
-every replay has to regenerate. The key keeps its manifest name until the driver
-renames it there.
+every replay has to regenerate. The key keeps its manifest name until the
+maintainers rename it there.
 
 The sweep cells are the only measurement. The fixed-budget and per-decision
 rows of the manifest are read off the sweep cells, because a fixed instance
@@ -43,17 +44,17 @@ rule is branching 4:
     E1.fixed_b8.mt4.<model>.*           <- sweep_n2
 
 Two alternatives is a special case of the estimator, not a missing measurement
-(driver ruling A3, 2026-09-15). A two-alternative group's split-half correlation
-can only be +1 or -1, so the sweep row of that cell carries the direction
-agreement rate (the share of +1) while the fixed-budget row of mt4, whose unit
-is a correlation, carries the mean correlation itself; the two are the same
-reading, since mean rho = 2 x agreement - 1. Both are computed on the same pool,
-the one the exclusion rule leaves with min_cands=2.
+(the maintainers' decision of 2026-09-15). A two-alternative group's split-half
+correlation can only be +1 or -1, so the sweep row of that cell carries the
+direction agreement rate (the share of +1) while the fixed-budget row of mt4,
+whose unit is a correlation, carries the mean correlation itself; the two are
+the same reading, since mean rho = 2 x agreement - 1. Both are computed on the
+same pool, the one the exclusion rule leaves with min_cands=2.
 
 This script never writes the manifest and never writes a verdict key: filling a
-value is the driver's action, through 30_analysis/rebuild/manifest_writer.py.
-Keys the manifest does not define are skipped with a line on stderr, so the key
-set of a summary is always a subset of the manifest's.
+value is the maintainers' action, taken outside this repository. Keys the
+manifest does not define are skipped with a line on stderr, so the key set of a
+summary is always a subset of the manifest's.
 
 Only numpy, scipy and the standard library are imported (through this package).
 """
@@ -84,11 +85,11 @@ __all__ = [
     "main",
 ]
 
-# Vocabulary of the layout (results contract section 2).
+# Vocabulary of the layout (the results layout, section 2).
 WORKFLOWS = ("a2", "a3", "mt4", "branch", "c5", "c10")
 MODELS = ("4b", "m2", "code")
 SWEEP_N = (2, 3, 4, 6, 8)
-# Directory names the revised contract retired; seeing one is worth a line.
+# Directory names the revised layout retired; seeing one is worth a line.
 RETIRED_RULES = ("fixed_b8", "pd_n4")
 
 # The six workflows the cross-workflow keys range over, in schema order.
@@ -98,7 +99,7 @@ FIXED_B8_SOURCE = {"a2": (4, 2), "a3": (3, 3), "mt4": (2, 4)}  # workflow -> (n,
 PD_SOURCE_N = 4
 
 # The printed name of each workflow, for the manifest keys whose value is a name
-# rather than a number (driver ruling B7, 2026-09-15). The directory name is an
+# rather than a number (the maintainers' decision of 2026-09-15). The directory name is an
 # internal label; these are the words the paper uses.
 ARM_DISPLAY_NAMES = {
     "a2": "two-agent",
@@ -109,7 +110,7 @@ ARM_DISPLAY_NAMES = {
     "c10": "ten-agent chain",
 }
 
-# Statistical settings (preregistration and results contract section 4).
+# Statistical settings (the frozen analysis plan and the results layout, section 4).
 MIN_CANDS = 3
 # Two-alternative cells: the exclusion rule's alternative count is relaxed to 2,
 # which is the only way the manifest's branching-2 rows can be measured at all.
@@ -125,7 +126,7 @@ DEFAULT_KEY_PREFIX = "E1"
 APPENDIX_ROOT_NAME = "E1_math500all"
 APPENDIX_KEY_PREFIX = "E1app"
 
-# Said on every row read off a two-alternative cell (ruling A3).
+# Said on every row read off a two-alternative cell.
 N2_NOTE = "at two alternatives rho is +1 or -1; mean = 2 x agreement - 1"
 
 
@@ -133,7 +134,7 @@ N2_NOTE = "at two alternatives rho is +1 or -1; mean = 2 x agreement - 1"
 # summary plumbing (shared by the other aggregators in this package)
 #
 # `load_manifest`, `git_sha` and the document writer itself come from
-# summary.py, the one summary implementation of this package (ruling B13).
+# summary.py, the one summary implementation of this package.
 # `source_path` below has a different signature from `summary.source_path`: it
 # joins a results root with a cell's sub-path. The shaping of the joined path is
 # `summary.source_path`, which it calls, so the two families cannot drift.
@@ -148,7 +149,7 @@ def _as_source_list(source: Any) -> List[str]:
 
 class SummaryBuilder:
     """Collects the keys of one experiment one at a time, then hands them to
-    `summary.write_summary` (ruling B13: one summary implementation for the whole
+    `summary.write_summary` (one summary implementation for the whole
     package). This class is the collecting half; the document shape, the git sha,
     the timestamp and the empty-note rule all live in summary.py.
 
@@ -303,7 +304,7 @@ def scan_e1_cells(results_root: str, builder: SummaryBuilder) -> Dict[Tuple[str,
                 where = source_path(results_root, wf, model, rule)
                 if rule in RETIRED_RULES:
                     builder.note(
-                        "ignored: %s is retired by the contract revision of 2026-09-14; "
+                        "ignored: %s is retired by the results layout as revised on 2026-09-14; "
                         "these rows are derived from the sweep cells" % where)
                     continue
                 n = None
@@ -327,8 +328,8 @@ class _CellStore:
     """Loads each cell once and keeps its buckets and its reliability result.
 
     A cell is cached per (path, min_cands): the two-alternative cells are read
-    with the relaxed alternative count, every other cell with the preregistered
-    one, and a tree could in principle be asked for both.
+    with the relaxed alternative count, every other cell with the one fixed in
+    the analysis plan, and a tree could in principle be asked for both.
     """
 
     def __init__(self, min_cands: int = MIN_CANDS, n_boot: int = N_BOOT,
@@ -406,7 +407,8 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
 
     `key_prefix` is the leading segment of the keys written, `E1` for the
     question-pool tree and `E1app` for the appendix tree. It is recorded in the
-    summary together with the results root, both in the shape of the contract.
+    summary together with the results root, both in the shape the results layout
+    fixes.
     """
     refusal = key_prefix_refusal(results_root, key_prefix)
     if refusal is not None:

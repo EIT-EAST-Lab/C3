@@ -18,7 +18,7 @@ The cell value is the mean ratio over its groups, with a percentile bootstrap
 interval over groups. The grid value `max_dev_pct` is the largest |ratio - 1| in
 percent and `worst_ratio` is the cell ratio farthest from one.
 
-Both conventions are the driver's ruling of 2026-09-15 (preregistration
+Both conventions are the maintainers' decision of 2026-09-15 (analysis plan
 revision 10), and both follow from the derivation:
 
 - the difference of the two advantage vectors has mean exactly zero, because a
@@ -60,7 +60,7 @@ __all__ = [
 PAIR_FIELDS = ("bucket_id", "question_id")
 
 # Element-wise convention of the measured noise: mean of squares, not an
-# unbiased sample variance (driver ruling A1, preregistration revision 10).
+# unbiased sample variance (the maintainers' decision, analysis plan revision 10).
 DDOF = 0
 
 

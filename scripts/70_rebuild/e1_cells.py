@@ -8,7 +8,7 @@ the measured decision point and writes them as one bucket file. A cell is that
 triple (workflow, model, branching factor), and the full sweep is the cross
 product of the three lists below.
 
-Layout of the products, fixed by the results contract:
+Layout of the products, fixed by the results layout:
 
     <results_root>/E1/<workflow>/<model>/sweep_n<n>/buckets.jsonl
 
@@ -19,6 +19,19 @@ step derives them from these files instead of re-running them.
 Measured position: the first role of the workflow in topological order, with its
 first successor recorded as the downstream role, so that influence and the
 correction rate can be computed from the same buckets.
+
+Decision points come from `MATHPOOL`, the screened question pool, which is what
+the depth study measures on. Every workflow task file read here declares that
+suite, the two-agent arm included: `configs/tasks/math_a2.yaml` is the paper's
+own `configs/tasks/math.yaml` with the pool suite appended, so the task file a
+reader of the paper runs stays free of a suite that exists only after the
+screening pass.
+
+The appendix comparison over the full MATH500 suite is the same sweep with two
+flags changed, and it writes its own tree so the two key sets cannot collide:
+
+    python scripts/70_rebuild/e1_cells.py --model_root /models \\
+        --split MATH500 --results_root <root>/E1_math500all
 
 Examples:
 
@@ -57,7 +70,7 @@ DEFAULT_MODELS = "4b=Qwen3-4B-Instruct-2507,m2=Qwen3-8B"
 DEFAULT_NS = "2,3,4,6,8"
 DEFAULT_RESULTS_ROOT = "20_data/results"
 DEFAULT_ANALYSIS_YAML = "configs/analysis.yaml"
-DEFAULT_SPLIT = "MATH500"
+DEFAULT_SPLIT = "MATHPOOL"
 DEFAULT_COMPLETIONS = 4
 DEFAULT_LIMIT = 500
 DEFAULT_SEED = 0
@@ -66,9 +79,11 @@ DEFAULT_TIMEOUT_H = 6.0
 # The policy under measurement is the frozen supervised-fine-tuned checkpoint.
 POLICY_TAG = "sft"
 
-# a2 keeps the original task file; the five deeper workflows have their own.
+# Every workflow has its own task file, and every one of them declares MATHPOOL.
+# a2's file is configs/tasks/math.yaml with the pool suite appended; see the
+# module docstring for why the paper's own task file is not read here.
 TASK_YAML_BY_WORKFLOW = {
-    "a2": "configs/tasks/math.yaml",
+    "a2": "configs/tasks/math_a2.yaml",
     "a3": "configs/tasks/math_a3.yaml",
     "mt4": "configs/tasks/math_mt4.yaml",
     "branch": "configs/tasks/math_branch.yaml",
@@ -248,7 +263,7 @@ def build_meta(
     split: str,
     sampling: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Build the meta block the results contract requires on every bucket."""
+    """Build the meta block the results layout requires on every bucket."""
     return {
         "workflow": workflow,
         "model": model,
@@ -263,7 +278,7 @@ def build_meta(
         "dataset": split,
         "question_order_seed": int(seed),
         "include_real_as_j0": bool(sampling["include_real_as_j0"]),
-        # generation-time context is the transitive ancestors of a role (WP-R8; contract revision 2)
+        # generation-time context is the transitive ancestors of a role (results layout revision 2)
         "context_scope": "ancestors",
     }
 

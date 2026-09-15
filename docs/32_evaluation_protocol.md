@@ -186,11 +186,10 @@ format shows up as a disagreement rather than as a quiet number.
 ## 6. Provenance
 
 The suites, the decoding, the sample counts and the noise arithmetic of section
-3 are fixed in the preregistration of the rebuild experiments, revision 18. The
+3 are fixed in the frozen analysis plan of the rebuild experiments, revision 18. The
 start accuracies in the table are the measurements of the start-accuracy probe,
 [scripts/70_rebuild/eval_probe.py](../scripts/70_rebuild/eval_probe.py), on the
 frozen policy. Data provenance for every file named here is in
-[30_data_sources.md](30_data_sources.md). MATH500, GSM8K-test and CMATH-test are
-prepared by the default run; Minerva-Math, AMC23, AIME24 and AIME25 are prepared
-only with `--prepare_eval_probe_sets 1`, so a machine that runs the default
-preparation and then this protocol is missing four of the files it needs.
+[30_data_sources.md](30_data_sources.md). Every suite named here is prepared by
+the default run: `--prepare_candidate_benchmarks` defaults to `1`, which is what
+changed when four of the candidates became evaluation suites of the main task.

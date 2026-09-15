@@ -15,17 +15,17 @@ The claim the experiment tests is a coupling: training should lower influence
 (the downstream agent leans on the upstream message less) while raising the
 correction rate, with reliability unchanged.
 
-What changed against `30_analysis/server_tierA/e11_paired.py`, the script this
-is moved from:
+What changed against the earlier paired-contrast script this is moved from:
 - influence is answer-level with the Miller-Madow correction and is reported in
-  nats without clipping at zero, as the preregistration froze it. The old script
+  nats without clipping at zero, as the analysis plan froze it. The old script
   used the uncorrected plug-in value clipped at zero.
 - correction counts a downstream replay as repaired when its ANSWER is correct.
   The old script used the recorded return of that replay instead.
 - no tertile view. The tertile split conflates influence with difficulty, which
   is exactly what the pairing is here to remove.
-- no AUC and no OLS. Neither is preregistered, so neither is computed; nothing
-  in this module partials difficulty or reliability out of anything.
+- no AUC and no OLS. Neither is fixed in the analysis plan, so neither is
+  computed; nothing in this module partials difficulty or reliability out of
+  anything.
 
 Answer extraction and correctness are injected (`extractor`, `is_correct`), so
 this module never parses mathematics and never decides equivalence.
@@ -63,7 +63,7 @@ _ZERO_TOL = 1e-12
 
 
 # -----------------------------------------------------------------------------
-# split-half reliability (the minimal even/odd estimator of WP-R2a section 1.1)
+# split-half reliability (the minimal even/odd estimator of the analysis plan)
 # -----------------------------------------------------------------------------
 
 
@@ -79,8 +79,8 @@ def _loo_adv(q: Sequence[float]) -> Optional[np.ndarray]:
 def _splithalf_evenodd(bucket: Mapping[str, Any], *, min_cands: int = MIN_CANDS) -> Optional[float]:
     """Per-bucket split-half Spearman on the even and odd replay indices.
 
-    Definition, word for word the one WP-R2a section 1.1 froze from
-    `30_analysis/local/splithalf_bootstrap_local.py`: c_min is the smallest
+    Definition, word for word the one the analysis plan froze from the
+    reference split-half script: c_min is the smallest
     replay count over the alternatives; q_A[j] is alternative j's mean return
     over the even replay indices below c_min and q_B[j] over the odd ones;
     adv(q)[j] = q[j] - (sum(q) - q[j]) / (n - 1); rho is the Spearman
@@ -88,9 +88,9 @@ def _splithalf_evenodd(bucket: Mapping[str, Any], *, min_cands: int = MIN_CANDS)
     has fewer than `min_cands` alternatives, when c_min < 2, or when either
     half's advantage vector is constant.
 
-    This is a private copy on purpose: WP-R2a owns the full reliability module
-    and the two work packages share no files, so the driver can check the two
-    implementations against each other.
+    This is a private copy on purpose: `splithalf.py` owns the full reliability
+    module and the two were written independently of each other, so the
+    maintainers can check the two implementations against each other.
     """
     cands = bucket.get("candidates", []) or []
     rets = [list(c.get("returns", []) or []) for c in cands]

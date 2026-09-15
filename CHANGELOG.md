@@ -36,6 +36,25 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bucket, and `--inject_literal_candidate` with `--null_form`, which put a null
   arm at `j=0` in both the sequential and the batched path and record it in the
   bucket meta.
+- `build-buckets --reuse_candidates_from <buckets.jsonl>`, which replays the
+  alternatives an earlier run recorded instead of sampling its own. The two runs
+  of a noise cell have to share the alternatives and differ only in the replays,
+  otherwise the paired difference of their two advantage vectors also carries
+  the difference between two different actions. Decision points are matched on
+  `question_id` and `ctx_hash`; one the source does not cover is an error naming
+  it, not a resampled bucket. The flag is refused together with
+  `--inject_literal_candidate`, and refused against a source built for a
+  different number of alternatives per bucket; a source bucket that came up
+  short of its own request is reused at the count it has. The sequential path
+  and the batched path both support it, and every reused bucket records
+  `candidate_reuse`, `candidates_from` and `n_alternatives_effective` in its
+  meta.
+- `build-buckets --batch_prompts` (default 4096), the prompts per engine call of
+  the batched path. It does nothing without `--batched`.
+- A `Reliability and Ablation Drivers` section in `README.md` and a `Rebuild
+  study: reliability and ablation` section in `docs/10_code_map.md`, covering the
+  drivers, the analysis modules, the task configurations and the tests this
+  release adds.
 - `c3/analysis/rebuild/`, the analysis package of the rebuild study: split-half
   reliability with a group bootstrap (`splithalf.py`), the duplicate rate
   (`duplicates.py`), the estimator noise law (`noise_law.py`), answer-level
@@ -47,15 +66,18 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `scripts/10_data/check_overlap.py`, the contamination gate. It fails when an
   evaluation problem also occurs in a training file, `prepare_all.sh --strict 1`
   runs it last, and it imports the standard library only.
-- Five candidate evaluation benchmarks in the manifest, prepared only with
-  `--prepare_eval_probe_sets 1`: Minerva Math, OlympiadBench (the English,
-  text-only, open-ended maths subset), AMC23, AIME24 and AIME25. They are
-  evaluation only and no training configuration reads them.
+- Five candidate evaluation benchmarks in the manifest: Minerva Math,
+  OlympiadBench (the English, text-only, open-ended maths subset), AMC23, AIME24
+  and AIME25. They are evaluation only; the main task evaluates on four of them
+  since the evaluation protocol of 2026-09-15; nothing trains on them.
+  `prepare_math.py --prepare_candidate_benchmarks` defaults to `1`, and
+  `--prepare_eval_probe_sets`, the former name of that flag, stays as an alias
+  for one release.
 - `configs/tasks/math_eval_probe.yaml`, the probe task. Its evaluation suites are
-  the candidate benchmarks plus the ceiling controls, each capped at 100
-  problems.
+  MATH500, the five candidate benchmarks and the two ceiling controls, eight
+  suites, each capped at 100 problems.
 - Fifteen test files for the above: the two cell drivers and the probe, the
-  analysis package, the five workflow configurations, the batched replay path,
+  analysis package, the workflow configurations, the batched replay path,
   the context scope, the bucket guard, the overlap gate, the data-preparation
   gates and the schema alignment. Four fixtures under `tests/fixtures/data/`
   come with them.
@@ -94,7 +116,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   records the tree it read and the prefix it wrote at the top level
   (`results_root`, `key_prefix`).
 - The E3a bias map reports a stratum thinner than ten decision points, on stderr
-  and in the note of every key read off it. The preregistered median split is
+  and in the note of every key read off it. The median split the analysis plan fixes is
   unchanged and no key is dropped: this only makes a degenerate split visible in
   the summary instead of leaving it to be noticed in the stderr of the run.
 - `scripts/70_rebuild/replay_tokens.py` counts what one replay of the deep chain
@@ -130,6 +152,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   topological prefix, so the two parallel solvers of the branching workflow no
   longer see each other. The chain workflows are unaffected, because prefix and
   ancestors coincide there. E1 cell meta records `context_scope=ancestors`.
+- `openrlhf/trainer/ppo_trainer.py` declares `prefix_scope: "ancestors_only"` in
+  its Q-critic view configuration. The declaration has no effect yet: the critic
+  actor reads its own module constant, `_Q_PREFIX_SCOPE` in
+  `openrlhf/trainer/ray/ppo_critic.py`, which is still `topo_prefix`, so the
+  critic's view of a prefix is unchanged and SolverB's critic view still shows
+  SolverA. The gap is deliberate and pinned by `tests/test_rebuild_workflows.py`
+  so that it stays visible until the two constants move together.
 - The forms of the E3a null arm are `empty` and `placeholder`, and `deleted`
   stays an alias of `empty`. In this code base an empty message and a deleted
   paragraph reach the downstream roles as the same prompt, so the second form is
@@ -140,11 +169,18 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   tiers, and the summary document has a single writer.
 - `swap_space` is no longer passed in the vLLM engine arguments, because vLLM
   0.28 rejects it.
-- `MATHPOOL` is an evaluation suite of the five workflow task files
-  (`math_a3`, `math_mt4`, `math_branch`, `math_c5`, `math_c10`) and not of
-  `configs/tasks/math.yaml`. The pool is what the depth study measures on;
-  nothing trains on it, and the task file a reader of the paper runs should not
-  name a file that exists only after the screening pass.
+- `MATHPOOL` is an evaluation suite of the six task files the depth study reads
+  (`math_a2`, `math_a3`, `math_mt4`, `math_branch`, `math_c5`, `math_c10`) and
+  not of `configs/tasks/math.yaml`. The pool is what the depth study measures
+  on, and both cell drivers now default to `--split MATHPOOL`; nothing trains on
+  it, and the task file a reader of the paper runs should not name a file that
+  exists only after the screening pass. `configs/tasks/math_a2.yaml` is new and
+  exists for that last reason: the two-agent arm used to read the paper's own
+  task file, which has no `MATHPOOL` suite, so the two-agent cells could not be
+  measured on the pool at all. It is `math.yaml` with the pool suite appended
+  and nothing else changed, including the role file. The full-suite appendix
+  comparison is the same sweep at `--split MATH500 --results_root
+  <root>/E1_math500all`.
 - `configs/tasks/math_screen.yaml` describes its `MATHTEST` suite as the
   canonical MATH test split prepared by the manifest, and no longer as a subset
   of the `qwedsacf/competition_math` mirror, which manifest v2 dropped as the
@@ -185,9 +221,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and CMATH-test left these files: they are saturation controls, reported once
   after training and never tested, so paying for 2,417 problems at every
   monitoring evaluation bought a curve nobody reads. They are evaluation suites
-  of `configs/tasks/math_final_eval.yaml` instead. Note that Minerva-Math,
-  AMC23, AIME24 and AIME25 are prepared only with `--prepare_eval_probe_sets 1`,
-  which the default preparation run does not pass.
+  of `configs/tasks/math_final_eval.yaml` instead. Minerva-Math, AMC23, AIME24
+  and AIME25 are prepared by the default preparation run, which is what
+  `--prepare_candidate_benchmarks` defaulting to `1` is for.
 - `scripts/40_train/paper_train.sh` generates up to 2048 tokens rather than 512,
   passes `--eval_temperature 0.7` so the evaluation samples the way the rollouts
   do, and evaluates every ten percent of the run at four samples per problem

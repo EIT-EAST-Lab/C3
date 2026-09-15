@@ -6,9 +6,8 @@ aggregate_e1b, aggregate_e1c_temp}.
 
 Everything here is synthetic: no bucket file from a real run is read, and no
 number in these tests is a claim about the experiments. Several cases are the
-offline-reproducible half of the self-tests in
-30_analysis/local/splithalf_bootstrap_local.py, which is the authoritative
-definition of the split-half estimator.
+offline-reproducible half of the self-tests of the reference split-half script,
+which is the authoritative definition of the split-half estimator.
 """
 
 from __future__ import annotations
@@ -446,11 +445,11 @@ def _noise_cell(n, c, rng, n_groups=100, ps=None):
 def test_noise_law_simulation_matches_the_formula(n, c):
     """Returns generated exactly under the model the prediction assumes (one common
     return variance, independent replays): the measured over predicted ratio has to
-    land inside the preregistered probe band. This checks the implementation against
-    the formula, not the real data.
+    land inside the probe band the analysis plan fixes. This checks the
+    implementation against the formula, not the real data.
 
-    No convention is passed in: the module defaults are the ones preregistration
-    revision 10 fixed, and this is the self-test of those defaults.
+    No convention is passed in: the module defaults are the ones revision 10 of
+    the analysis plan fixed, and this is the self-test of those defaults.
     """
     rng = np.random.default_rng([2026, n, c])
     a, b = _noise_cell(n, c, rng)
@@ -467,7 +466,7 @@ def test_noise_law_ddof_one_scales_the_ratio_by_n_over_n_minus_one(n):
     by exactly n / (n - 1), because the difference vector's mean is zero by
     construction. At two alternatives that doubles the ratio and puts the cell
     outside the [0.7, 1.4] band whatever the data says, which is why the default
-    is now ddof=0 (driver ruling A1).
+    is now ddof=0 (the maintainers' decision of 2026-09-15).
     """
     rng = np.random.default_rng([2027, n])
     a, b = _noise_cell(n, 4, rng, n_groups=60)
@@ -479,7 +478,7 @@ def test_noise_law_ddof_one_scales_the_ratio_by_n_over_n_minus_one(n):
 
 
 def test_noise_law_holds_when_the_alternatives_differ_in_quality():
-    """The point of the sigma^2 convention (driver ruling A2).
+    """The point of the sigma^2 convention (the maintainers' decision of 2026-09-15).
 
     sigma^2 is the return variance of one alternative, so alternatives of very
     different quality leave the ratio inside the band. Pooling every return of
@@ -578,7 +577,7 @@ def test_grid_report_picks_the_worst_cell():
 def fake_manifest(keys):
     """A manifest shaped like the paper's: key -> entry with a unit.
 
-    The units follow 10_paper/04_rebuild/results/manifest.json: the branching-2
+    The units follow the results manifest of the paper build: the branching-2
     sweep rows are an agreement rate, the binding-workflow key is a name, and
     every other reliability row is a correlation.
     """
@@ -704,7 +703,7 @@ def test_aggregate_e1_on_a_minimal_tree(tmp_path, capsys):
 
     # every ignored directory and every refusal is reported once
     assert "not_a_workflow" in err
-    assert "fixed_b8 is retired" in err or "is retired by the contract" in err
+    assert "fixed_b8 is retired" in err or "is retired by the results layout" in err
     assert "E1.per_decision_n4.a3.4b.wgv: not a manifest key" in err
     assert err.count("ignored:") >= 2
 
@@ -728,7 +727,7 @@ def test_aggregate_e1_runs_as_a_module(tmp_path):
 
 
 # -------------------------
-# the two E1 trees (WP-R14 item 4)
+# the two E1 trees (2026-09-15)
 #
 # `E1` is the question-pool study the paper reports and `E1_math500all` the
 # full-suite appendix comparison. They have the same layout and are different
@@ -940,7 +939,7 @@ def _two_alternative_hand_reading(buckets):
 
 
 def test_two_alternative_rows_are_the_agreement_rate_and_its_correlation(tmp_path, capsys):
-    """Driver ruling A3: the sweep row of a branching-2 cell is the direction
+    """The maintainers' decision of 2026-09-15: the sweep row of a branching-2 cell is the direction
     agreement rate, the fixed-budget row of mt4 is the mean correlation of the
     same pool, and the two are the same reading (mean rho = 2 x agreement - 1).
     """
@@ -989,11 +988,11 @@ def test_two_alternative_rows_are_the_agreement_rate_and_its_correlation(tmp_pat
     for key in ("E1.sweep_n.mt4.4b.n2.rel", "E1.fixed_b8.mt4.4b.rel"):
         assert aggregate_e1.N2_NOTE in keys[key]["note"]
     assert "derived from sweep_n2 (fixed budget B=8, K=4)" in mt4["note"]
-    assert "the driver decides that convention" not in capsys.readouterr().err
+    assert "the maintainers decide that convention" not in capsys.readouterr().err
 
 
 def test_arm_display_names_are_the_six_printed_names():
-    """Driver ruling B7: the name table the manifest's name keys print."""
+    """The name table the manifest's name keys print."""
     assert aggregate_e1.ARM_DISPLAY_NAMES == {
         "a2": "two-agent",
         "a3": "three-agent",
@@ -1045,7 +1044,7 @@ def test_delta_min_arm_writes_the_printed_workflow_name(tmp_path):
     assert binding in arm["note"]
 
 
-def test_summary_builder_refuses_what_the_contract_refuses(tmp_path, capsys):
+def test_summary_builder_refuses_what_the_results_layout_refuses(tmp_path, capsys):
     manifest = fake_manifest(["E1.sweep_n.a2.4b.n4.rel"])
     builder = aggregate_e1.SummaryBuilder("E1", "test", manifest)
     assert builder.add("E1.sweep_n.a2.4b.n4.rel", 0.5, n=3, source="x/buckets.jsonl")

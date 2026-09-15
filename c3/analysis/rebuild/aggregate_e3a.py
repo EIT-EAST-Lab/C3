@@ -2,21 +2,21 @@
 """Command line aggregation for E3a, the ablation bias map.
 
     python -m c3.analysis.rebuild.aggregate_e3a \
-        --results 20_data/results/E3a --manifest 10_paper/04_rebuild/results/manifest.json \
+        --results 20_data/results/E3a --manifest results/manifest.json \
         --out 20_data/results/E3a/summary.json [--extractor math]
 
-Directory layout, from the results contract section 2 as revised on 2026-09-15
+Directory layout, from the results layout section 2 as revised on 2026-09-15
 (revision 3):
 
     E3a/<workflow>/<model>/empty/buckets.jsonl
     E3a/<workflow>/<model>/placeholder/buckets.jsonl
 
 `placeholder` is the directory name the cell driver writes. `deleted` is the
-name the first version of the contract used for the same arm; it is accepted as
+name the first version of the layout used for the same arm; it is accepted as
 a legacy alias, with one line on stderr when it is what was found.
 
-The empty arm is the reported one (preregistration, note of 2026-09-13: the
-empty message is the main reading and the placeholder message is reported only
+The empty arm is the reported one (the frozen analysis plan, note of 2026-09-13:
+the empty message is the main reading and the placeholder message is reported only
 as a paired difference), so every key but `E3a.null_forms.paired_p` comes from
 it. A missing second arm drops that one key and says so on stderr; it is not
 written as null.
@@ -29,7 +29,7 @@ about half the downstream outputs.
 
 This script does not touch `manifest.json`. It reads the key names from it,
 refuses any key the manifest does not have, and never writes a verdict key:
-filling a verdict is the driver's action.
+filling a verdict is the maintainers' action.
 """
 
 from __future__ import annotations
@@ -62,8 +62,8 @@ DEFAULT_EXTRACTOR = "math"
 
 BUCKETS = "buckets.jsonl"
 
-#: The second arm's directory name, and the name the first contract revision
-#: used for it. The alias is read, never written.
+#: The second arm's directory name, and the name the first revision of the
+#: results layout used for it. The alias is read, never written.
 NULL_ARM_DIR = "placeholder"
 NULL_ARM_DIR_LEGACY = "deleted"
 
@@ -95,7 +95,7 @@ def find_arm(results: str, arm: str) -> Optional[str]:
 def find_null_arm(results: str, *, stream=None) -> Optional[str]:
     """Locate the second arm: `placeholder`, else its legacy name `deleted`.
 
-    The contract revision of 2026-09-15 renamed the arm, and the cell driver has
+    The results layout revision of 2026-09-15 renamed the arm, and the cell driver has
     written `placeholder` since. Bucket trees produced before that carry the old
     name, so it is still read; finding one says so on stderr, because a summary
     built off a legacy tree is worth noticing.
@@ -168,7 +168,8 @@ def run(
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Aggregate E3a into summary.json")
     ap.add_argument("--results", required=True, help="the E3a results directory")
-    ap.add_argument("--manifest", required=True, help="10_paper/04_rebuild/results/manifest.json")
+    ap.add_argument("--manifest", required=True,
+                    help="the results manifest of the paper build")
     ap.add_argument("--out", required=True, help="where summary.json is written")
     ap.add_argument("--extractor", default=DEFAULT_EXTRACTOR, choices=sorted(EXTRACTORS),
                     help="answer extractor: math is the repository parser plus its expression "

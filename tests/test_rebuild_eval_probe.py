@@ -15,7 +15,7 @@ the per-suite aggregation is checked on both shapes the evaluation dump has.
 
 Third, the preparation functions of the five candidate benchmarks: their field
 mapping is checked on fixture rows shaped like the upstream ones, including the
-two OlympiadBench shapes that need a ruling before the file can be built at all.
+two OlympiadBench shapes that need a decision before the file can be built at all.
 """
 
 from __future__ import annotations
@@ -590,7 +590,7 @@ def test_a_row_without_a_problem_statement_is_refused(monkeypatch: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-# OlympiadBench: the two shapes that need a ruling
+# OlympiadBench: the two shapes that need a decision
 # ---------------------------------------------------------------------------
 
 
@@ -716,7 +716,12 @@ def test_the_five_candidates_are_registered_in_preparation_order() -> None:
     assert names == ["Minerva-Math", "OlympiadBench", "AMC23", "AIME24", "AIME25"]
 
 
-def test_preparing_the_candidates_is_opt_in() -> None:
-    """The default preparation run and the release checks must be unchanged."""
+def test_the_candidates_are_prepared_by_default_under_the_new_flag_name() -> None:
+    """Four of the five are evaluation suites of the main task, so a default run
+    that skipped them would leave `configs/tasks/math.yaml` pointing at files
+    nobody wrote. The former flag name stays as an alias for one release, and
+    both spellings have to reach the same destination."""
     source = (REPO_ROOT / "scripts" / "10_data" / "prepare_math.py").read_text(encoding="utf-8")
-    assert '"--prepare_eval_probe_sets", type=int, default=0' in source
+    assert '"--prepare_candidate_benchmarks", "--prepare_eval_probe_sets"' in source
+    assert 'dest="prepare_candidate_benchmarks"' in source
+    assert "type=int, default=1" in source

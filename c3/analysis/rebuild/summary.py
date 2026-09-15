@@ -1,11 +1,12 @@
 # c3/analysis/rebuild/summary.py
-"""The single writer of the summary.json defined by results contract section 3.4.
+"""The single writer of the summary.json defined by the results layout, section 3.4.
 
 Both aggregation families in this package end here: the E1 family goes through
 `aggregate_e1.SummaryBuilder` (a thin wrapper that collects keys one at a time)
 and the E3a / E5 family calls `build_summary` / `write_summary` directly. The
 two paths therefore produce the same document shape and the same three
-conventions that used to differ between them (driver ruling B13, 2026-09-15):
+conventions that used to differ between them (the maintainers' decision of
+2026-09-15):
 
 - a git sha that cannot be read is written as null, not as a string,
 - the timestamp ends in Z (``2026-09-15T04:05:06Z``),
@@ -21,11 +22,11 @@ One caution about names: `aggregate_e1.source_path` has a different signature
 by calling the one here, so both families write the same `source` shape; the
 signatures differ, which is why the two are not one function.
 
-Refusals are mechanical and never fatal (contract revision 2, ruling B9): a key
+Refusals are mechanical and never fatal (results layout revision 2): a key
 the manifest does not define, or a key whose unit is "verdict", is dropped with
 one line on stderr and the aggregation keeps its exit code of 0, so a partly
 collected result tree still produces the keys it can support. Filling a verdict
-is the driver's action and no script's.
+is the maintainers' action and no script's.
 
 Only the standard library is imported here.
 """
@@ -60,7 +61,7 @@ __all__ = [
 def format_p(p: Optional[float]) -> Optional[str]:
     """The manifest's p-value string, or None when the p value is undefined.
 
-    Three tiers (preregistration revision 13, 2026-09-15): below 0.001 the
+    Three tiers (analysis plan revision 13, 2026-09-15): below 0.001 the
     string is ``$<\\!0.001$``; from 0.001 up to but not including 0.01 it is
     ``$<\\!0.01$``; otherwise it is two decimals, ``$= 0.30$``. The middle tier
     exists because ``$= 0.00$`` reads as "p equals zero". The fragment carries
@@ -96,7 +97,7 @@ def load_manifest(path: str) -> Dict[str, Dict[str, Any]]:
 def source_path(path: str) -> str:
     """Path as written into summary.json's `source`.
 
-    The contract prints repository-relative paths such as
+    The results layout prints repository-relative paths such as
     ``20_data/results/E3a/a3/4b/empty/buckets.jsonl``. The aggregate scripts are
     handed an arbitrary directory, so the rule is mechanical: cut at the last
     ``20_data`` segment when there is one, otherwise keep the path as given.
@@ -148,7 +149,7 @@ def key_refusal(key: str, manifest: Mapping[str, Mapping[str, Any]]) -> Optional
     if entry is None:
         return "not a manifest key"
     if str(entry.get("unit")) == "verdict":
-        return "verdict key, the driver decides it"
+        return "verdict key, the maintainers decide it"
     return None
 
 
@@ -165,7 +166,7 @@ def build_summary(
     stream=None,
     extra: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Assemble the summary document of results contract section 3.4.
+    """Assemble the summary document of the results layout, section 3.4.
 
     `keys` maps a manifest key to {value, n, source, note}; the unit is taken
     from the manifest so the two cannot drift. Keys the manifest does not define
@@ -175,9 +176,9 @@ def build_summary(
 
     `extra` adds top-level fields just after `experiment`, which is how the E1
     aggregation records which result tree it read and which key prefix it wrote
-    (`results_root`, `key_prefix`). The three names of the contract shape are
+    (`results_root`, `key_prefix`). The three names of the document shape are
     reserved: passing one of them raises rather than silently rewriting the
-    document the contract fixes.
+    document the results layout fixes.
     """
     out = stream if stream is not None else sys.stderr
     if extra:

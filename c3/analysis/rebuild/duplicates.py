@@ -10,8 +10,8 @@ texts report 0.75, not the pair-level share.
 
 The near-duplicate rate is the secondary reading: alternatives whose whitespace
 split token sets overlap above a Jaccard threshold. It is the same idea the
-Tier-A script 30_analysis/server_tierA/entropy_contrast.py used, moved from a
-pair rate to the alternative rate so that both numbers have the same denominator.
+earlier entropy-contrast script used, moved from a pair rate to the alternative
+rate so that both numbers have the same denominator.
 Exact duplicates are always near duplicates, since identical text gives identical
 token sets.
 

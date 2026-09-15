@@ -14,17 +14,17 @@ empty message or as a placeholder message, `meta.null_form`). Against that arm:
 Sign convention: bias is "with the message" minus "without it", so a positive
 bias means removing the message costs return.
 
-Stratification, with the thresholds fixed before any bias is looked at
-(preregistration E3): split at the median influence, then split the high half
-by whether the real alternatives differed in value at all (delta_q > 0).
+Stratification, with the thresholds fixed before any bias is looked at (the
+frozen analysis plan, E3): split at the median influence, then split the high
+half by whether the real alternatives differed in value at all (delta_q > 0).
 
-Red-team checks carried over from `30_analysis/server_tierA/p1rb_analysis.py`:
-R1 the baseline level is always reported, because an injection that collapses
-the downstream agent would manufacture a large bias for a reason that has
-nothing to do with credit; R2 the two realisations of the null action are
-compared as a paired difference (`null_forms_paired`); R3 the bias-influence
-correlation is deliberately NOT computed here, since it needs a partial that
-the preregistration does not claim.
+Red-team checks carried over from the earlier paired-analysis script this
+module replaces: R1 the baseline level is always reported, because an injection
+that collapses the downstream agent would manufacture a large bias for a reason
+that has nothing to do with credit; R2 the two realisations of the null action
+are compared as a paired difference (`null_forms_paired`); R3 the
+bias-influence correlation is deliberately NOT computed here, since it needs a
+partial that the analysis plan does not claim.
 
 Module-level imports are limited to numpy, scipy and the standard library.
 """
@@ -68,11 +68,12 @@ CUTOFF_PCTS = (60, 50, 40, 30)
 #: produce one single downstream answer), where "gt" would empty the high half.
 DEFAULT_HIGH_SIDE = "ge"
 
-#: The three strata of the preregistered split, in the order they are reported.
+#: The three strata of the split the analysis plan fixes, in the order they are
+#: reported.
 STRATUM_NAMES = ("high_infl_diff", "high_infl_nodiff", "low_infl")
 
 #: Below this many points a stratum is reported as degenerate. It is a REPORTING
-#: threshold only: the split rule itself is preregistered and is not touched
+#: threshold only: the split rule itself is fixed in the analysis plan and is not touched
 #: here, and no key is dropped because of it. What it catches is the failure mode
 #: seen on the first real E3a cell, where the influence estimator returned
 #: exactly zero on most decision points, so the median split put almost every
@@ -217,9 +218,10 @@ def _degenerate_strata(strata: Mapping[str, Any], *, stream=None) -> Dict[str, s
 
     One line per thin stratum on stderr, and the same sentence returned so it can
     ride into the note of every key read off that stratum. Nothing is dropped and
-    no threshold moves: the split rule is preregistered, and whether a degenerate
-    split means the measurement has to be rerun is the driver's call, taken on a
-    summary that says so out loud instead of on a number that looks ordinary.
+    no threshold moves: the split rule is fixed in the analysis plan, and whether
+    a degenerate split means the measurement has to be rerun is the maintainers'
+    call, taken on a summary that says so out loud instead of on a number that
+    looks ordinary.
     """
     out = stream if stream is not None else sys.stderr
     messages: Dict[str, str] = {}
@@ -400,7 +402,7 @@ def e3a_key_values(
     keys exist in the manifest (per-stratum mean_bias / median / iqr_lo / iqr_hi
     and high_infl_nodiff.zero_n); they are computed in `bias_map_report` and
     `extra_strata_keys=True` emits them, but the default stays with the
-    enumerated set, since which keys an aggregation fills is the driver's call.
+    enumerated set, since which keys an aggregation fills is the maintainers' call.
 
     A key whose value is nan, whose p value is not computable, or whose own n is
     zero is left out entirely rather than written as null: a statistic with no

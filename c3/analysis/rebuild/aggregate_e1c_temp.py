@@ -5,7 +5,7 @@ E1c aggregation for the temperature sweep and the alert-band subsets.
     python -m c3.analysis.rebuild.aggregate_e1c_temp \
         --results 20_data/results/E1c --manifest results/manifest.json --out summary.json
 
-Directory layout (results contract section 2):
+Directory layout (the results layout, section 2):
 
     <results>/temp/{t070_n4,t085_n4,t100_n4,t100_n8}/buckets.jsonl
     <results>/band/{calib,holdout}/buckets.jsonl
@@ -17,7 +17,8 @@ mapping is spelled out in TEMP_CONDITIONS below.
 
 The two band subsets are measured (reliability and duplicate rate, reported on
 stderr) but nothing is written for E1c.band.trigger_rel: the trigger is a rule
-over those two numbers and defining it is the driver's action, not this script's.
+over those two numbers and defining it is the maintainers' action, not this
+script's.
 
 The training-monitor keys of E1c (E1c.dupcheck.*) come from training runs, not
 from these cells, and are not this script's business.
@@ -137,7 +138,7 @@ def build_e1c_summary(results_root: str, manifest: Mapping[str, Any], *, stream=
                    report["n"]))
         builder.note(
             "skip E1c.band.trigger_rel: the two subsets above are measured, but the rule that "
-            "turns them into a trigger level is a judgment the driver makes")
+            "turns them into a trigger level is a judgment the maintainers make")
 
     builder.note("E1c: %d key(s) written, %d refused" % (len(builder.keys), len(builder.refused)))
     return builder

@@ -146,10 +146,10 @@ The manifest also includes pinned upstream revisions and prepared-artifact SHA25
   - `data/AIME25/test.jsonl`
 - License: see the upstream dataset card; C3 does not redistribute raw data.
 
-> Note on the five entries above: they are evaluation-only candidate benchmarks
-> for the start-accuracy probe, prepared only when
-> `scripts/10_data/prepare_math.py` is called with `--prepare_eval_probe_sets 1`.
-> Nothing trains on them.
+> Note on the five entries above: they are evaluation only; the main task
+> evaluates on four of them since the evaluation protocol of 2026-09-15; nothing
+> trains on them. `scripts/10_data/prepare_math.py` prepares them by default
+> (`--prepare_candidate_benchmarks`, which defaults to `1`).
 
 ---
 

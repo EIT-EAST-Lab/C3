@@ -5,7 +5,7 @@ E1b aggregation: the noise-law grid, written to 20_data/results/E1b/summary.json
     python -m c3.analysis.rebuild.aggregate_e1b \
         --results 20_data/results/E1b --manifest results/manifest.json --out summary.json
 
-Directory layout (results contract section 2):
+Directory layout (the results layout, section 2):
 
     <results>/<workflow>/<model>/n{2,4,8}_c{2,4,8}/{seedA,seedB}/buckets.jsonl
 
@@ -17,7 +17,7 @@ a line on stderr rather than resolved by a rule this script would be inventing.
 The measured-over-predicted ratio and its two grid summaries come from
 noise_law.py; the estimator conventions it uses (mean of squares for the
 measured noise, the within-alternative variance for sigma^2) are that module's
-defaults, which preregistration revision 10 fixed on 2026-09-15.
+defaults, which revision 10 of the frozen analysis plan fixed on 2026-09-15.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ WORKFLOWS = ("a2", "a3", "mt4", "branch", "c5", "c10")
 CELL_RE = re.compile(r"^n(\d+)_c(\d+)$")
 SEED_DIRS = ("seedA", "seedB")
 # Element-wise convention of the measured noise: the estimator module's default,
-# mean of squares (driver ruling A1, preregistration revision 10).
+# mean of squares (the maintainers' decision, analysis plan revision 10).
 DDOF = nl.DDOF
 
 

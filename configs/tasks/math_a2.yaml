@@ -1,0 +1,60 @@
+# ===== Task: math_a2 (two-agent workflow; same data and roles as math.yaml) =====
+#
+# This file exists for one reason: the depth study measures every workflow on the
+# screened question pool, and the two-agent arm is the one workflow whose task
+# file is the paper's own `math.yaml`. Adding `MATHPOOL` there would put an
+# evaluation suite that exists only after the E1 screening pass into the task
+# file a reader of the paper runs, so the two-agent cells of the depth study read
+# this copy instead. It is `math.yaml` with the pool suite appended and nothing
+# else changed: same training sources, same reward conventions, same role file.
+# Only scripts/70_rebuild/e1_cells.py and scripts/70_rebuild/e3a_cells.py read it.
+experiment_name: "c3_math_a2"
+
+environment:
+  env_name: "MathEnv"
+  sampling_mode: concat        # every problem appears once per epoch; merge_epoch oversamples the smaller source
+  reshuffle_each_epoch: true   # reshuffle at the start of every epoch; set false to keep a fixed order
+
+  # Training set: mixed sampling over several sources.
+  train_datasets:
+    - name: "MATH-train"
+      path: "data/MATH/train.jsonl"
+      weight: 1.0
+      limit: null
+    - name: "CMATH-train"
+      path: "data/CMATH/train.jsonl"
+      weight: 1.0
+      limit: null
+
+  # Evaluation: the five main-table suites of math.yaml, plus the screened
+  # question pool this workflow is measured on.
+  eval_suites:
+    - name: "MATH500"
+      path: "data/MATH500/test.jsonl"
+      limit: null
+    - name: "Minerva-Math"
+      path: "data/MINERVA_MATH/test.jsonl"
+      limit: null
+    - name: "AMC23"
+      path: "data/AMC23/test.jsonl"
+      limit: null
+    - name: "AIME24"
+      path: "data/AIME24/test.jsonl"
+      limit: null
+    - name: "AIME25"
+      path: "data/AIME25/test.jsonl"
+      limit: null
+    - name: "MATHPOOL"
+      path: "data/MATH/pool_informative.jsonl"
+      limit: null
+
+  # Environment and reward conventions.
+  episode_length: 1
+  math_backend: marft            # marft | simple
+  reward_mode: vote_binary       # vote_binary | avg_per_answer
+  use_math_verify: true
+  mix_seed: 42                   # deterministic seed for the mixed sampling
+
+# Roles (Duo, the same two-agent team as math.yaml).
+mas:
+  roles_path: "../roles/math/roles_duo.json"

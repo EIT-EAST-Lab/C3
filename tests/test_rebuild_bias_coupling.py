@@ -1,5 +1,5 @@
 # tests/test_rebuild_bias_coupling.py
-"""WP-R2b: the influence estimator, the E3a bias map and the E5 coupling.
+"""The influence estimator, the E3a bias map and the E5 coupling.
 
 Every fixture is synthetic and hand computable; nothing here reads real data.
 Run with the light local environment:
@@ -287,8 +287,8 @@ def test_answer_symbol_maps_none_and_blank_to_no_answer():
 
 
 # -----------------------------------------------------------------------------
-# 2b. math_extractor, the extractor the aggregation runs (WP-R14 item 2,
-#     narrowed to explicit answers by WP-R15 item 1)
+# 2b. math_extractor, the extractor the aggregation runs (2026-09-15, narrowed
+#     to explicit answers the same day)
 #
 # It is the repository's own parser (`c3.envs.math.parsing.parse_math_answer`),
 # restricted to the methods that mean the output STATED an answer, followed by
@@ -334,7 +334,7 @@ def test_math_extractor_reads_an_anchored_answer():
 
 
 def test_math_extractor_calls_the_prose_fallback_no_answer():
-    """Driver ruling 1, 2026-09-15: only a STATED answer counts.
+    """The maintainers' decision of 2026-09-15: only a STATED answer counts.
 
     The repository parser has no "unparseable" verdict; its last resort is the
     last non-empty line, method `last_line`, which is a sentence of the working.
@@ -356,14 +356,14 @@ def test_math_extractor_calls_the_prose_fallback_no_answer():
     assert inf.math_extractor("42") == inf.NO_ANSWER
 
 
-def test_math_extractor_accepts_exactly_the_three_methods_the_ruling_names():
+def test_math_extractor_accepts_exactly_the_three_methods_the_decision_names():
     """The accepted set is a whitelist of three, so the parser's two remaining
     anchor-ish outcomes fall outside it.
 
     `anchor_inline` is one of them: the parser reaches it when the anchor sits on
     the last non-empty line but not on the last line of the string, which is what
     a trailing blank line does. Whether that fourth method should join the three
-    is the driver's call; this pins what the code does today so the choice is
+    is the maintainers' call; this pins what the code does today so the choice is
     visible rather than silent.
     """
     from c3.envs.math.parsing import parse_math_answer
@@ -464,7 +464,7 @@ def test_bias_map_keys_match_the_hand_computation(e3a_report):
     assert value["E3a.bias.mean"] == pytest.approx(1.0 / 3.0, abs=1e-12)
     # 4 x 0, 4 x 0.75, 4 x 0.25 against zero: t = 3.5456 on 11 degrees of freedom.
     # p is 0.0046, which the middle tier of the p-value convention prints as
-    # "< 0.01" (driver ruling A5; two decimals would read as "p equals zero").
+    # "< 0.01" (the maintainers' decision; two decimals would read as "p equals zero").
     assert value["E3a.bias.p"] == "$<\\!0.01$"
     assert report["bias"]["p"] == pytest.approx(0.0045872026, abs=1e-9)
 
@@ -519,7 +519,7 @@ def test_median_split_keeps_the_tied_points_on_the_high_side(e3a_report):
 
     With the default rule (at or above the threshold) they all land in the high
     half, which is what makes the 4 / 4 / 4 design of this fixture work. The
-    strict rule empties it; the parameter exists so the driver can see both.
+    strict rule empties it; the parameter exists so the maintainers can see both.
     """
     points, _ = e3a_report
     strict = bm.bias_map_report(points, high_side="gt")
@@ -575,12 +575,12 @@ def test_extra_strata_keys_are_opt_in(e3a_report):
 
 
 # -----------------------------------------------------------------------------
-# 3b. the degenerate-split warning (WP-R14 item 3)
+# 3b. the degenerate-split warning (2026-09-15)
 #
 # The first real E3a cell put 148 of 150 points on the high side of the median
 # influence, leaving a low stratum of two. That is a reporting problem, not a
-# rule problem: the split is preregistered and nothing here moves it. What is
-# pinned below is that the summary says so out loud.
+# rule problem: the split is fixed in the analysis plan and nothing here moves
+# it. What is pinned below is that the summary says so out loud.
 # -----------------------------------------------------------------------------
 
 
@@ -771,8 +771,8 @@ def test_correction_is_undefined_without_a_wrong_upstream_alternative():
 
 
 def test_format_p_branches():
-    """The three tiers of driver ruling A5 (preregistration revision 13), with
-    both boundaries: 0.001 belongs to the middle tier and 0.01 to the last."""
+    """The three tiers of the maintainers' decision (analysis plan revision 13),
+    with both boundaries: 0.001 belongs to the middle tier and 0.01 to the last."""
     assert inf.format_p(0.0) == "$<\\!0.001$"
     assert inf.format_p(0.0005) == "$<\\!0.001$"
     assert inf.format_p(0.0009999) == "$<\\!0.001$"
@@ -831,7 +831,7 @@ def test_aggregate_e3a_cli(tmp_path, capsys):
 
 
 def test_aggregate_e3a_keeps_going_when_the_manifest_lacks_a_key(tmp_path, capsys):
-    """Contract revision 2 (ruling B9): a key the manifest does not define is
+    """Results layout revision 2: a key the manifest does not define is
     refused with one line on stderr, the other keys are still written and the
     command still exits zero."""
     root = tmp_path / "E3a"
@@ -850,7 +850,7 @@ def test_aggregate_e3a_keeps_going_when_the_manifest_lacks_a_key(tmp_path, capsy
 
 
 def test_aggregate_e3a_without_the_placeholder_arm(tmp_path, capsys):
-    """WP-R14 item 1: with neither the contract name nor its legacy alias on
+    """With neither the current directory name nor its legacy alias on
     disk, the message has to name both, or the operator looks for the wrong
     directory."""
     root = tmp_path / "E3a"
@@ -868,8 +868,8 @@ def test_aggregate_e3a_without_the_placeholder_arm(tmp_path, capsys):
 
 
 def test_aggregate_e3a_prefers_the_placeholder_arm(tmp_path, capsys):
-    """WP-R14 item 1: `placeholder` is the arm the cell driver writes (results
-    contract revision 3), so it is the one looked for, and finding it says
+    """`placeholder` is the arm the cell driver writes (results layout
+    revision 3), so it is the one looked for, and finding it says
     nothing about a legacy name."""
     root = tmp_path / "20_data" / "results" / "E3a"
     write_jsonl(str(root / "a3" / "4b" / "empty" / "buckets.jsonl"), e3a_buckets())
@@ -890,7 +890,7 @@ def test_aggregate_e3a_prefers_the_placeholder_arm(tmp_path, capsys):
 
 
 def test_aggregate_e3a_reads_the_legacy_arm_name_and_says_so(tmp_path, capsys):
-    """WP-R14 item 1: a tree written before the rename still aggregates, with one
+    """A tree written before the rename still aggregates, with one
     line on stderr, because a summary built off a legacy tree is worth noticing."""
     root = tmp_path / "20_data" / "results" / "E3a"
     write_jsonl(str(root / "a3" / "4b" / "empty" / "buckets.jsonl"), e3a_buckets())

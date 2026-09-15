@@ -2,18 +2,18 @@
 """Command line aggregation for E5, the paired policy contrast.
 
     python -m c3.analysis.rebuild.aggregate_e5 \
-        --results 20_data/results/E5 --manifest 10_paper/04_rebuild/results/manifest.json \
+        --results 20_data/results/E5 --manifest results/manifest.json \
         --out 20_data/results/E5/summary.json --gold datasets/math500_gold.jsonl \
         [--extractor boxed]
 
-Directory layout, from the results contract section 2:
+Directory layout, from the results layout section 2:
 
     E5/sft/buckets.jsonl        the reference arm, written to the .sft keys
     E5/c3_s0/buckets.jsonl      the trained arm, written to the .c3 keys
 
 Correctness here is string equality of the extracted answer symbol with the gold
 answer, whitespace stripped. That is a placeholder: real mathematical
-equivalence lives in the repository's own parser, and the driver injects it by
+equivalence lives in the repository's own parser, and the caller injects it by
 calling `run()` with its own `extractor` and `is_correct` instead of using the
 `--extractor` flag.
 
@@ -50,7 +50,7 @@ GOLD_FIELDS = ("gold_answer", "gold", "answer", "label")
 def read_gold(path: str) -> Dict[Any, str]:
     """Read the gold file: one JSON object per line, question id to answer.
 
-    Two shapes are accepted, because the contract does not fix one: an object
+    Two shapes are accepted, because the results layout does not fix one: an object
     carrying `question_id` plus one of the fields in `GOLD_FIELDS`
     (gold_answer, gold, answer, label), or a single-pair object {id: answer}.
     Anything else raises with the line number instead of being guessed at.
@@ -160,11 +160,12 @@ def run(
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Aggregate E5 into summary.json")
     ap.add_argument("--results", required=True, help="the E5 results directory")
-    ap.add_argument("--manifest", required=True, help="10_paper/04_rebuild/results/manifest.json")
+    ap.add_argument("--manifest", required=True,
+                    help="the results manifest of the paper build")
     ap.add_argument("--out", required=True, help="where summary.json is written")
     ap.add_argument("--gold", required=True, help="jsonl of question id to gold answer")
     ap.add_argument("--extractor", default="boxed", choices=sorted(EXTRACTORS),
-                    help="answer extractor; the driver injects the repository parser through run()")
+                    help="answer extractor; the caller injects the repository parser through run()")
     args = ap.parse_args(argv)
 
     try:

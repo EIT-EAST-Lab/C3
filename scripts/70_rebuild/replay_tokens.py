@@ -13,19 +13,20 @@ files with numpy and scipy and runs anywhere, this runs where the model lives.
     python scripts/70_rebuild/replay_tokens.py \\
         --results /abs/20_data/results/E1 \\
         --tokenizer /models/Qwen3-4B-Instruct-2507 \\
-        --manifest 10_paper/04_rebuild/results/manifest.json \\
+        --manifest /abs/results/manifest.json \\
         --out /abs/20_data/results/E1/replay_tokens_summary.json
 
-Layout read (results contract section 2):
+Layout read (the results layout, section 2):
 
     <results>/c10/<model>/sweep_n{2,3,4,6,8}/buckets.jsonl
 
-WHAT IS COUNTED, AND WHY IT IS NOT THE PREFIX (driver ruling 2, 2026-09-15).
+WHAT IS COUNTED, AND WHY IT IS NOT THE PREFIX (the maintainers' decision of
+2026-09-15).
 The statistic is the number of tokens the downstream role regenerates in ONE
 replay, taken over every replay of every alternative of every bucket of the c10
 cells. The key it fills is still called `E1.c10.median_prefix_tokens`, which is
-the name the manifest carries; renaming the key is the driver's action, not this
-script's.
+the name the manifest carries; renaming the key is the maintainers' action, not
+this script's.
 
 The measured position of every E1 cell is the FIRST role in topological order
 (`scripts/70_rebuild/e1_cells.py`, `measured_positions`), so the upstream prefix
@@ -106,7 +107,7 @@ def find_cells(results_root: str, workflow: str = WORKFLOW) -> Dict[Tuple[str, i
     """Map (model, branching factor) to that cell's bucket file.
 
     Only the sweep cells of one workflow, and only the model and branching
-    names the contract defines; anything else is not this script's business.
+    names the results layout defines; anything else is not this script's business.
     """
     cells: Dict[Tuple[str, int], str] = {}
     wf_dir = os.path.join(results_root, workflow)

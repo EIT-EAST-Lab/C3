@@ -51,7 +51,7 @@ EXPECTED_SUITES = [
     "CMATH-test",
 ]
 
-# The sample counts the preregistered noise arithmetic fixed. The two saturation
+# The sample counts the noise arithmetic of the analysis plan fixed. The two saturation
 # controls are read with the same estimator as everything else, at k = 4.
 EXPECTED_K = {
     "MATH500": 4,

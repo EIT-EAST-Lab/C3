@@ -91,10 +91,14 @@ _task_to_yaml() {
   echo "${REPO_ROOT}/configs/tasks/${suite}.yaml"
 }
 
+# The main-table suites per task, since the evaluation protocol of 2026-09-15.
+# The two saturation controls of the math appendix (GSM8K-test, CMATH-test) are
+# reported once after training and are not analysed here by default; pass them
+# to --splits when you want them.
 _default_splits_for_suite() {
   local suite="$1"
   case "${suite,,}" in
-    math) echo "MATH500 CMATH-test GSM8K-test" ;;
+    math) echo "MATH500 Minerva-Math AMC23 AIME24 AIME25" ;;
     code) echo "MBPP+ MBPP-test" ;;
     *) echo "" ;;
   esac

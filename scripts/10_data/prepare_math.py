@@ -901,17 +901,17 @@ def _prepare_math_pool(
 
 
 # -----------------------------
-# Candidate evaluation benchmarks (start-accuracy probe)
+# Candidate evaluation benchmarks
 # -----------------------------
 
-# These five artifacts exist so the start accuracy of a frozen policy can be
-# measured on candidate benchmarks before any of them is adopted. They
-# are evaluation only, nothing trains on them, and they are prepared only when
-# --prepare_eval_probe_sets 1 is passed, so the default preparation run and the
-# release checks are unchanged.
+# These five artifacts are evaluation only; nothing trains on them. The main
+# task evaluates on four of them (Minerva-Math, AMC23, AIME24, AIME25) since the
+# evaluation protocol of 2026-09-15, so they are prepared by default; the fifth,
+# OlympiadBench, is prepared with them and is read by the start-accuracy probe
+# only. --prepare_candidate_benchmarks turns the group off.
 
-# A manifest policy field still waiting for a ruling. The builder refuses to run
-# while it holds this value, which is the same contract as the PIN-ME revision
+# A manifest policy field still waiting for a decision. The builder refuses to
+# run while it holds this value, which is the same rule as the PIN-ME revision
 # placeholder: an unanswered question fails loudly instead of picking a default.
 POLICY_UNSET = "DECIDE-ME"
 
@@ -1018,7 +1018,7 @@ def _prepare_olympiadbench(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
             raise SystemExit(
                 f"[FAIL] OlympiadBench: row id={row_id!r} carries a non-empty `context`, which the "
                 "674 rows of the pinned revision never do. The question alone may then be "
-                "incomplete, so the driver has to rule on how context is joined to it before this "
+                "incomplete, so the maintainers have to decide how context is joined to it before this "
                 "file can be prepared."
             )
 
@@ -1158,9 +1158,13 @@ def main() -> None:
     ap.add_argument("--prepare_math500", type=int, default=1)
     ap.add_argument("--prepare_cmath", type=int, default=1)
     ap.add_argument("--prepare_gsm8k", type=int, default=1)
-    # Candidate benchmarks for the start-accuracy probe. Off by default, so the
-    # default preparation run and the release checks stay exactly as they were.
-    ap.add_argument("--prepare_eval_probe_sets", type=int, default=0, nargs="?", const=1, choices=[0, 1])
+    # The candidate benchmarks. On by default since the evaluation protocol of
+    # 2026-09-15 made four of them evaluation suites of the main task.
+    # --prepare_eval_probe_sets is the former name of this flag, kept as an alias
+    # for one release; both spellings write the same destination.
+    ap.add_argument("--prepare_candidate_benchmarks", "--prepare_eval_probe_sets",
+                    dest="prepare_candidate_benchmarks",
+                    type=int, default=1, nargs="?", const=1, choices=[0, 1])
 
     args = ap.parse_args()
 
@@ -1263,7 +1267,7 @@ def main() -> None:
         _run("CMATH-test", _prepare_cmath)
     if args.prepare_gsm8k:
         _run("GSM8K-test", _prepare_gsm8k)
-    if args.prepare_eval_probe_sets:
+    if args.prepare_candidate_benchmarks:
         for probe_name, probe_builder in EVAL_PROBE_OUTPUTS:
             _run(probe_name, probe_builder)
 

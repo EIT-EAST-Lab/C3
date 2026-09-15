@@ -1,7 +1,7 @@
 # tests/test_rebuild_summary.py
 """One summary.json implementation for the whole rebuild package.
 
-Driver ruling B13 (2026-09-15) merged the two writers this package used to have:
+The maintainers' decision of 2026-09-15 merged the two writers this package used to have:
 `c3.analysis.rebuild.summary` holds the document, and the E1 family's
 `SummaryBuilder` is a collecting wrapper around it. These tests check that the
 two paths agree on the top-level shape and on the three conventions that used to
@@ -90,7 +90,7 @@ def test_both_paths_write_the_same_document():
 
 
 # -----------------------------------------------------------------------------
-# 2. the three conventions the ruling fixed
+# 2. the three conventions the maintainers' decision fixed
 # -----------------------------------------------------------------------------
 
 
@@ -132,7 +132,7 @@ def test_an_empty_note_is_left_out():
 
 
 # -----------------------------------------------------------------------------
-# 3. the refusals (contract revision 2, ruling B9)
+# 3. the refusals (results layout revision 2)
 # -----------------------------------------------------------------------------
 
 
@@ -162,14 +162,14 @@ def test_both_paths_refuse_a_verdict_key(capsys):
                                     KEY: {"value": 0.87, "n": 96, "source": ["x"]}}, man)
     assert set(direct["keys"]) == {KEY}
     err = capsys.readouterr().err
-    assert err.count("skip %s: verdict key, the driver decides it" % VERDICT) == 2
+    assert err.count("skip %s: verdict key, the maintainers decide it" % VERDICT) == 2
 
 
 def test_key_refusal_is_the_one_rule():
     man = manifest()
     assert summary.key_refusal(KEY, man) is None
     assert summary.key_refusal("E1.not.a.key", man) == "not a manifest key"
-    assert summary.key_refusal(VERDICT, man) == "verdict key, the driver decides it"
+    assert summary.key_refusal(VERDICT, man) == "verdict key, the maintainers decide it"
 
 
 def test_a_refusal_does_not_stop_the_aggregation(tmp_path, capsys):
@@ -230,7 +230,7 @@ def test_source_path_cuts_at_the_data_root(tmp_path):
 
 
 # -----------------------------------------------------------------------------
-# 5. the source shape, on both paths (WP-R14 item 5)
+# 5. the source shape, on both paths (2026-09-15)
 #
 # The E1 family joins a results root with a cell's sub-path; the other family
 # passes a whole path. Before this the E1 join kept the root as the caller
@@ -267,7 +267,7 @@ def test_the_last_data_segment_is_the_one_cut_at(tmp_path):
 
 
 # -----------------------------------------------------------------------------
-# 6. the extra top-level fields (WP-R14 item 4)
+# 6. the extra top-level fields (2026-09-15)
 # -----------------------------------------------------------------------------
 
 

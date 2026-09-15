@@ -25,9 +25,13 @@ Use this checklist when changing protocol, data loading, credit assignment, eval
 ## Evaluation and aggregation contracts
 
 - `MathEnv` and `CodeEnv` reward entrypoints remain compatible with the rollout metadata contract.
-- `main_results.py` still aggregates by the expected benchmark names:
-  - math: `MATH500`, `CMATH-test`, `GSM8K-test`
+- `main_results.py` still aggregates by the expected benchmark names, which are
+  the main-table suites since the evaluation protocol of 2026-09-15:
+  - math: `MATH500`, `Minerva-Math`, `AMC23`, `AIME24`, `AIME25`
   - code: `MBPP-test`, `MBPP+`
+  - math appendix, reported apart from the main table: `GSM8K-test`, `CMATH-test`
+  - the reported `AIME` column is `AIME24` and `AIME25` merged, the same entry
+    `scripts/70_rebuild/final_eval.py` writes
 - Analysis bucket metadata remains compatible with `c3/analysis/metrics.py` and `c3/tools/analysis_results.py`.
 
 ## Tests and release gate

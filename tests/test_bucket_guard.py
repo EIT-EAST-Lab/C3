@@ -1,15 +1,15 @@
 # tests/test_bucket_guard.py
 """The context-key collision guard of the bucket validator.
 
-Background (driver ruling C3, 2026-09-15): on the first real E1 run the very
+Background (the maintainers' decision of 2026-09-15): on the first real E1 run the very
 first bucket ever written was reported as a context-key collision.
 `ReplayRunner.build_context_hash` observes the key on the process-global guard
 with a fingerprint of the context TEXT it hashed, while
 `c3.analysis.buckets.validate_bucket` observes the same key with a fingerprint
 of its own identity string, which is a different string by construction. Sharing
 one guard therefore made every bucket look like a collision. The fix (commit
-ff183d4) gives the validator its own guard; these tests are the reproduction the
-ruling asked for, plus the check that a real collision is still refused.
+ff183d4) gives the validator its own guard; these tests are the reproduction that
+decision asked for, plus the check that a real collision is still refused.
 
 The runner's context string is rebuilt here rather than imported, so the test
 stays inside the light analysis environment.

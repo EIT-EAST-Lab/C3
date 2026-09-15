@@ -51,8 +51,8 @@ outputs:
       MATH500, whose 500 problems are drawn from it. Evaluation and the E1 screening
       pass only, never training, and it shares no problem with any training artifact,
       which scripts/10_data/check_overlap.py verifies on every strict run. The sha256
-      pin stays empty until the file is prepared on the platform, so expected_rows is
-      what guards the row count in that window.
+      pin is set, so it is the gate and expected_rows is documentation, the same
+      way MATH-train is pinned.
 - name: MATH-pool
   type: math
   output_path: data/MATH/pool_informative.jsonl
@@ -237,7 +237,7 @@ outputs:
       674 rows hold more than one answer while 9 carry a separate unit string, so
       multi_answer_policy (drop, first or join_comma) and unit_policy (drop, ignore
       or append) decide what the single answer string of a prepared row is. Both are
-      set to drop by the driver on 2026-09-15 (single-string scoring cannot take multi-answer
+      set to drop by the maintainers on 2026-09-15 (single-string scoring cannot take multi-answer
       or unit rows); the builder refuses to run while they are. No expected_rows is
       pinned because the row count follows from those two policies. Candidate benchmark
       for the start-accuracy probe.
@@ -291,5 +291,5 @@ outputs:
       answer and id, so the prepared row is problem to input and answer to answer,
       with the upstream id kept as unique_id. The paper already reports AIME 2025,
       and this entry exists so that the same 30 problems can be prepared from a pinned
-      revision and, if the driver rules so, merged with AIME24 into one 60-problem
+      revision and, if the maintainers decide so, merged with AIME24 into one 60-problem
       suite.

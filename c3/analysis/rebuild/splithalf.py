@@ -2,10 +2,10 @@
 """
 Split-half reliability of within-group credit, per group and per cell.
 
-This is the rebuild-experiment (E1) reimplementation of the estimator that
-30_analysis/local/splithalf_bootstrap_local.py defines; the definitions below
-are the same arithmetic, written against the bucket schema of
-`c3.analysis.buckets` and packaged as library calls instead of a report script.
+This is the rebuild-experiment (E1) reimplementation of the estimator the
+reference split-half script defines; the definitions below are the same
+arithmetic, written against the bucket schema of `c3.analysis.buckets` and
+packaged as library calls instead of a report script.
 
 Per group (one bucket = one decision point):
   c_min      = smallest number of replays over the group's alternatives
@@ -14,7 +14,7 @@ Per group (one bucket = one decision point):
   adv(q)[j]  = q[j] - (sum(q) - q[j]) / (n - 1)          (leave one out)
   rho        = spearman(adv(q_A), adv(q_B))
 
-Exclusion rule (preregistration, restated in the results contract section 4):
+Exclusion rule (the analysis plan, restated in the results layout section 4):
 fewer than `min_cands` alternatives, fewer than two replays, or a half whose
 advantages are constant. An excluded group returns None and never enters a mean.
 
@@ -56,7 +56,7 @@ __all__ = [
     "range_bootstrap",
 ]
 
-# The preregistered exclusion rule: a group needs at least three alternatives.
+# The exclusion rule of the analysis plan: a group needs at least three alternatives.
 DEFAULT_MIN_CANDS = 3
 
 # Bootstrap percentiles for a 95% interval.
@@ -104,7 +104,7 @@ def n_candidates(bucket: Bucket) -> int:
     """How many alternatives the group carries.
 
     All of them are resampled from the frozen policy: the real action does not
-    take a slot (contract revision 2, `include_real_as_j0 = false`). A group can
+    take a slot (results layout revision 2, `include_real_as_j0 = false`). A group can
     still come back with fewer than the requested number, since the runner drops
     duplicate samples.
     """
@@ -298,7 +298,8 @@ class CellResult:
     n2_direction_agreement is the share of +1 among those same rho values, and
     it is defined only when every group entering the mean carries exactly two
     alternatives, since that is the case in which rho can only be +1 or -1. It
-    is the value the manifest's branching-2 rows print (driver ruling A3), and
+    is the value the manifest's branching-2 rows print (the maintainers'
+    decision of 2026-09-15), and
     rel_evenodd of the same pool is 2 x agreement - 1.
     """
 
@@ -329,7 +330,7 @@ def cell_reliability(
 
     The bootstrap resamples groups (the unit of the measurement experiments) and
     reports the 2.5 and 97.5 percentiles of the resampled mean, which is the
-    interval the contract asks for.
+    interval the results layout asks for.
     """
     rng_split = np.random.default_rng([seed, 1])
     rng_boot_rho = np.random.default_rng([seed, 2])

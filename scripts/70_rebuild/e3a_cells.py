@@ -11,17 +11,24 @@ return of the null arm.
 Two cells, one per reported form of the null action:
 
     <results_root>/E3a/a3/4b/empty/buckets.jsonl
-    <results_root>/E3a/a3/4b/deleted/buckets.jsonl
+    <results_root>/E3a/a3/4b/placeholder/buckets.jsonl
 
-Both inject the empty string. In this code base a role whose output is the
-empty string contributes nothing to the downstream context, no paragraph, no
-separator and no label, so the empty message and the deleted paragraph are the
-same construction; `meta.null_form_note` records that on every bucket. The two
-cells are kept apart because the paper reports them as two readings, and
-because a later change to the assembly would make them differ.
+The `empty` cell injects the empty string and the `placeholder` cell injects the
+fixed message `No message.`. In this code base a role whose output is the empty
+string contributes nothing to the downstream context, no paragraph, no separator
+and no label, so the empty message and a deleted paragraph are the same
+construction; `meta.null_form_note` records that on every bucket. The placeholder
+is the second reading: it keeps the role present in the downstream prompt while
+contributing nothing, so the pair separates "this role said nothing" from "this
+role is not there at all". `deleted` was the first name of the second directory
+and is read as a legacy alias by the aggregation, which never writes it.
 
 Measured position: reasoner, with the actor recorded as the downstream role,
-which is the position the preregistration fixes for E3a.
+which is the position the analysis plan fixes for E3a.
+
+Decision points come from `MATHPOOL`, the screened question pool, in the order
+the pool file holds them, so the 150 points of a cell are its first 150
+questions.
 
 Examples:
 
@@ -70,7 +77,7 @@ WORKFLOW = "a3"
 MODEL = "4b"
 FORMS = ("empty", "placeholder")
 
-# The null action itself, per form (preregistration revision 15): the empty string
+# The null action itself, per form (analysis plan revision 15): the empty string
 # is dropped by the context assembly, so the role vanishes from the downstream
 # prompts (the leave-one-agent-out counterfactual); the placeholder keeps the role
 # present with a fixed message that contributes nothing.
@@ -79,15 +86,15 @@ NULL_TEXTS = {"empty": "", "placeholder": "No message."}
 DEFAULT_MODELS = "4b=Qwen3-4B-Instruct-2507"
 DEFAULT_RESULTS_ROOT = "20_data/results"
 DEFAULT_ANALYSIS_YAML = "configs/analysis.yaml"
-DEFAULT_SPLIT = "MATH500"
+DEFAULT_SPLIT = "MATHPOOL"
 DEFAULT_ALTERNATIVES = 4
 DEFAULT_COMPLETIONS = 4
 DEFAULT_LIMIT = 150
 DEFAULT_SEED = 0
 DEFAULT_TIMEOUT_H = 6.0
 
-# Every role reads its transitive ancestors and nothing else (results contract,
-# revision 2). The value is stamped on the buckets so the tree records it.
+# Every role reads its transitive ancestors and nothing else (the results
+# layout, revision 2). The value is stamped on the buckets so the tree records it.
 CONTEXT_SCOPE = "ancestors"
 
 
@@ -126,7 +133,7 @@ def build_meta(
     split: str,
     sampling: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Build the meta block the results contract requires on every bucket.
+    """Build the meta block the results layout requires on every bucket.
 
     `n_alternatives` counts the sampled alternatives only. The null arm is the
     thing they are compared against, not one of them; the run itself records it

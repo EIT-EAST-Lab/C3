@@ -8,7 +8,7 @@ workflow and the meta block it attaches are all paper-facing facts. The tests
 read the commands the script prints, which needs neither a GPU nor a model.
 
 Second, the `--meta_json` flag of `c3.analysis.analysis build-buckets`: the
-experiment level keys the results contract requires are not derivable from the
+experiment level keys the results layout requires are not derivable from the
 runner, so the caller passes them in, and they must reach every written bucket
 without displacing anything the runner recorded. A fake runner supplies the
 buckets, so this too runs without a model.
@@ -40,7 +40,7 @@ from c3.analysis.buckets import read_buckets_jsonl  # noqa: E402
 
 MODEL_ROOT = "/models"
 
-# Every key the results contract demands on an E1 bucket.
+# Every key the results layout demands on an E1 bucket.
 REQUIRED_META_KEYS = {
     "workflow",
     "model",
@@ -57,7 +57,7 @@ REQUIRED_META_KEYS = {
     "include_real_as_j0",
 }
 
-# Revision 1 of the results contract retired these two as directories of their own.
+# Revision 1 of the results layout retired these two as directories of their own.
 RETIRED_RULE_NAMES = ("fixed_b8", "pd_n4")
 
 EXPECTED_POSITIONS = {
@@ -123,7 +123,7 @@ def test_only_selects_exactly_one_cell_with_the_right_arguments(capsys: pytest.C
 
     argv = shlex.split(commands[0])
     assert _flag(argv, "--task") == "configs/tasks/math_a3.yaml"
-    assert _flag(argv, "--split") == "MATH500"
+    assert _flag(argv, "--split") == "MATHPOOL"
     assert _flag(argv, "--policy_ckpt") == "/models/Qwen3-4B-Instruct-2507"
     assert _flag(argv, "--target_role") == "reasoner"
     assert _flag(argv, "--next_role") == "actor"
@@ -142,7 +142,18 @@ def test_only_selects_exactly_one_cell_with_the_right_arguments(capsys: pytest.C
     assert meta["n_alternatives"] == 3
 
 
-def test_output_paths_follow_the_results_contract(capsys: pytest.CaptureFixture) -> None:
+def test_every_cell_of_the_sweep_is_drawn_from_the_screened_pool(capsys: pytest.CaptureFixture) -> None:
+    """`--split` is one value for the whole sweep, so the default has to be a
+    suite every workflow task file declares. `MATHPOOL` is that suite, and it is
+    what the depth study measures on."""
+    assert e1_cells.DEFAULT_SPLIT == "MATHPOOL"
+    for line in _commands(_dry_run(capsys)):
+        argv = shlex.split(line)
+        assert _flag(argv, "--split") == "MATHPOOL"
+        assert json.loads(_flag(argv, "--meta_json"))["dataset"] == "MATHPOOL"
+
+
+def test_output_paths_follow_the_results_layout(capsys: pytest.CaptureFixture) -> None:
     seen: List[str] = []
     for line in _commands(_dry_run(capsys)):
         argv = shlex.split(line)
@@ -217,9 +228,17 @@ def test_measured_position_is_the_first_role_and_its_first_successor() -> None:
         assert e1_cells.measured_positions(workflow) == expected
 
 
-def test_the_two_agent_workflow_keeps_the_original_task_file() -> None:
-    assert e1_cells.task_yaml_for("a2") == "configs/tasks/math.yaml"
-    for workflow in ("a3", "mt4", "branch", "c5", "c10"):
+def test_every_workflow_reads_its_own_task_file() -> None:
+    """The two-agent arm reads `math_a2.yaml`, not the paper's own task file.
+
+    The depth study measures on `MATHPOOL`, and `configs/tasks/math.yaml` does
+    not declare that suite, on purpose: the task file a reader of the paper runs
+    should not name a file that exists only after the screening pass. So the
+    two-agent arm reads a copy of it that does declare the pool. Pointing this
+    back at `math.yaml` would leave the a2 cells unable to run the default
+    split at all.
+    """
+    for workflow in ("a2", "a3", "mt4", "branch", "c5", "c10"):
         assert e1_cells.task_yaml_for(workflow) == f"configs/tasks/math_{workflow}.yaml"
 
 
@@ -557,7 +576,7 @@ def test_build_buckets_refuses_a_meta_json_that_is_not_an_object(tmp_path: Path)
 
 
 # ---------------------------------------------------------------------------
-# scripts/70_rebuild/replay_tokens.py (WP-R14 item 6, restated by WP-R15 item 3)
+# scripts/70_rebuild/replay_tokens.py (2026-09-15)
 #
 # The one E1 key the aggregation cannot produce, `E1.c10.median_prefix_tokens`,
 # needs a tokenizer and the model files. Its statistic is the length of what one

@@ -173,7 +173,7 @@ The following list is the **current release target set**, and matches the manife
 - `data/AIME24/test.jsonl` (manifest name: `AIME24`)
 - `data/AIME25/test.jsonl` (manifest name: `AIME25`)
 
-> Note: these five are prepared only when you pass `--prepare_eval_probe_sets 1`, which defaults to `0`, so the default run and the strict release check prepare exactly the same files they did before. They are evaluation only; nothing trains on them.
+> Note: these five are prepared by the default run. `scripts/10_data/prepare_math.py --prepare_candidate_benchmarks` defaults to `1`, and `--prepare_eval_probe_sets` is the former name of that flag, kept as an alias for one release. They are evaluation only; the main task evaluates on four of them (Minerva-Math, AMC23, AIME24, AIME25) since the evaluation protocol of 2026-09-15; nothing trains on them.
 
 ### Code (`scripts/10_data/prepare_code.py`)
 
@@ -246,9 +246,11 @@ strict run, and the count it prints for `MATH-train x MATH-test` has to be zero.
 Two things read it: `configs/tasks/math_screen.yaml`, the task file of the E1
 screening pass, and the pool below.
 
-The `sha256` pin is empty until the file is prepared, and `expected_rows` is what
-guards the row count in that window, exactly as described under "Expected row
-count" above. Pin it with `--update_manifest_sha256 1` once the file exists.
+The `sha256` pin is set, so it is the gate and `expected_rows: 5000` is
+documentation: the strict pass compares the file against the pin and stops
+comparing row counts once a pin is there, exactly as in the `MATH-train` section
+above. Repinning after a deliberate change to the artifact is
+`--update_manifest_sha256 1`.
 
 ### MATH-pool
 
@@ -277,10 +279,11 @@ Until that pass has run, `unique_ids` is empty. The builder then prints
 [SKIP] MATHPOOL: pool_informative_ids.json is empty; run the E1 screening pass first
 ```
 
-and writes nothing. The consumers of the prepared file are the five workflow task
-files of the depth study (`math_a3`, `math_mt4`, `math_branch`, `math_c5`,
+and writes nothing. The consumers of the prepared file are the six task files of
+the depth study (`math_a2`, `math_a3`, `math_mt4`, `math_branch`, `math_c5`,
 `math_c10`), which declare it as the `MATHPOOL` evaluation suite; they are read
-by the E1 cell driver and by nothing on the paper training path.
+by the E1 and E3a cell drivers, which default to `--split MATHPOOL`, and by
+nothing on the paper training path.
 
 ### GSM8K-test
 
@@ -376,8 +379,10 @@ Strict-mode behavior:
 
 Five evaluation-only artifacts exist: they are benchmarks on which the start
 accuracy of a frozen policy is measured before any of them is adopted. They are
-opt-in (`--prepare_eval_probe_sets 1`), no training configuration reads them, and
-no released number depends on them.
+evaluation only; the main task evaluates on four of them (Minerva-Math, AMC23,
+AIME24, AIME25) since the evaluation protocol of 2026-09-15; nothing trains on
+them. They are prepared by the default run
+(`--prepare_candidate_benchmarks`, which defaults to `1`).
 
 | Manifest name | Upstream HF ID | Split | Rows upstream | Output |
 |---|---|---|---|---|

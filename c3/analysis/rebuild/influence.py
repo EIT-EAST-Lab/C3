@@ -1,6 +1,6 @@
 # c3/analysis/rebuild/influence.py
 """Answer-level plug-in mutual information I(J; Y | h), the influence estimator
-frozen in the preregistration for the rebuild experiments (E3a, E5).
+frozen in the analysis plan of the rebuild experiments (E3a, E5).
 
 What it measures: inside one decision point (bucket), J indexes the alternative
 upstream messages and Y is the *answer symbol* of the downstream output that
@@ -8,24 +8,24 @@ followed. A high value means "which alternative was sent still shows up in the
 final answer"; a value near zero means the downstream agent produced the same
 answer whatever it was handed.
 
-Frozen conventions (preregistration E5, results contract section 4):
+Frozen conventions (the analysis plan, E5; the results layout, section 4):
 - Y is the ANSWER symbol, not the raw text and not a hash of the whole message.
   The mapping text -> symbol is injected (see `answer_symbol`), so this module
   never parses mathematics itself.
 - Y exists only where the downstream output STATES an answer: a `#### ...` line,
   a `\boxed{...}`, or a `Final answer: ...` style anchor. An output that trails
-  off in prose has no answer and contributes `<NONE>` (driver ruling 1,
-  2026-09-15; the rule is implemented in `math_extractor` and the reason is
+  off in prose has no answer and contributes `<NONE>` (the maintainers' decision
+  of 2026-09-15; the rule is implemented in `math_extractor` and the reason is
   written out there).
-- J is uniform: p_j = 1/n_j, matching `30_analysis/server_tierA/p1rb_analysis.py`
-  (`plugin_mi`). This is NOT the sample-mass weighting used by the older
-  `c3.analysis.metrics.influence_mi`.
+- J is uniform: p_j = 1/n_j, matching the `plugin_mi` of the earlier
+  paired-analysis script. This is NOT the sample-mass weighting used by the
+  older `c3.analysis.metrics.influence_mi`.
 - Entropies use the natural logarithm, so the unit is nats.
 - Miller-Madow bias correction: every entropy term gets + (m - 1) / (2 N), with
   m the number of non-empty cells of that distribution and N its sample count.
   MI = H_MM(Y) - sum_j p_j H_MM(Y | j).
 - The result is NOT clipped at zero. The correction can push an already small
-  plug-in value below zero and the contract says to report it as measured.
+  plug-in value below zero and the analysis plan says to report it as measured.
 
 Differences from `c3.analysis.metrics.influence_mi` (the old estimator, kept
 only for contrast): that one hashes canonicalized full text, adds a Laplace
@@ -34,7 +34,7 @@ clips at zero. None of that is done here.
 
 The package-level value conventions (p-value strings, manifest loading, the
 summary.json writer) now live in `c3.analysis.rebuild.summary`, which both
-aggregation families share (driver ruling B13, 2026-09-15). They are imported
+aggregation families share (the maintainers' decision of 2026-09-15). They are imported
 back into this module under their old names, so everything that reads them from
 here keeps working.
 
@@ -79,12 +79,12 @@ __all__ = [
 
 #: The symbol used when no answer could be extracted from a downstream output.
 #: It is a real symbol for the estimator: "produced nothing parseable" is a
-#: distinguishable outcome, exactly as in `e11_paired.py` ("<none>").
+#: distinguishable outcome, exactly as in the earlier script ("<none>").
 NO_ANSWER = "<NONE>"
 
 #: The methods of `c3.envs.math.parsing.parse_math_answer` that mean the output
 #: STATED an answer, and therefore the only ones `math_extractor` accepts
-#: (driver ruling 1, 2026-09-15). The parser's remaining methods are `empty`,
+#: (the maintainers' decision of 2026-09-15). The parser's remaining methods are `empty`,
 #: `empty_lines`, `anchor_inline` and `last_line`; the first two carry no token
 #: at all, and the last is the prose fallback this rule exists to reject.
 EXPLICIT_ANSWER_METHODS = ("boxed", "hash", "anchor")
@@ -159,7 +159,7 @@ def math_extractor(text: Optional[str]) -> str:
     r"""The extractor the E3a aggregation runs: EXPLICIT answers only.
 
     `aggregate_e5` still offers only `boxed_extractor`, so E5 does not reach this
-    function yet; putting it there is the driver's call, not this module's.
+    function yet; putting it there is the maintainers' call, not this module's.
 
     Three steps, the first two taken from the repository rather than
     reimplemented here:
@@ -169,8 +169,8 @@ def math_extractor(text: Optional[str]) -> str:
        (``boxed``), a ``Final answer: ...`` style anchor (``anchor``), and
        finally the last non-empty line (``last_line``).
     2. Only :data:`EXPLICIT_ANSWER_METHODS` count as an answer. Any other method,
-       ``last_line`` above all, returns :data:`NO_ANSWER` (driver ruling 1,
-       2026-09-15).
+       ``last_line`` above all, returns :data:`NO_ANSWER` (the maintainers'
+       decision of 2026-09-15).
     3. `normalize_expr` rewrites the accepted token into one shape, so
        ``$\frac{1}{2}$`` and ``\frac{1}{2}`` become the same symbol.
 
@@ -181,8 +181,8 @@ def math_extractor(text: Optional[str]) -> str:
     sentence is all but unique to its replay, so counting it as an answer symbol
     manufactures information no answer carries. Measured on the real E3a credit
     set, the prose fallback stood for about a third of the replays and about six
-    tenths of the mean influence (WP-R14 report, section 2.4). The
-    preregistration calls this estimator answer-level; "this output states no
+    tenths of the mean influence (measured 2026-09-15). The analysis plan calls
+    this estimator answer-level; "this output states no
     answer" is the honest reading of a replay that ends in prose, and
     :data:`NO_ANSWER` is a real symbol of the estimator rather than a dropped
     sample, so nothing is thrown away by saying so.
@@ -341,7 +341,7 @@ def bucket_influence(
 # -----------------------------------------------------------------------------
 # package-level conventions: p-value strings, manifest, summary.json
 #
-# The implementations moved to `summary.py` (ruling B13); they are imported at
+# The implementations moved to `summary.py`; they are imported at
 # the top of this file so `influence.format_p` and the rest keep their names.
 # -----------------------------------------------------------------------------
 

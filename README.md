@@ -374,8 +374,10 @@ python scripts/70_rebuild/eval_probe.py --policy /models/Qwen3-4B-Instruct-2507 
 ```
 
 The probe reads the suites declared in
-[configs/tasks/math_eval_probe.yaml](configs/tasks/math_eval_probe.yaml), which
-are prepared only with `--prepare_eval_probe_sets 1`; see
+[configs/tasks/math_eval_probe.yaml](configs/tasks/math_eval_probe.yaml). They
+are evaluation only; the main task evaluates on four of them since the
+evaluation protocol of 2026-09-15; nothing trains on them. The default
+preparation run writes them, so no extra flag is needed; see
 [Data Sources](docs/30_data_sources.md).
 
 ## Implementation Note

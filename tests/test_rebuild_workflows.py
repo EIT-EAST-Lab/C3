@@ -1,4 +1,5 @@
-"""Contract tests for the five workflow configurations added for the rebuild study.
+"""Contract tests for the task configurations added for the rebuild study: the
+five deeper workflows, plus the two-agent copy the depth study reads.
 
 The depth study measures one decision point per workflow, so the wiring of each
 workflow is a paper-facing fact: the topological order fixes which role is the
@@ -84,8 +85,21 @@ _TEAM_PHRASE = re.compile(r"\b(One|Two|Three|Four|Five|Ten) LLM agents?\b")
 
 MANIFEST = REPO_ROOT / "configs" / "data_manifest.yaml"
 
-# The one evaluation suite the workflow files carry and the paper task does not.
+# The one evaluation suite the depth-study task files carry and the paper task
+# does not.
 MATHPOOL_SUITE = {"name": "MATHPOOL", "path": "data/MATH/pool_informative.jsonl", "limit": None}
+
+# The two-agent arm of the depth study. It is not in WORKFLOWS because it has no
+# wiring of its own: it is configs/tasks/math.yaml with the pool suite appended,
+# same role file and all. It exists so that the depth study can measure the
+# two-agent arm on the pool without putting a post-screening suite into the task
+# file a reader of the paper runs.
+A2_TASK_YAML = "configs/tasks/math_a2.yaml"
+
+# Every task file the depth study reads, which is every file that declares
+# MATHPOOL. The cell drivers default to --split MATHPOOL, so a file missing here
+# cannot be measured at all.
+POOL_TASK_YAMLS = (A2_TASK_YAML,) + tuple(WORKFLOWS[workflow][0] for workflow in WORKFLOW_IDS)
 
 # What configs/tasks/math.yaml evaluates: the five suites of the main table, which
 # is what the evaluation that runs during training measures. The two saturation
@@ -99,7 +113,7 @@ MAIN_TABLE_SUITES = ["MATH500", "Minerva-Math", "AMC23", "AIME24", "AIME25"]
 MATH_TASK_YAMLS = (
     "configs/tasks/math.yaml",
     "configs/tasks/math_screen.yaml",
-) + tuple(WORKFLOWS[workflow][0] for workflow in WORKFLOW_IDS)
+) + POOL_TASK_YAMLS
 
 
 def _task(workflow: str):
@@ -418,10 +432,10 @@ def test_task_yaml_differs_from_math_yaml_only_in_name_roles_path_and_the_pool_s
     """Same data, same reward conventions; the identity, the wiring and MATHPOOL move.
 
     MATHPOOL is the screened pool the depth study measures on. It is an
-    evaluation suite of the five workflow files and of nothing else: the paper
-    task trains, the pool is not a training set, and an evaluation suite that
-    exists only after the E1 screening pass has no business in the task file a
-    reader of the paper runs.
+    evaluation suite of the six depth-study task files and of nothing else: the
+    paper task trains, the pool is not a training set, and an evaluation suite
+    that exists only after the E1 screening pass has no business in the task file
+    a reader of the paper runs.
     """
     task_yaml, _roles_json, _topo = WORKFLOWS[workflow]
     base = load_task(str(REPO_ROOT / "configs/tasks/math.yaml"))
@@ -447,13 +461,35 @@ def test_the_paper_task_evaluates_the_main_table_suites_and_not_the_screened_poo
     assert [str(s.get("name", "")) for s in base.eval_suites] == MAIN_TABLE_SUITES
 
 
-@pytest.mark.parametrize("workflow", WORKFLOW_IDS)
-def test_every_workflow_task_evaluates_on_the_screened_pool(workflow: str) -> None:
-    spec = _task(workflow)
+@pytest.mark.parametrize("task_yaml", POOL_TASK_YAMLS)
+def test_every_depth_study_task_evaluates_on_the_screened_pool(task_yaml: str) -> None:
+    """Six task files, the two-agent arm included.
+
+    `--split` is one value for a whole sweep of the cell drivers, so a task file
+    of the depth study that did not declare MATHPOOL would make the default
+    sweep unrunnable rather than merely incomplete.
+    """
+    spec = load_task(str(REPO_ROOT / task_yaml))
     suites = {str(s.get("name", "")): dict(s) for s in spec.eval_suites}
 
     assert "MATHPOOL" in suites, sorted(suites)
     assert suites["MATHPOOL"] == MATHPOOL_SUITE
+
+
+def test_the_two_agent_task_is_the_paper_task_plus_the_pool_suite() -> None:
+    """Same data, same reward conventions, same role file; only the identity and
+    the pool suite move. The two-agent arm of the depth study has to be the
+    paper's two-agent workflow, or the arm is measuring something else."""
+    base = load_task(str(REPO_ROOT / "configs/tasks/math.yaml"))
+    spec = load_task(str(REPO_ROOT / A2_TASK_YAML))
+
+    assert _environment_without_suites(spec.environment) == _environment_without_suites(base.environment)
+    assert spec.train_datasets == base.train_datasets
+    assert list(spec.eval_suites) == list(base.eval_suites) + [MATHPOOL_SUITE]
+    assert set(spec.mas) == set(base.mas)
+    assert Path(spec.roles_path).resolve() == Path(base.roles_path).resolve()
+    assert spec.experiment_name == "c3_math_a2"
+    assert spec.experiment_name != base.experiment_name
 
 
 def test_every_evaluation_suite_of_every_math_task_is_a_prepared_artifact() -> None:
@@ -477,12 +513,13 @@ def test_every_evaluation_suite_of_every_math_task_is_a_prepared_artifact() -> N
     assert not unresolved, "evaluation suites with no manifest entry:\n" + "\n".join(unresolved)
 
 
-def test_every_workflow_has_a_math500_evaluation_suite() -> None:
-    """E1 buckets are drawn from MATH500, so every workflow must expose it."""
+def test_every_depth_study_task_has_a_math500_evaluation_suite() -> None:
+    """The appendix comparison runs the same sweep at `--split MATH500`, so every
+    task file of the depth study must expose that suite as well as the pool."""
     names: List[str] = []
-    for workflow in WORKFLOW_IDS:
-        spec = _task(workflow)
+    for task_yaml in POOL_TASK_YAMLS:
+        spec = load_task(str(REPO_ROOT / task_yaml))
         suites = [str(s.get("name", "")) for s in spec.eval_suites]
-        assert "MATH500" in suites, f"{workflow}: {suites}"
+        assert "MATH500" in suites, f"{task_yaml}: {suites}"
         names.extend(suites)
     assert names
