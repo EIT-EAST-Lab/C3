@@ -287,13 +287,15 @@ def test_answer_symbol_maps_none_and_blank_to_no_answer():
 
 
 # -----------------------------------------------------------------------------
-# 2b. math_extractor, the extractor the aggregation runs (WP-R14 item 2)
+# 2b. math_extractor, the extractor the aggregation runs (WP-R14 item 2,
+#     narrowed to explicit answers by WP-R15 item 1)
 #
-# It is the repository's own parser (`c3.envs.math.parsing.parse_math_answer`)
-# followed by the repository's expression normaliser
+# It is the repository's own parser (`c3.envs.math.parsing.parse_math_answer`),
+# restricted to the methods that mean the output STATED an answer, followed by
+# the repository's expression normaliser
 # (`c3.envs.math.backends.marft.normalize.normalize_expr`). These tests pin the
-# four shapes the E3a downstream outputs actually take, not the parser itself,
-# which has its own tests.
+# shapes the E3a downstream outputs actually take and the boundary of the
+# explicit-answer rule, not the parser itself, which has its own tests.
 # -----------------------------------------------------------------------------
 
 
@@ -320,7 +322,61 @@ def test_math_extractor_reads_a_hash_answer():
     assert inf.math_extractor("#### 7\nmore\n#### 42") == "42"
 
 
-def test_math_extractor_has_no_answer_only_when_there_is_no_text():
+def test_math_extractor_reads_an_anchored_answer():
+    """`Final answer: 7` is a stated answer, method `anchor`, and it is the shape
+    most real E3a downstream outputs end on."""
+    from c3.envs.math.parsing import parse_math_answer
+
+    assert parse_math_answer("long working\nFinal answer: 7")[1] == "anchor"
+    assert inf.math_extractor("long working\nFinal answer: 7") == "7"
+    assert inf.math_extractor("The answer is: 7") == "7"
+    assert inf.math_extractor("Answer: 7") == "7"
+
+
+def test_math_extractor_calls_the_prose_fallback_no_answer():
+    """Driver ruling 1, 2026-09-15: only a STATED answer counts.
+
+    The repository parser has no "unparseable" verdict; its last resort is the
+    last non-empty line, method `last_line`, which is a sentence of the working.
+    Such a sentence is all but unique to its replay, so accepting it as an answer
+    symbol would manufacture influence. It is `<NONE>` instead.
+    """
+    from c3.envs.math.parsing import parse_math_answer
+
+    prose = ("I checked the arithmetic once more.\n"
+             "Now, the solution will be passed to the Verifier for final validation")
+    token, method = parse_math_answer(prose)
+    assert method == "last_line" and token  # the parser does return something
+    assert inf.math_extractor(prose) == inf.NO_ANSWER
+
+    # The cost of the rule, pinned so it is not discovered later: a bare number
+    # on its own line is `last_line` too, so an output that states its answer
+    # without a marker is read as no answer.
+    assert parse_math_answer("42")[1] == "last_line"
+    assert inf.math_extractor("42") == inf.NO_ANSWER
+
+
+def test_math_extractor_accepts_exactly_the_three_methods_the_ruling_names():
+    """The accepted set is a whitelist of three, so the parser's two remaining
+    anchor-ish outcomes fall outside it.
+
+    `anchor_inline` is one of them: the parser reaches it when the anchor sits on
+    the last non-empty line but not on the last line of the string, which is what
+    a trailing blank line does. Whether that fourth method should join the three
+    is the driver's call; this pins what the code does today so the choice is
+    visible rather than silent.
+    """
+    from c3.envs.math.parsing import parse_math_answer
+
+    assert inf.EXPLICIT_ANSWER_METHODS == ("boxed", "hash", "anchor")
+    token, method = parse_math_answer("I think the answer is: 42\n\n")
+    assert (token, method) == ("42", "anchor_inline")
+    assert inf.math_extractor("I think the answer is: 42\n\n") == inf.NO_ANSWER
+    # the same text without the trailing blank line is method `anchor`, accepted
+    assert inf.math_extractor("I think the answer is: 42") == "42"
+
+
+def test_math_extractor_has_no_answer_when_there_is_no_text():
     assert inf.math_extractor("") == inf.NO_ANSWER
     assert inf.math_extractor("   \n  ") == inf.NO_ANSWER
     assert inf.math_extractor(None) == inf.NO_ANSWER

@@ -97,10 +97,10 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and in the note of every key read off it. The preregistered median split is
   unchanged and no key is dropped: this only makes a degenerate split visible in
   the summary instead of leaving it to be noticed in the stderr of the run.
-- `scripts/70_rebuild/prefix_tokens.py` counts the prefix the deep-chain decision
-  points condition on, for `E1.c10.median_prefix_tokens`, which needs a tokenizer
-  and the model files and so cannot come from the aggregation. Its `--dry-run`
-  reports what the bucket files carry without either.
+- `scripts/70_rebuild/replay_tokens.py` counts what one replay of the deep chain
+  regenerates downstream, for `E1.c10.median_prefix_tokens`, which needs a
+  tokenizer and the model files and so cannot come from the aggregation. Its
+  `--dry-run` reports what the bucket files carry without either.
 
 ### Changed
 
@@ -146,6 +146,20 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `unit_policy: drop`, so its multi-answer and unit rows are not prepared.
 - The probe task declares eight evaluation suites, AIME 2025 among them, and the
   manifest test expects pinned revisions.
+- The E3a answer extractor counts an answer only where the downstream output
+  states one: a `#### ...` line, a `\boxed{...}`, or a `Final answer: ...` style
+  anchor. The repository parser's last resort is the last non-empty line, which
+  is a sentence of the working and is all but unique to its replay, so accepting
+  it as an answer symbol manufactured influence that no answer carried: it stood
+  for about a third of the replays and about six tenths of the mean influence on
+  a real run. Such a replay now contributes `<NONE>`, which is a symbol of the
+  estimator rather than a dropped sample.
+- `E1.c10.median_prefix_tokens` is the median number of tokens one replay
+  regenerates downstream, not the length of the prefix the decision point
+  conditions on. Every E1 cell is measured at the first role in topological
+  order, so that prefix is the question and nothing else, the same text in every
+  workflow; what the ten-agent chain costs is the downstream text each replay has
+  to regenerate. The key keeps its name until the manifest renames it.
 
 ### Fixed
 

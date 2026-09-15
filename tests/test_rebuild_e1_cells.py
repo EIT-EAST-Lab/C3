@@ -31,7 +31,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import e1_cells  # noqa: E402
-import prefix_tokens  # noqa: E402
+import replay_tokens  # noqa: E402
 
 from c3.analysis import analysis as analysis_cli  # noqa: E402
 from c3.analysis import replay as replay_mod  # noqa: E402
@@ -557,33 +557,48 @@ def test_build_buckets_refuses_a_meta_json_that_is_not_an_object(tmp_path: Path)
 
 
 # ---------------------------------------------------------------------------
-# scripts/70_rebuild/prefix_tokens.py (WP-R14 item 6)
+# scripts/70_rebuild/replay_tokens.py (WP-R14 item 6, restated by WP-R15 item 3)
 #
 # The one E1 key the aggregation cannot produce, `E1.c10.median_prefix_tokens`,
-# needs a tokenizer and the model files. What is testable without either is the
-# scan: which cells there are, and which of their buckets carry a prefix at all.
-# That is `--dry-run`, and it is also the channel that reports what the bucket
-# schema is missing.
+# needs a tokenizer and the model files. Its statistic is the length of what one
+# replay regenerates downstream, which lives in `candidates[j].next_actions[k]`,
+# one entry per replay of `candidates[j].returns`. What is testable without a
+# tokenizer is the scan: which cells there are, how many replays they record and
+# how many of those carry downstream text. That is `--dry-run`. The counting
+# path is testable too, with a tokenizer object that splits on whitespace.
 # ---------------------------------------------------------------------------
 
 
-def _c10_bucket(qid: str, outputs: Dict[str, str], **extra: Any) -> Dict[str, Any]:
-    """One bucket in the schema of c3/analysis/buckets.py, c10 shaped."""
-    row: Dict[str, Any] = {
+def _c10_bucket(qid: str, replays: Sequence[Sequence[Any]],
+                returns_len: Optional[int] = None) -> Dict[str, Any]:
+    """One bucket in the schema of c3/analysis/buckets.py, c10 shaped.
+
+    `replays` is one list of downstream entries per alternative. `returns_len`
+    overrides the number of returns recorded per alternative, which is how a
+    bucket that ran replays without recording their text is built.
+    """
+    cands: List[Dict[str, Any]] = []
+    for j, nexts in enumerate(replays):
+        n_ret = len(nexts) if returns_len is None else returns_len
+        cands.append({
+            "j": j,
+            "action_text": "a%d" % j,
+            "returns": [1.0] * n_ret,
+            "next_actions": list(nexts),
+        })
+    return {
         "bucket_id": "bkt_" + qid,
         "ctx_hash": 1,
         "target_role": "reader",
         "question_id": qid,
         "restart": {
             "roles_topo": ["reader", "planner", "solver"],
-            "role_outputs_prefix": dict(outputs),
+            "role_outputs_prefix": {},
             "question": "What is 2 + 2?",
         },
-        "candidates": [{"j": 0, "action_text": "a", "returns": [1.0], "next_actions": ["x"]}],
+        "candidates": cands,
         "meta": {"workflow": "c10", "model": "4b", "rule": "sweep_n4"},
     }
-    row["restart"].update(extra)
-    return row
 
 
 def _write_c10_cell(root: Path, rows: Sequence[Dict[str, Any]], n: int = 4) -> Path:
@@ -595,98 +610,190 @@ def _write_c10_cell(root: Path, rows: Sequence[Dict[str, Any]], n: int = 4) -> P
     return path
 
 
-def test_prefix_tokens_dry_run_needs_neither_transformers_nor_a_model(
+class _WhitespaceTokenizer:
+    """Stand-in for `transformers.AutoTokenizer`: one token per whitespace run.
+
+    It is called the way `replay_tokens.count_tokens` calls the real one, so it
+    pins the call shape as well as the arithmetic. The real tokenizer is a
+    server-side dependency this machine does not have.
+    """
+
+    def __init__(self) -> None:
+        self.calls: List[Dict[str, Any]] = []
+
+    def __call__(self, text: str, add_special_tokens: bool = True) -> Dict[str, Any]:
+        self.calls.append({"text": text, "add_special_tokens": add_special_tokens})
+        ids = [0] * len(str(text).split())
+        if add_special_tokens:
+            ids = ids + [1]
+        return {"input_ids": ids}
+
+
+def test_replay_tokens_dry_run_needs_neither_transformers_nor_a_model(
         tmp_path: Path, capsys: Any) -> None:
     root = tmp_path / "20_data" / "results" / "E1"
-    _write_c10_cell(root, [_c10_bucket("q%d" % i, {"reader": "R" * (i + 1)})
+    # three buckets, two alternatives each, two replays each: twelve replays
+    _write_c10_cell(root, [_c10_bucket("q%d" % i, [["x y", "z"], ["p", "q r"]])
                            for i in range(3)])
     had_transformers = "transformers" in sys.modules
 
-    rc = prefix_tokens.main(["--results", str(root), "--prefix_scope", "context",
-                             "--dry-run"])
+    rc = replay_tokens.main(["--results", str(root), "--dry-run"])
     assert rc == 0
     out = capsys.readouterr()
     assert "# cells: 1" in out.out
     assert "# buckets: 3" in out.out
-    assert "# with a prefix: 3" in out.out
+    assert "# replays: 12" in out.out
+    assert "# with downstream text: 12" in out.out
     assert "20_data/results/E1/c10/4b/sweep_n4/buckets.jsonl" in out.err
+    assert "3 bucket(s), 12 replay(s), 12 with downstream text" in out.err
     if not had_transformers:
         assert "transformers" not in sys.modules
 
 
-def test_prefix_tokens_reports_the_empty_prefix_the_real_trees_carry(
+def test_replay_tokens_counts_one_replay_per_recorded_return(
         tmp_path: Path, capsys: Any) -> None:
-    """Every bucket on disk on 2026-09-15 has an empty `role_outputs_prefix`,
-    because the measured position is the first role of the workflow. The dry run
-    has to say that rather than report a prefix of length zero."""
+    """A replay is an entry of `returns`; `next_actions[k]` is its downstream
+    text. With `record_next_teammate` off the replays still happened and still
+    cost what they cost, so they are counted and reported as carrying no text
+    rather than silently leaving the denominator."""
     root = tmp_path / "E1"
-    _write_c10_cell(root, [_c10_bucket("q%d" % i, {}) for i in range(5)])
+    _write_c10_cell(root, [_c10_bucket("q0", [[]], returns_len=4),
+                           _c10_bucket("q1", [["x y z"]])])
 
-    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "context",
-                               "--dry-run"]) == 0
+    assert replay_tokens.main(["--results", str(root), "--dry-run"]) == 0
     out = capsys.readouterr()
-    assert "# with a prefix: 0" in out.out
-    assert "5 bucket(s) contribute nothing: restart.role_outputs_prefix is empty" in out.err
+    assert "# replays: 5" in out.out
+    assert "# with downstream text: 1" in out.out
+    assert ("4 replay(s) contribute nothing: candidate.next_actions is empty, so no "
+            "downstream text was recorded") in out.err
 
 
-def test_prefix_tokens_names_the_field_the_rendered_scope_would_need(
-        tmp_path: Path, capsys: Any) -> None:
+def test_replay_tokens_ignores_an_empty_downstream_text(tmp_path: Path, capsys: Any) -> None:
     root = tmp_path / "E1"
-    _write_c10_cell(root, [_c10_bucket("q0", {"reader": "R"})])
+    _write_c10_cell(root, [_c10_bucket("q0", [["x", "   ", ""]])])
 
-    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "rendered",
-                               "--rendered_field", "restart.rendered_prompt",
-                               "--dry-run"]) == 0
-    assert "no restart.rendered_prompt on this bucket" in capsys.readouterr().err
-
-    # with the field present it is read, dotted path and all
-    _write_c10_cell(root, [_c10_bucket("q0", {}, rendered_prompt="a prompt")])
-    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "rendered",
-                               "--rendered_field", "restart.rendered_prompt",
-                               "--dry-run"]) == 0
-    assert "# with a prefix: 1" in capsys.readouterr().out
+    assert replay_tokens.main(["--results", str(root), "--dry-run"]) == 0
+    out = capsys.readouterr()
+    assert "# replays: 3" in out.out
+    assert "# with downstream text: 1" in out.out
+    assert "2 replay(s) contribute nothing: replay has no downstream text" in out.err
 
 
-def test_prefix_tokens_joins_the_context_the_way_the_renderer_does() -> None:
-    """The prefix under the `context` scope is the string
-    `c3.mas.prompt_render.build_render_context` puts in `{context}`, not a
-    second convention that happens to look like it."""
-    from c3.mas.prompt_render import build_render_context
-
-    outputs = {"planner": "P", "reader": "R"}
-    bucket = _c10_bucket("q0", outputs)
-    text, why = prefix_tokens.prefix_text(bucket, "context")
-    assert why == ""
-    rendered = build_render_context(question="What is 2 + 2?", role_outputs=outputs,
-                                    topo_so_far=["reader", "planner", "solver"])
-    assert text == rendered["context"] == "R\n\nP"
-
-    with_question, _ = prefix_tokens.prefix_text(bucket, "question_and_context")
-    assert with_question == "What is 2 + 2?\n\nR\n\nP"
+def test_replay_tokens_joins_several_downstream_roles_of_one_replay() -> None:
+    """Every bucket on disk carries `next_actions[k]` as a string, and the bucket
+    schema guard refuses anything else. A writer that one day records the whole
+    downstream tail of a replay would hand a mapping or a list instead, and the
+    texts of that one replay are joined rather than dropped."""
+    assert replay_tokens.downstream_text("x y") == "x y"
+    assert replay_tokens.downstream_text({"planner": "P", "solver": "S"}) == "P\n\nS"
+    assert replay_tokens.downstream_text(["P", "S"]) == "P\n\nS"
+    assert replay_tokens.downstream_text({"planner": "", "solver": "S"}) == "S"
+    assert replay_tokens.downstream_text("") is None
+    assert replay_tokens.downstream_text("  \n ") is None
+    assert replay_tokens.downstream_text({}) is None
+    assert replay_tokens.downstream_text(17) is None
+    assert replay_tokens.downstream_text(None) is None
 
 
-def test_prefix_tokens_refuses_the_appendix_tree_under_the_default_prefix(
+def test_replay_tokens_refuses_the_appendix_tree_under_the_default_prefix(
         tmp_path: Path, capsys: Any) -> None:
     root = tmp_path / "E1_math500all"
-    _write_c10_cell(root, [_c10_bucket("q0", {"reader": "R"})])
-    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "context",
-                               "--dry-run"]) == 2
+    _write_c10_cell(root, [_c10_bucket("q0", [["x"]])])
+    assert replay_tokens.main(["--results", str(root), "--dry-run"]) == 2
     assert "--key_prefix E1app" in capsys.readouterr().err
 
 
-def test_prefix_tokens_refuses_a_real_run_without_the_pieces_it_needs(
+def test_replay_tokens_refuses_a_real_run_without_the_pieces_it_needs(
         tmp_path: Path, capsys: Any) -> None:
     root = tmp_path / "E1"
-    _write_c10_cell(root, [_c10_bucket("q0", {"reader": "R"})])
-    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "context"]) == 2
+    _write_c10_cell(root, [_c10_bucket("q0", [["x"]])])
+    assert replay_tokens.main(["--results", str(root)]) == 2
     err = capsys.readouterr().err
     for flag in ("--tokenizer", "--manifest", "--out"):
         assert flag in err
 
 
-def test_prefix_tokens_reports_both_medians() -> None:
-    assert prefix_tokens.medians([]) == (None, None)
-    assert prefix_tokens.medians([7]) == (7, 7.0)
-    low, linear = prefix_tokens.medians([10, 20, 30, 40])
+def test_replay_tokens_reports_both_medians() -> None:
+    assert replay_tokens.medians([]) == (None, None)
+    assert replay_tokens.medians([7]) == (7, 7.0)
+    low, linear = replay_tokens.medians([10, 20, 30, 40])
     assert low == 20 and linear == pytest.approx(25.0)
     assert isinstance(low, int)
+
+
+def test_replay_tokens_writes_the_key_through_the_shared_writer(
+        tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:
+    """The whole counting path, with a tokenizer object standing in for the real
+    one: the key value, its n, its source list and the auxiliary top-level block
+    that does not belong in the manifest."""
+    root = tmp_path / "20_data" / "results" / "E1"
+    # replay lengths in whitespace-separated words: 1, 2, 3, 4
+    _write_c10_cell(root, [_c10_bucket("q0", [["a", "a b"], ["a b c", "a b c d"]])])
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "E1.c10.median_prefix_tokens": {"unit": "tokens", "fmt": "{:,d}", "value": None},
+    }), encoding="utf-8")
+    out_path = tmp_path / "replay_tokens_summary.json"
+
+    fake = _WhitespaceTokenizer()
+    monkeypatch.setattr(replay_tokens, "load_tokenizer", lambda path: fake)
+
+    rc = replay_tokens.main(["--results", str(root), "--tokenizer", "/models/Qwen3-4B",
+                             "--manifest", str(manifest), "--out", str(out_path)])
+    assert rc == 0
+    assert [call["add_special_tokens"] for call in fake.calls] == [False] * 4
+
+    doc = json.loads(out_path.read_text(encoding="utf-8"))
+    entry = doc["keys"]["E1.c10.median_prefix_tokens"]
+    assert entry["value"] == 2 and entry["n"] == 4 and entry["unit"] == "tokens"
+    assert entry["source"] == ["20_data/results/E1/c10/4b/sweep_n4/buckets.jsonl"]
+    assert "low median 2, linear median 2.5, mean 2.5" in entry["note"]
+    assert doc["results_root"] == "20_data/results/E1"
+    assert doc["key_prefix"] == "E1"
+    aux = doc["replay_tokens"]
+    assert aux["median_low"] == 2 and aux["median_linear"] == pytest.approx(2.5)
+    assert aux["mean_tokens"] == pytest.approx(2.5)
+    assert aux["min_tokens"] == 1 and aux["max_tokens"] == 4
+    assert aux["n_replays"] == 4 and aux["n_replays_counted"] == 4
+    assert aux["n_cells"] == 1 and aux["n_buckets"] == 1
+    assert "wrote 1 key(s)" in capsys.readouterr().out
+
+
+def test_replay_tokens_linear_median_and_special_tokens_are_flags(
+        tmp_path: Path, monkeypatch: Any) -> None:
+    root = tmp_path / "20_data" / "results" / "E1"
+    _write_c10_cell(root, [_c10_bucket("q0", [["a", "a b"], ["a b c", "a b c d"]])])
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "E1.c10.median_prefix_tokens": {"unit": "tokens", "fmt": "{:,d}", "value": None},
+    }), encoding="utf-8")
+    out_path = tmp_path / "s.json"
+
+    fake = _WhitespaceTokenizer()
+    monkeypatch.setattr(replay_tokens, "load_tokenizer", lambda path: fake)
+    assert replay_tokens.main(["--results", str(root), "--tokenizer", "/models/Qwen3-4B",
+                               "--manifest", str(manifest), "--out", str(out_path),
+                               "--median", "linear", "--add_special_tokens"]) == 0
+
+    doc = json.loads(out_path.read_text(encoding="utf-8"))
+    # one extra token per text, so the counts are 2, 3, 4, 5 and the linear
+    # median is 3.5, which rounds to 4
+    assert doc["keys"]["E1.c10.median_prefix_tokens"]["value"] == 4
+    assert doc["replay_tokens"]["add_special_tokens"] is True
+    assert [call["add_special_tokens"] for call in fake.calls] == [True] * 4
+
+
+def test_replay_tokens_says_so_when_no_replay_carries_text(
+        tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:
+    root = tmp_path / "20_data" / "results" / "E1"
+    _write_c10_cell(root, [_c10_bucket("q0", [[]], returns_len=4)])
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({}), encoding="utf-8")
+
+    monkeypatch.setattr(replay_tokens, "load_tokenizer",
+                        lambda path: pytest.fail("the tokenizer must not be loaded"))
+    assert replay_tokens.main(["--results", str(root), "--tokenizer", "/models/Qwen3-4B",
+                               "--manifest", str(manifest),
+                               "--out", str(tmp_path / "s.json")]) == 2
+    assert "no replay carries downstream text" in capsys.readouterr().err
+    assert not (tmp_path / "s.json").exists()

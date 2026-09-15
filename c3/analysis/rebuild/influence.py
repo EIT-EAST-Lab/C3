@@ -12,6 +12,11 @@ Frozen conventions (preregistration E5, results contract section 4):
 - Y is the ANSWER symbol, not the raw text and not a hash of the whole message.
   The mapping text -> symbol is injected (see `answer_symbol`), so this module
   never parses mathematics itself.
+- Y exists only where the downstream output STATES an answer: a `#### ...` line,
+  a `\boxed{...}`, or a `Final answer: ...` style anchor. An output that trails
+  off in prose has no answer and contributes `<NONE>` (driver ruling 1,
+  2026-09-15; the rule is implemented in `math_extractor` and the reason is
+  written out there).
 - J is uniform: p_j = 1/n_j, matching `30_analysis/server_tierA/p1rb_analysis.py`
   (`plugin_mi`). This is NOT the sample-mass weighting used by the older
   `c3.analysis.metrics.influence_mi`.
@@ -57,6 +62,7 @@ from .summary import (
 
 __all__ = [
     "NO_ANSWER",
+    "EXPLICIT_ANSWER_METHODS",
     "boxed_extractor",
     "math_extractor",
     "answer_symbol",
@@ -76,6 +82,13 @@ __all__ = [
 #: distinguishable outcome, exactly as in `e11_paired.py` ("<none>").
 NO_ANSWER = "<NONE>"
 
+#: The methods of `c3.envs.math.parsing.parse_math_answer` that mean the output
+#: STATED an answer, and therefore the only ones `math_extractor` accepts
+#: (driver ruling 1, 2026-09-15). The parser's remaining methods are `empty`,
+#: `empty_lines`, `anchor_inline` and `last_line`; the first two carry no token
+#: at all, and the last is the prose fallback this rule exists to reject.
+EXPLICIT_ANSWER_METHODS = ("boxed", "hash", "anchor")
+
 _BOXED = "\\boxed{"
 
 
@@ -85,7 +98,7 @@ _BOXED = "\\boxed{"
 
 
 def boxed_extractor(text: Optional[str]) -> str:
-    r"""Default extractor: the content of the LAST balanced ``\boxed{...}``.
+    r"""Placeholder extractor: the content of the LAST balanced ``\boxed{...}``.
 
     Brace matching is done by counting, so ``\boxed{\frac{1}{2}}`` returns
     ``\frac{1}{2}``. Surrounding whitespace is stripped. If there is no
@@ -143,40 +156,59 @@ def _math_parser() -> Tuple[Callable[[str], Any], Callable[[str], str]]:
 
 
 def math_extractor(text: Optional[str]) -> str:
-    r"""The extractor the E3a and E5 aggregations run (driver ruling, 2026-09-15).
+    r"""The extractor the E3a aggregation runs: EXPLICIT answers only.
 
-    Two steps, both taken from the repository rather than reimplemented here:
+    `aggregate_e5` still offers only `boxed_extractor`, so E5 does not reach this
+    function yet; putting it there is the driver's call, not this module's.
 
-    1. `parse_math_answer` returns the final answer string. It tries, in order,
-       the last ``#### ...`` line, the last balanced ``\boxed{...}``, a
-       ``Final answer: ...`` style anchor, and finally the last non-empty line.
-    2. `normalize_expr` rewrites that string into one shape, so ``$\frac{1}{2}$``
-       and ``\frac{1}{2}`` become the same symbol.
+    Three steps, the first two taken from the repository rather than
+    reimplemented here:
 
-    The result is the answer SYMBOL of the estimator, not a claim that the
-    answer is right: two replays that write the same value in different notation
-    must land on one symbol, which is the whole reason for step 2.
+    1. `parse_math_answer` returns ``(token, method)``. It tries, in order, the
+       last ``#### ...`` line (``hash``), the last balanced ``\boxed{...}``
+       (``boxed``), a ``Final answer: ...`` style anchor (``anchor``), and
+       finally the last non-empty line (``last_line``).
+    2. Only :data:`EXPLICIT_ANSWER_METHODS` count as an answer. Any other method,
+       ``last_line`` above all, returns :data:`NO_ANSWER` (driver ruling 1,
+       2026-09-15).
+    3. `normalize_expr` rewrites the accepted token into one shape, so
+       ``$\frac{1}{2}$`` and ``\frac{1}{2}`` become the same symbol.
 
-    Step 2 is best effort and is the repository's, not this module's. It folds
+    WHY step 2. Influence measures whether the downstream ANSWER moves with the
+    alternative that was sent, so the question step 1 has to answer is "what
+    answer did this replay state", and the parser's last resort does not answer
+    it: it hands back the last line of the working, which is a sentence. Such a
+    sentence is all but unique to its replay, so counting it as an answer symbol
+    manufactures information no answer carries. Measured on the real E3a credit
+    set, the prose fallback stood for about a third of the replays and about six
+    tenths of the mean influence (WP-R14 report, section 2.4). The
+    preregistration calls this estimator answer-level; "this output states no
+    answer" is the honest reading of a replay that ends in prose, and
+    :data:`NO_ANSWER` is a real symbol of the estimator rather than a dropped
+    sample, so nothing is thrown away by saying so.
+
+    This is the implementation of the estimator, not a criterion: it fixes what
+    the word "answer" means in "answer-level", and it changes no threshold, no
+    stratum rule and no test.
+
+    Step 3 is best effort and is the repository's, not this module's. It folds
     ``\frac`` and ``\sqrt``, the math delimiters and the LaTeX spacing commands,
     and it does NOT fold ``\dfrac`` or ``\tfrac``, so those keep symbols of their
-    own. Step 1 has no "unparseable" verdict either: its last resort is the last
-    non-empty line, so an output that never states an answer contributes that
-    line as its symbol. Both are properties of the extractor that show up in the
-    influence numbers, which is why they are written down here.
+    own. That is a property of the extractor which shows up in the influence
+    numbers, which is why it is written down here.
 
-    :data:`NO_ANSWER` is returned when step 1 finds nothing, which is what the
-    contract calls "no answer for this replay" and which stays a real symbol of
-    the estimator. Step 2 emptying a non-empty step 1 result is a different
-    thing: the answer was found and only the normaliser had nothing left to keep
-    (it drops characters outside its allowed set), so the stripped step 1 string
-    is returned instead of :data:`NO_ANSWER`.
+    Step 3 emptying a non-empty step 1 token is not "no answer": the answer was
+    stated and only the normaliser had nothing left to keep (it drops characters
+    outside its allowed set), so the stripped step 1 string is returned instead
+    of :data:`NO_ANSWER`.
     """
     parse_math_answer, normalize_expr = _math_parser()
     s = "" if text is None else str(text)
     if not s.strip():
         return NO_ANSWER
-    token, _method = parse_math_answer(s)
+    token, method = parse_math_answer(s)
+    if method not in EXPLICIT_ANSWER_METHODS:
+        return NO_ANSWER
     if token is None:
         return NO_ANSWER
     raw = str(token).strip()

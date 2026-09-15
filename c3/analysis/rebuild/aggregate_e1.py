@@ -17,12 +17,19 @@ tree under the default prefix is refused rather than silently overwritten, and
 every summary records the tree it read (`results_root`) and the prefix it wrote
 (`key_prefix`) at the top level.
 
-One key of this experiment is not produced here.
-`E1.c10.median_prefix_tokens` is the median token length of the context the
-ten-agent chain's decision points condition on, so it needs a tokenizer and the
-model files. It is produced platform side by
-`scripts/70_rebuild/prefix_tokens.py`, which writes its own summary.json through
-this package's writer.
+One key of this experiment is not produced here. `E1.c10.median_prefix_tokens`
+is the median number of tokens one replay of the ten-agent chain REGENERATES
+downstream (driver ruling 2, 2026-09-15), so it needs a tokenizer and the model
+files. It is produced platform side by `scripts/70_rebuild/replay_tokens.py`,
+which writes its own summary.json through this package's writer.
+
+That is not the length of the prefix, although the key is still named for one.
+Every E1 cell is measured at the first role in topological order, so the prefix
+at the measured position is the question and nothing else: the same text in
+every workflow, carrying no information about depth. What the ten-agent chain
+actually costs, and what makes its credit estimate noisy, is the downstream text
+every replay has to regenerate. The key keeps its manifest name until the driver
+renames it there.
 
 The sweep cells are the only measurement. The fixed-budget and per-decision
 rows of the manifest are read off the sweep cells, because a fixed instance
