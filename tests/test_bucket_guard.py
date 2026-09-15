@@ -14,7 +14,7 @@ ruling asked for, plus the check that a real collision is still refused.
 The runner's context string is rebuilt here rather than imported, so the test
 stays inside the light analysis environment.
 
-    C:/Users/10350/.venvs/c3-light/Scripts/python.exe -m pytest tests/test_bucket_guard.py -q
+    python -m pytest tests/test_bucket_guard.py -q
 """
 
 from __future__ import annotations

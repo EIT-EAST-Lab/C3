@@ -1,8 +1,10 @@
 # ===== Task: math_screen (E1 screening pass over the whole MATH test pool) =====
 # Same training set as math.yaml; the evaluation suite MATHTEST is data/MATH/test_full.jsonl,
-# the MATH test split (the competition_math mirror minus the canonical train split, 4,999
-# problems including MATH500). Used only by scripts that screen questions for the E1
-# reliability measurement (preregistration revision 16); never for training.
+# the canonical MATH test split. The manifest prepares it as MATH-test, out of the seven
+# subject test configs of EleutherAI/hendrycks_math at the revision MATH-train reads, and
+# pins it at 5,000 rows; it is the set MATH500 is drawn from. Used only by scripts that
+# screen questions for the E1 reliability measurement (preregistration revision 16); never
+# for training.
 experiment_name: "c3_math_screen"
 
 environment:

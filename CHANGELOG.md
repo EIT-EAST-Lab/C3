@@ -7,7 +7,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-0.2.0 candidate, date to be set by the driver.
+0.2.0 candidate; the release date is set when the tag is cut.
 
 ### Added
 
@@ -59,6 +59,48 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the context scope, the bucket guard, the overlap gate, the data-preparation
   gates and the schema alignment. Four fixtures under `tests/fixtures/data/`
   come with them.
+- `MATH-test`, the canonical MATH test split, as a manifest entry and as
+  `data/MATH/test_full.jsonl`. It is the union of the seven subject `test`
+  configs of `EleutherAI/hendrycks_math` at the revision `MATH-train` already
+  reads, written by the same builder, so the row format and the deduplication
+  rule are shared and cannot drift apart. It is the set MATH500 is drawn from,
+  it is an evaluation artifact under the naming contract, and the overlap gate
+  checks it against every training file. `prepare_math.py --prepare_math_test`
+  defaults to `1`.
+- `MATH-pool`, the informative-question pool of the E1 screening pass, as an
+  optional manifest entry and as `data/MATH/pool_informative.jsonl`. The
+  repository ships the selection as an id list,
+  `configs/data/pool_informative_ids.json`, rather than as problem statements, so
+  no dataset row is redistributed; `prepare_math.py --prepare_math_pool`
+  (default `1`) takes the rows that list names out of `MATH-test`, in that order,
+  and fails when one of the ids is not there. While the list is empty the builder
+  prints a skip line and writes nothing.
+- `c3/analysis/rebuild/pool_ids.py`, the one definition of the id of a prepared
+  math row: its `unique_id`, or the first 16 hexadecimal characters of the
+  SHA256 of its problem statement. The pool builder and the screening pass that
+  writes the id list both call it, so they cannot disagree about what a row is
+  called.
+- `tests/test_prepare_math_pool.py`, covering the test-split builder, the id
+  rule, the id list and the pool builder.
+- A contract test that every role prompt states the size of its own team, so a
+  prompt copied from a smaller workflow cannot keep the smaller number.
+- Attribution entries in `THIRD_PARTY_NOTICES.md` for the five candidate
+  evaluation benchmarks, and the two new MATH artifacts under the existing MATH
+  entry.
+- `aggregate_e1 --key_prefix` names the leading segment of the keys written, so
+  the full-suite appendix tree `E1_math500all` writes `E1app.*` instead of
+  colliding with the question-pool tree's `E1.*`. Aggregating the appendix tree
+  under the default prefix is refused with the flag to pass. Every E1 summary now
+  records the tree it read and the prefix it wrote at the top level
+  (`results_root`, `key_prefix`).
+- The E3a bias map reports a stratum thinner than ten decision points, on stderr
+  and in the note of every key read off it. The preregistered median split is
+  unchanged and no key is dropped: this only makes a degenerate split visible in
+  the summary instead of leaving it to be noticed in the stderr of the run.
+- `scripts/70_rebuild/prefix_tokens.py` counts the prefix the deep-chain decision
+  points condition on, for `E1.c10.median_prefix_tokens`, which needs a tokenizer
+  and the model files and so cannot come from the aggregation. Its `--dry-run`
+  reports what the bucket files carry without either.
 
 ### Changed
 
@@ -79,8 +121,26 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   tiers, and the summary document has a single writer.
 - `swap_space` is no longer passed in the vLLM engine arguments, because vLLM
   0.28 rejects it.
-- `MATHPOOL` is an evaluation suite of `configs/tasks/math.yaml` and of the
-  workflow task files.
+- `MATHPOOL` is an evaluation suite of the five workflow task files
+  (`math_a3`, `math_mt4`, `math_branch`, `math_c5`, `math_c10`) and not of
+  `configs/tasks/math.yaml`. The pool is what the depth study measures on;
+  nothing trains on it, and the task file a reader of the paper runs should not
+  name a file that exists only after the screening pass.
+- `configs/tasks/math_screen.yaml` describes its `MATHTEST` suite as the
+  canonical MATH test split prepared by the manifest, and no longer as a subset
+  of the `qwedsacf/competition_math` mirror, which manifest v2 dropped as the
+  contaminated source it was.
+- `THIRD_PARTY_NOTICES.md` attributes the MATH artifacts to
+  `EleutherAI/hendrycks_math`. It still named `qwedsacf/competition_math`, the
+  mirror the manifest no longer uses, in a file that states it summarizes the
+  manifest exactly.
+- The comments of `configs/tasks/math_eval_probe.yaml` count eight evaluation
+  suites and name them, which is what the file has declared since AIME 2025 was
+  added.
+- `docs/30_data_sources.md` describes the candidate benchmarks as benchmarks the
+  start accuracy of a frozen policy is measured on before any of them is
+  adopted. The previous wording asserted that the current benchmarks have no
+  headroom left, which is one of the things the probe is there to measure.
 - The manifest pins the `EleutherAI/hendrycks_math` and `weitianwen/cmath`
   revisions, and OlympiadBench ships `multi_answer_policy: drop` and
   `unit_policy: drop`, so its multi-answer and unit rows are not prepared.
@@ -127,11 +187,32 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   subtracts its problems from `MBPP-train` by the same normalized problem text
   the gate compares, which leaves 371 rows. The `MBPP+` entry keeps
   `evalplus@0.3.1`.
+- Three test files carried a maintainer's local interpreter path in the "run it
+  like this" line of their docstring (`tests/test_bucket_guard.py`,
+  `tests/test_rebuild_bias_coupling.py`, `tests/test_rebuild_summary.py`). The
+  line now reads `python -m pytest tests/<file> -q`. The paths failed
+  `scripts/90_audit/scan_paths.py`, so `pre_release.sh` and the release-audit
+  job stopped at their first step.
 - `c3.analysis.buckets.validate_bucket` has its own context-key collision guard.
   It and `ReplayRunner.build_context_hash` used to observe the same `ctx_hash`
   on one process-global guard with fingerprint strings that differ by
   construction, so the first bucket ever written by `build-buckets` was reported
   as a context-key collision. Both checks still fail fast on a real collision.
+- `aggregate_e3a` now looks for the second null-action arm under `placeholder`,
+  the directory name the cell driver writes, and falls back to the old name
+  `deleted` with one line on stderr. With neither on disk the message names both,
+  so the operator is not sent looking for a directory that was renamed.
+- The E3a answer extractor is the repository's own math parser
+  (`c3.envs.math.parsing.parse_math_answer` followed by
+  `c3.envs.math.backends.marft.normalize.normalize_expr`), reachable as
+  `--extractor math` and now the default. The previous `\boxed{...}` reader was a
+  placeholder that found no answer on about half the downstream outputs of a real
+  run; it is kept as `--extractor boxed` for the unit tests, where a
+  hand-checkable symbol is what is wanted.
+- `aggregate_e1` writes repository-relative `source` paths again. It shapes its
+  joined cell paths through `summary.source_path`, the same function the other
+  aggregation family uses, so aggregating a tree by absolute path no longer puts
+  the operator's own machine path into summary.json.
 
 ## [0.2.0]
 

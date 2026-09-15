@@ -1,0 +1,14 @@
+{
+  "source": "MATH-test",
+  "screen": {
+    "workflow": "a2",
+    "model": "Qwen3-4B-Instruct-2507",
+    "n": 2,
+    "c": 2,
+    "seed": 7,
+    "screened": null,
+    "informative": null,
+    "taken": null
+  },
+  "unique_ids": []
+}

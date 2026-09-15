@@ -44,10 +44,12 @@ The manifest also includes pinned upstream revisions and prepared-artifact SHA25
 
 - Academic origin: Hendrycks et al., “Measuring Mathematical Problem Solving With the MATH Dataset”
 - Upstream HF IDs (pinned in manifest):
-  - `qwedsacf/competition_math` (used for the **train** artifact in this release; see manifest notes)
+  - `EleutherAI/hendrycks_math` (used for the **train** and **test** artifacts in this release; upstream stores one config per subject, and each artifact is the union of the seven subject configs, see manifest notes)
   - `HuggingFaceH4/MATH-500` (benchmark)
 - Prepared outputs (via `scripts/10_data/prepare_math.py`):
   - `data/MATH/train.jsonl`
+  - `data/MATH/test_full.jsonl`
+  - `data/MATH/pool_informative.jsonl` (a subset of `data/MATH/test_full.jsonl`, selected by the id list in `configs/data/pool_informative_ids.json`)
   - `data/MATH500/test.jsonl`
 - License: see the upstream dataset cards; C3 does not redistribute raw data.
 
@@ -103,6 +105,51 @@ The manifest also includes pinned upstream revisions and prepared-artifact SHA25
 > - This release pins MBPP+ to an explicit EvalPlus version tag in the manifest.
 > - Strict verification (`--strict 1`) enforces that your environment matches the pinned provenance rule.
 > - See `docs/30_data_sources.md` for strict-mode behavior.
+
+### Minerva-Math
+
+- Benchmark: Minerva Math, the OCWCourses problem set released with the Minerva paper (see upstream dataset card for citation details)
+- Upstream HF ID (pinned in manifest): `math-ai/minervamath`
+- Prepared output (via `scripts/10_data/prepare_math.py`):
+  - `data/MINERVA_MATH/test.jsonl`
+- License: see the upstream dataset card; C3 does not redistribute raw data.
+
+### OlympiadBench
+
+- Benchmark: OlympiadBench, the open-ended text-only English maths subset (see upstream dataset card for citation details)
+- Upstream HF ID (pinned in manifest): `math-ai/olympiadbench`
+- Prepared output (via `scripts/10_data/prepare_math.py`):
+  - `data/OLYMPIADBENCH/test.jsonl`
+- License: see the upstream dataset card; C3 does not redistribute raw data.
+
+### AMC23
+
+- Benchmark: the short-answer problems of AMC 2023 (see upstream dataset card for citation details)
+- Upstream HF ID (pinned in manifest): `math-ai/amc23`
+- Prepared output (via `scripts/10_data/prepare_math.py`):
+  - `data/AMC23/test.jsonl`
+- License: see the upstream dataset card; C3 does not redistribute raw data.
+
+### AIME24
+
+- Benchmark: the problems of AIME 2024 (see upstream dataset card for citation details)
+- Upstream HF ID (pinned in manifest): `math-ai/aime24`
+- Prepared output (via `scripts/10_data/prepare_math.py`):
+  - `data/AIME24/test.jsonl`
+- License: see the upstream dataset card; C3 does not redistribute raw data.
+
+### AIME25
+
+- Benchmark: the problems of AIME 2025 (see upstream dataset card for citation details)
+- Upstream HF ID (pinned in manifest): `math-ai/aime25`
+- Prepared output (via `scripts/10_data/prepare_math.py`):
+  - `data/AIME25/test.jsonl`
+- License: see the upstream dataset card; C3 does not redistribute raw data.
+
+> Note on the five entries above: they are evaluation-only candidate benchmarks
+> for the start-accuracy probe, prepared only when
+> `scripts/10_data/prepare_math.py` is called with `--prepare_eval_probe_sets 1`.
+> Nothing trains on them.
 
 ---
 

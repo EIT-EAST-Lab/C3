@@ -153,10 +153,17 @@ The following list is the **current release target set**, and matches the manife
 ### Math (`scripts/10_data/prepare_math.py`)
 
 - `data/MATH/train.jsonl`  (manifest name: `MATH-train`)
+- `data/MATH/test_full.jsonl` (manifest name: `MATH-test`)
+- `data/MATH/pool_informative.jsonl` (manifest name: `MATH-pool`)
 - `data/GSM8K/test.jsonl`  (manifest name: `GSM8K-test`)
 - `data/MATH500/test.jsonl` (manifest name: `MATH500`)
 - `data/CMATH/train.jsonl` (manifest name: `CMATH-train`)
 - `data/CMATH/test.jsonl`  (manifest name: `CMATH-test`)
+
+> Note: `MATH-pool` is the one entry of this list that a default run usually does
+> not write. It is a subset of `MATH-test` named by an id list, and while that
+> list is empty the builder prints a skip line and writes no file. See the
+> `MATH-pool` section below.
 
 ### Math, candidate benchmarks (`scripts/10_data/prepare_math.py`)
 
@@ -217,6 +224,63 @@ above is documentation and the `sha256` pin is the gate.
 
 > Note: if you swap the upstream source, you must repin the revision and regenerate
 > the sha256 pins.
+
+### MATH-test
+
+- Upstream HF ID: `EleutherAI/hendrycks_math`
+- Configs: the same seven subject configs as `MATH-train`
+- Split: `test` of each config, concatenated in that order
+- Revision: the same pinned commit SHA as `MATH-train`
+- Output: `data/MATH/test_full.jsonl`
+- Manifest row count: `expected_rows: 5000`
+
+This is the canonical MATH test split, and MATH500 is drawn from it: the 500
+problems of that benchmark are 500 of these rows. One builder writes both MATH
+artifacts, so the row format, the deduplication key and the answer gate are
+`MATH-train`'s; the two manifest entries differ in `source.split` and in nothing
+else.
+
+It is an evaluation artifact under the naming contract above, never a training
+one. `check_overlap.py` therefore intersects it with every training file on each
+strict run, and the count it prints for `MATH-train x MATH-test` has to be zero.
+Two things read it: `configs/tasks/math_screen.yaml`, the task file of the E1
+screening pass, and the pool below.
+
+The `sha256` pin is empty until the file is prepared, and `expected_rows` is what
+guards the row count in that window, exactly as described under "Expected row
+count" above. Pin it with `--update_manifest_sha256 1` once the file exists.
+
+### MATH-pool
+
+- Built from: `MATH-test`, not from an upstream download
+- Selection: `configs/data/pool_informative_ids.json`, the id list the E1
+  screening pass writes
+- Output: `data/MATH/pool_informative.jsonl` (manifest entry `MATH-pool`, which
+  is `optional: true` and pins no `expected_rows`, because the row count is the
+  length of that list)
+
+The pool holds the screened questions the E1 reliability measurement runs on.
+The repository ships the id list and not the problem statements, so it
+redistributes no dataset row. The builder reads `data/MATH/test_full.jsonl`,
+takes the rows the list names in the order the list gives, and fails when one of
+the ids is not there rather than writing a shorter file.
+
+Both sides compute an id with `row_id` in `c3/analysis/rebuild/pool_ids.py`: the
+`unique_id` of the row, or the first 16 hexadecimal characters of the SHA256 of
+its problem statement when it has no `unique_id`. The screening pass that writes
+the list calls the same function, so the two sides cannot disagree about what a
+row is called.
+
+Until that pass has run, `unique_ids` is empty. The builder then prints
+
+```text
+[SKIP] MATHPOOL: pool_informative_ids.json is empty; run the E1 screening pass first
+```
+
+and writes nothing. The consumers of the prepared file are the five workflow task
+files of the depth study (`math_a3`, `math_mt4`, `math_branch`, `math_c5`,
+`math_c10`), which declare it as the `MATHPOOL` evaluation suite; they are read
+by the E1 cell driver and by nothing on the paper training path.
 
 ### GSM8K-test
 
@@ -310,10 +374,10 @@ Strict-mode behavior:
 
 ### Candidate evaluation benchmarks (start-accuracy probe)
 
-Five evaluation-only artifacts exist so that the start accuracy of a frozen policy
-can be measured on benchmarks that might replace the ones with no headroom left.
-They are opt-in (`--prepare_eval_probe_sets 1`), no training configuration reads
-them, and no released number depends on them.
+Five evaluation-only artifacts exist: they are benchmarks on which the start
+accuracy of a frozen policy is measured before any of them is adopted. They are
+opt-in (`--prepare_eval_probe_sets 1`), no training configuration reads them, and
+no released number depends on them.
 
 | Manifest name | Upstream HF ID | Split | Rows upstream | Output |
 |---|---|---|---|---|

@@ -25,6 +25,53 @@ outputs:
       the mirror qwedsacf/competition_math, whose only split was named train but held
       12500 rows, the MATH train and test sets together, and therefore contained every
       MATH500 problem.
+- name: MATH-test
+  type: math
+  output_path: data/MATH/test_full.jsonl
+  sha256: null
+  expected_rows: 5000
+  source:
+    kind: huggingface
+    id: EleutherAI/hendrycks_math
+    configs:
+    - algebra
+    - counting_and_probability
+    - geometry
+    - intermediate_algebra
+    - number_theory
+    - prealgebra
+    - precalculus
+    split: test
+    revision: 21a5633873b6a120296cce3e2df9d5550074f4a3
+    license: check HF card
+    notes: Canonical MATH test split, the union of the seven subject test splits of
+      the revision MATH-train already reads. The same builder assembles it in the
+      same config order, with the same deduplication rule and the same row format,
+      so the only difference from MATH-train is the split. It is the parent set of
+      MATH500, whose 500 problems are drawn from it. Evaluation and the E1 screening
+      pass only, never training, and it shares no problem with any training artifact,
+      which scripts/10_data/check_overlap.py verifies on every strict run. The sha256
+      pin stays empty until the file is prepared on the platform, so expected_rows is
+      what guards the row count in that window.
+- name: MATH-pool
+  type: math
+  output_path: data/MATH/pool_informative.jsonl
+  sha256: null
+  optional: true
+  source:
+    kind: local
+    id: configs/data/pool_informative_ids.json
+    parent: MATH-test
+    license: check HF card
+    notes: The informative-question pool of the E1 screening pass, which is the
+      subset of MATH-test holding the rows whose ids the list in
+      configs/data/pool_informative_ids.json names, taken in the order that list
+      gives. The repository ships the id list and not the problem statements, so no
+      dataset row is redistributed, and the ids are the ones row_id in
+      c3/analysis/rebuild/pool_ids.py computes, which is the same function the
+      screening pass calls when it writes the list. No expected_rows is pinned
+      because the row count is the length of that list. While the list is empty the
+      builder prints a SKIP line and writes no file.
 - name: GSM8K-test
   type: math
   output_path: data/GSM8K/test.jsonl

@@ -14,10 +14,12 @@ the training stack.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Dict, List
 
 import pytest
+import yaml
 
 from c3.credit.counterfactual.baselines import (
     _collect_ancestors,
@@ -72,6 +74,26 @@ WORKFLOWS = {
 }
 
 WORKFLOW_IDS = sorted(WORKFLOWS)
+
+ROLES_DIR = REPO_ROOT / "configs" / "roles" / "math"
+ROLE_FILES = sorted(path.name for path in ROLES_DIR.glob("*.json"))
+
+# The team size every prompt states about itself, as a word.
+TEAM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "ten": 10}
+_TEAM_PHRASE = re.compile(r"\b(One|Two|Three|Four|Five|Ten) LLM agents?\b")
+
+MANIFEST = REPO_ROOT / "configs" / "data_manifest.yaml"
+
+# The one evaluation suite the workflow files carry and the paper task does not.
+MATHPOOL_SUITE = {"name": "MATHPOOL", "path": "data/MATH/pool_informative.jsonl", "limit": None}
+
+# Every math task file whose evaluation suites have to resolve to a prepared
+# artifact. The probe task has its own equivalent check in
+# tests/test_rebuild_eval_probe.py.
+MATH_TASK_YAMLS = (
+    "configs/tasks/math.yaml",
+    "configs/tasks/math_screen.yaml",
+) + tuple(WORKFLOWS[workflow][0] for workflow in WORKFLOW_IDS)
 
 
 def _task(workflow: str):
@@ -143,6 +165,47 @@ def test_roles_json_follows_the_roles_duo_schema(workflow: str) -> None:
         assert item["prompt"].endswith("<|im_end|>\n")
         # A backspace here means a JSON file wrote \b instead of \\b before "oxed".
         assert "\b" not in item["prompt"]
+
+
+@pytest.mark.parametrize("roles_json", ROLE_FILES)
+def test_every_prompt_states_the_size_of_its_own_team(roles_json: str) -> None:
+    """The team a prompt describes has to be the team the file actually wires.
+
+    This is model-facing text, not a comment: the Reasoner of the three-agent
+    file opened with "Two LLM agents (Reasoner -> Actor)", copied from the
+    two-agent file, so that role was told it was working alone with the Actor
+    while the Verifier behind it was never mentioned.
+
+    The number is the number of agents, which is the number of distinct prompts,
+    and not the number of decision points. In every file but one those are the
+    same. The four-turn workflow is the exception by design: two agents take four
+    turns, so its four roles share two prompts and say "Two LLM agents".
+    """
+    raw = json.loads((ROLES_DIR / roles_json).read_text(encoding="utf-8"))
+    prompts = [str(item["prompt"]) for item in raw]
+    agents = len(set(prompts))
+
+    if roles_json == "roles_solo.json":
+        # One agent, so there is no team to name and no prompt claims one.
+        assert len(raw) == 1
+        assert [p for p in prompts if _TEAM_PHRASE.search(p)] == []
+        return
+
+    stated = []
+    for item in raw:
+        match = _TEAM_PHRASE.search(str(item["prompt"]))
+        assert match is not None, f"{roles_json}: role {item['role']} never names the team"
+        stated.append(TEAM_WORDS[match.group(1).lower()])
+
+    assert set(stated) == {agents}, (
+        f"{roles_json}: the prompts claim {sorted(set(stated))} agents, "
+        f"the file holds {agents} distinct prompts for {len(raw)} roles"
+    )
+
+    if roles_json == "roles_mt4.json":
+        assert (agents, len(raw)) == (2, 4)
+    else:
+        assert agents == len(raw)
 
 
 def test_the_four_turn_workflow_reuses_one_prompt_per_agent() -> None:
@@ -340,19 +403,65 @@ def test_task_yaml_loads_and_points_at_an_existing_roles_file(workflow: str) -> 
     assert spec.experiment_name == f"c3_math_{workflow}"
 
 
+def _environment_without_suites(environment) -> Dict[str, object]:
+    return {key: value for key, value in dict(environment).items() if key != "eval_suites"}
+
+
 @pytest.mark.parametrize("workflow", WORKFLOW_IDS)
-def test_task_yaml_differs_from_math_yaml_only_in_name_and_roles_path(workflow: str) -> None:
-    """Same data, same reward conventions; only the identity and the wiring move."""
+def test_task_yaml_differs_from_math_yaml_only_in_name_roles_path_and_the_pool_suite(workflow: str) -> None:
+    """Same data, same reward conventions; the identity, the wiring and MATHPOOL move.
+
+    MATHPOOL is the screened pool the depth study measures on. It is an
+    evaluation suite of the five workflow files and of nothing else: the paper
+    task trains, the pool is not a training set, and an evaluation suite that
+    exists only after the E1 screening pass has no business in the task file a
+    reader of the paper runs.
+    """
     task_yaml, _roles_json, _topo = WORKFLOWS[workflow]
     base = load_task(str(REPO_ROOT / "configs/tasks/math.yaml"))
     spec = load_task(str(REPO_ROOT / task_yaml))
 
-    assert dict(spec.environment) == dict(base.environment)
+    assert _environment_without_suites(spec.environment) == _environment_without_suites(base.environment)
     assert spec.train_datasets == base.train_datasets
-    assert spec.eval_suites == base.eval_suites
+    assert list(spec.eval_suites) == list(base.eval_suites) + [MATHPOOL_SUITE]
     assert set(spec.mas) == set(base.mas)
     assert spec.experiment_name != base.experiment_name
     assert spec.roles_path != base.roles_path
+
+
+def test_the_paper_task_does_not_evaluate_on_the_screened_pool() -> None:
+    base = load_task(str(REPO_ROOT / "configs/tasks/math.yaml"))
+    assert [str(s.get("name", "")) for s in base.eval_suites] == ["MATH500", "CMATH-test", "GSM8K-test"]
+
+
+@pytest.mark.parametrize("workflow", WORKFLOW_IDS)
+def test_every_workflow_task_evaluates_on_the_screened_pool(workflow: str) -> None:
+    spec = _task(workflow)
+    suites = {str(s.get("name", "")): dict(s) for s in spec.eval_suites}
+
+    assert "MATHPOOL" in suites, sorted(suites)
+    assert suites["MATHPOOL"] == MATHPOOL_SUITE
+
+
+def test_every_evaluation_suite_of_every_math_task_is_a_prepared_artifact() -> None:
+    """A task file may not name a data file the manifest cannot produce.
+
+    Both halves of this bug shipped once: `MATHPOOL` and `MATHTEST` pointed at
+    files that were in no manifest entry and that no script under
+    `scripts/10_data/` wrote, so a reader who ran the preparation exactly as the
+    README says ended up with task files pointing at nothing.
+    """
+    outputs = yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))["outputs"]
+    prepared = {str(entry["output_path"]) for entry in outputs}
+
+    unresolved: List[str] = []
+    for rel_path in MATH_TASK_YAMLS:
+        spec = load_task(str(REPO_ROOT / rel_path))
+        for suite in spec.eval_suites:
+            if str(suite.get("path", "")) not in prepared:
+                unresolved.append(f"{rel_path}: {suite.get('name')} -> {suite.get('path')}")
+
+    assert not unresolved, "evaluation suites with no manifest entry:\n" + "\n".join(unresolved)
 
 
 def test_every_workflow_has_a_math500_evaluation_suite() -> None:

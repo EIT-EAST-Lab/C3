@@ -28,9 +28,6 @@ environment:
     - name: "GSM8K-test"
       path: "data/GSM8K/test.jsonl"
       limit: null
-    - name: "MATHPOOL"
-      path: "data/MATH/pool_informative.jsonl"
-      limit: null
 
   # Environment and reward conventions.
   episode_length: 1

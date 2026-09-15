@@ -10,10 +10,21 @@ import hashlib
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 import yaml
+
+# The pool builder below and the E1 screening pass have to agree on what the id
+# of a prepared row is, so both call the same function instead of each carrying
+# its own rule. Importing it needs the repository root on sys.path, the same
+# bootstrap scripts/70_rebuild/e1_cells.py uses.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from c3.analysis.rebuild.pool_ids import row_id  # noqa: E402
 
 # The download stack is optional at import time. The pure helpers in this file
 # (normalize_question, subtract_by_question, _pick_repo_files, _source_configs)
@@ -609,13 +620,17 @@ def subtract_by_question(
 # -----------------------------
 
 
-def _prepare_math_train(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
+def _prepare_math_subject_union(spec: Dict[str, Any], *, name: str) -> Iterable[Dict[str, Any]]:
     """
-    Canonical MATH train split: every config in `source.configs`, concatenated.
+    One MATH split: every config in `source.configs`, concatenated.
 
-    The upstream repository stores one config per subject, so the train split of
-    the benchmark is the union of the seven subject train splits. They are read
-    in manifest order and deduplicated, so the output is deterministic.
+    The upstream repository stores one config per subject, so a split of the
+    benchmark is the union of the seven subject splits. They are read in manifest
+    order and deduplicated, so the output is deterministic.
+
+    `MATH-train` and `MATH-test` differ in `source.split` and in nothing else, so
+    they share this builder: the row format, the deduplication key and the answer
+    gate cannot drift apart between the two artifacts.
     """
     src = spec["source"]
 
@@ -627,7 +642,7 @@ def _prepare_math_train(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
     for cfg in _source_configs(src):
         sub = _source_for_config(src, cfg)
         src_str = _source_string(sub, cfg)
-        logical = f"MATH-train[{cfg}]" if cfg else "MATH-train"
+        logical = f"{name}[{cfg}]" if cfg else name
 
         for x in _iter_hf_rows(sub, logical_name=logical):
             sol = x.get("solution")
@@ -670,7 +685,22 @@ def _prepare_math_train(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
                 continue
             yield row
     if dropped_without_answer:
-        print(f"[INFO] MATH-train: dropped {dropped_without_answer} row(s) whose solution has no extractable answer")
+        print(f"[INFO] {name}: dropped {dropped_without_answer} row(s) whose solution has no extractable answer")
+
+
+def _prepare_math_train(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
+    """Canonical MATH train split, the union of the seven subject train splits."""
+    return _prepare_math_subject_union(spec, name="MATH-train")
+
+
+def _prepare_math_test(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
+    """
+    Canonical MATH test split, the union of the seven subject test splits.
+
+    It is the set MATH500 is drawn from, so it is an evaluation artifact and the
+    overlap gate checks it against every training file like any other.
+    """
+    return _prepare_math_subject_union(spec, name="MATH-test")
 
 
 def _prepare_math500(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
@@ -744,11 +774,138 @@ def _prepare_gsm8k(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
 
 
 # -----------------------------
+# The informative-question pool (MATHPOOL)
+# -----------------------------
+
+# The E1 screening pass selects the questions whose alternatives differ enough to
+# carry a measurable credit signal. The repository does not redistribute dataset
+# rows, so what it ships is the id list of that selection; this builder turns the
+# list back into a file by taking those rows out of the prepared MATH-test
+# artifact. Until the screening pass has run the list is empty, and then the
+# builder writes nothing instead of writing an empty artifact.
+
+POOL_SKIP_MESSAGE = "[SKIP] MATHPOOL: pool_informative_ids.json is empty; run the E1 screening pass first"
+
+
+def _pool_ids_path(spec: Dict[str, Any]) -> Path:
+    """Where the id list lives, from `source.id`, resolved against the repository root."""
+    raw = str(spec.get("source", {}).get("id") or "").strip()
+    if not raw:
+        raise SystemExit("[FAIL] MATH-pool: source.id must name the id list, for example configs/data/pool_informative_ids.json.")
+    path = Path(raw)
+    return path if path.is_absolute() else REPO_ROOT / path
+
+
+def load_pool_ids(path: Path) -> List[str]:
+    """
+    The `unique_ids` of the pool id list, in file order.
+
+    An id that repeats, an empty id, or a `screen.taken` count that disagrees
+    with the length of the list is a failure here rather than a surprise in the
+    prepared file. An empty list is not a failure; it is the state the repository
+    ships in, and the caller turns it into a skip.
+    """
+    if not path.exists():
+        raise SystemExit(f"[FAIL] MATH-pool: id list not found: {path}")
+
+    with path.open("r", encoding="utf-8") as f:
+        obj = json.load(f)
+    if not isinstance(obj, dict):
+        raise SystemExit(f"[FAIL] MATH-pool: {path} must hold a JSON object.")
+
+    raw = obj.get("unique_ids", None)
+    if not isinstance(raw, list):
+        raise SystemExit(f"[FAIL] MATH-pool: {path} has no `unique_ids` list.")
+
+    ids: List[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        value = str(item).strip()
+        if not value:
+            raise SystemExit(f"[FAIL] MATH-pool: {path} lists an empty id.")
+        if value in seen:
+            raise SystemExit(f"[FAIL] MATH-pool: {path} lists the id {value!r} twice.")
+        seen.add(value)
+        ids.append(value)
+
+    screen = obj.get("screen", None)
+    taken = screen.get("taken", None) if isinstance(screen, dict) else None
+    if taken is not None and int(taken) != len(ids):
+        raise SystemExit(f"[FAIL] MATH-pool: {path} says screen.taken={taken} but lists {len(ids)} ids.")
+
+    return ids
+
+
+def _pool_ids_or_skip(spec: Dict[str, Any]) -> Optional[List[str]]:
+    """The pool ids, or None (with the skip line printed) while the list is empty."""
+    ids = load_pool_ids(_pool_ids_path(spec))
+    if not ids:
+        print(POOL_SKIP_MESSAGE)
+        return None
+    return ids
+
+
+def index_rows_by_id(path: Path, *, name: str) -> Dict[str, Dict[str, Any]]:
+    """Every row of a prepared JSONL file, keyed by `row_id`."""
+    out: Dict[str, Dict[str, Any]] = {}
+    with path.open("r", encoding="utf-8") as f:
+        for lineno, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            key = row_id(row)
+            if key in out:
+                raise SystemExit(f"[FAIL] {name}: {path} line {lineno} repeats the row id {key!r}.")
+            out[key] = row
+    return out
+
+
+def _prepare_math_pool(
+    spec: Dict[str, Any],
+    *,
+    ids: List[str],
+    out_dir: Path,
+    outputs: Dict[str, Dict[str, Any]],
+) -> Iterable[Dict[str, Any]]:
+    """
+    The rows of the parent artifact named by the id list, in the order it gives.
+
+    A missing id is a failure and never a shorter file: the pool is what the
+    measurement is defined over, so a silently smaller one would change the
+    measurement without saying so.
+    """
+    parent_name = str(spec["source"].get("parent") or "").strip()
+    if parent_name not in outputs:
+        raise SystemExit(f"[FAIL] MATH-pool: source.parent={parent_name!r} is not a manifest output entry.")
+
+    parent_path = _resolve_output_path(outputs[parent_name]["output_path"], out_dir)
+    if not parent_path.exists():
+        raise SystemExit(
+            f"[FAIL] MATH-pool: {parent_name} is not prepared yet ({parent_path}). "
+            "Prepare it first; the pool is a subset of it."
+        )
+
+    by_id = index_rows_by_id(parent_path, name=parent_name)
+    missing = [i for i in ids if i not in by_id]
+    if missing:
+        raise SystemExit(
+            f"[FAIL] MATH-pool: {len(missing)} of {len(ids)} ids are not in {parent_name} "
+            f"({parent_path}). First few: {missing[:5]}. The id list and the prepared parent "
+            "must come from the same revision."
+        )
+
+    print(f"[INFO] MATH-pool: {len(ids)} of {len(by_id)} {parent_name} rows selected by the id list")
+    for wanted in ids:
+        yield by_id[wanted]
+
+
+# -----------------------------
 # Candidate evaluation benchmarks (start-accuracy probe)
 # -----------------------------
 
 # These five artifacts exist so the start accuracy of a frozen policy can be
-# measured on benchmarks that may replace the ones with no headroom left. They
+# measured on candidate benchmarks before any of them is adopted. They
 # are evaluation only, nothing trains on them, and they are prepared only when
 # --prepare_eval_probe_sets 1 is passed, so the default preparation run and the
 # release checks are unchanged.
@@ -994,6 +1151,10 @@ def main() -> None:
     ap.add_argument("--update_manifest_sha256", type=int, default=0, nargs="?", const=1, choices=[0, 1])
 
     ap.add_argument("--prepare_math_train", type=int, default=1)
+    ap.add_argument("--prepare_math_test", type=int, default=1)
+    # The pool is a subset of MATH-test named by configs/data/pool_informative_ids.json.
+    # While that list is empty this prepares nothing, so the flag can default to 1.
+    ap.add_argument("--prepare_math_pool", type=int, default=1)
     ap.add_argument("--prepare_math500", type=int, default=1)
     ap.add_argument("--prepare_cmath", type=int, default=1)
     ap.add_argument("--prepare_gsm8k", type=int, default=1)
@@ -1086,6 +1247,15 @@ def main() -> None:
 
     if args.prepare_math_train:
         _run("MATH-train", _prepare_math_train)
+    if args.prepare_math_test:
+        _run("MATH-test", _prepare_math_test)
+    if args.prepare_math_pool:
+        pool_spec = idx.get("MATH-pool")
+        if pool_spec is None:
+            raise SystemExit("Manifest missing output entry: MATH-pool")
+        pool_ids = _pool_ids_or_skip(pool_spec)
+        if pool_ids is not None:
+            _run("MATH-pool", lambda s: _prepare_math_pool(s, ids=pool_ids, out_dir=out_dir, outputs=idx))
     if args.prepare_math500:
         _run("MATH500", _prepare_math500)
     if args.prepare_cmath:

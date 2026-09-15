@@ -101,6 +101,7 @@ The `scripts/` numbers are the workflow:
 | [scripts/40_train/](scripts/40_train/) | The paper training matrix (GPU) |
 | [scripts/50_eval/](scripts/50_eval/) | The paper main-results sweep (GPU) |
 | [scripts/60_analysis/](scripts/60_analysis/) | Analysis figures |
+| [scripts/70_rebuild/](scripts/70_rebuild/) | Reliability and ablation cells, and the start-accuracy probe (GPU) |
 | [scripts/90_audit/](scripts/90_audit/) | Release audit and the local release gate |
 | [scripts/_lib/](scripts/_lib/) | Shared shell helpers, sourced rather than run |
 
@@ -311,7 +312,7 @@ bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
   --mappo_critic_ckpt <PATH_TO_MAPPO_CRITIC>
 ```
 
-### Reliability and ablation drivers
+### Reliability and Ablation Drivers
 
 Three drivers under [scripts/70_rebuild/](scripts/70_rebuild/) measure the credit
 estimator itself on a frozen policy. They are not on the training path and they

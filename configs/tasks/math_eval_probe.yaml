@@ -5,10 +5,11 @@
 # the main task in one place: the evaluation suites. Nothing here trains, and no
 # paper number comes from this file.
 #
-# The seven suites are the benchmark candidates plus the two ceiling controls.
-# Each is capped at 100 problems, which is the probe budget, and the cap takes
-# the first 100 rows of the prepared file, not a random sample. AMC23 and AIME24
-# are smaller than the cap, so they contribute all of their rows.
+# The eight suites are MATH500, the five benchmark candidates (Minerva-Math,
+# OlympiadBench, AMC23, AIME24, AIME25) and the two ceiling controls (GSM8K-test,
+# CMATH-test). Each is capped at 100 problems, which is the probe budget, and the
+# cap takes the first 100 rows of the prepared file, not a random sample. AMC23,
+# AIME24 and AIME25 are smaller than the cap, so they contribute all of their rows.
 #
 # Run it with scripts/70_rebuild/eval_probe.py.
 
@@ -31,7 +32,7 @@ environment:
       weight: 1.0
       limit: null
 
-  # Evaluation: the seven candidate and control suites, 100 problems each.
+  # Evaluation: the eight candidate and control suites, 100 problems each.
   eval_suites:
     - name: "MATH500"
       path: "data/MATH500/test.jsonl"
