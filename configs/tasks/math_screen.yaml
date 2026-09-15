@@ -1,0 +1,39 @@
+# ===== Task: math_screen (E1 screening pass over the whole MATH test pool) =====
+# Same training set as math.yaml; the evaluation suite MATHTEST is data/MATH/test_full.jsonl,
+# the MATH test split (the competition_math mirror minus the canonical train split, 4,999
+# problems including MATH500). Used only by scripts that screen questions for the E1
+# reliability measurement (preregistration revision 16); never for training.
+experiment_name: "c3_math_screen"
+
+environment:
+  env_name: "MathEnv"
+  sampling_mode: concat
+  reshuffle_each_epoch: true
+
+  train_datasets:
+    - name: "MATH-train"
+      path: "data/MATH/train.jsonl"
+      weight: 1.0
+      limit: null
+    - name: "CMATH-train"
+      path: "data/CMATH/train.jsonl"
+      weight: 1.0
+      limit: null
+
+  eval_suites:
+    - name: "MATHTEST"
+      path: "data/MATH/test_full.jsonl"
+      limit: null
+    - name: "MATH500"
+      path: "data/MATH500/test.jsonl"
+      limit: null
+
+  episode_length: 1
+  math_backend: marft
+  reward_mode: vote_binary
+  use_math_verify: true
+  mix_seed: 42
+
+# Roles: the two-agent workflow.
+mas:
+  roles_path: "../roles/math/roles_duo.json"

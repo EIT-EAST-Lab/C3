@@ -3,7 +3,7 @@ experiment_name: "c3_math_c5"
 
 environment:
   env_name: "MathEnv"
-  sampling_mode: merge_epoch
+  sampling_mode: concat        # every problem appears once per epoch; merge_epoch oversamples the smaller source
   reshuffle_each_epoch: true   # reshuffle at the start of every epoch; set false to keep a fixed order
 
   # Training set: mixed sampling over several sources.
@@ -27,6 +27,9 @@ environment:
       limit: null
     - name: "GSM8K-test"
       path: "data/GSM8K/test.jsonl"
+      limit: null
+    - name: "MATHPOOL"
+      path: "data/MATH/pool_informative.jsonl"
       limit: null
 
   # Environment and reward conventions.
