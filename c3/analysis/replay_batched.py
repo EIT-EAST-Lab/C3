@@ -14,7 +14,8 @@ Stages, in order:
 
   A. candidates: one prompt per bucket, n = the number of alternatives the
      config asks for, with the same de-duplication and the same retry bound as
-     `run_bucket`.
+     `run_bucket`. Forced actions, when the caller passes any, go in first and
+     are not sampled, exactly as in `run_bucket`.
   B. replays: for replay index r and for each role after the target role in
      topological order, one prompt per (bucket, candidate), n = 1.
   C. returns: one evaluator call per (bucket, candidate, replay).
@@ -214,12 +215,13 @@ def _collect_candidates(
     base_seed: int,
     total_req: int,
     batch_prompts: int,
+    forced: Sequence[str] = (),
 ) -> list[list[str]]:
     """Stage A: alternatives for the target role of every bucket.
 
-    Mirrors `run_bucket`: unique texts only, the optional first sample that puts
-    a resampled action at j=0, and at most `min(30, max(5, 2 * total_req))`
-    rounds of topping up.
+    Mirrors `run_bucket`: forced actions first, then unique texts only, the
+    optional first sample that puts a resampled action at j=0, and at most
+    `min(30, max(5, 2 * total_req))` rounds of topping up.
     """
     candidates: list[list[str]] = [[] for _ in states]
     seen: list[set[str]] = [set() for _ in states]
@@ -228,7 +230,14 @@ def _collect_candidates(
 
     keys = [str(s.question_id) for s in states]
 
-    if cfg.include_real_as_j0:
+    # The forced actions go in ahead of every sampled alternative, so the E3a
+    # null arm is j=0 in every bucket. Same list for every bucket, so the
+    # `not candidates` guard of `run_bucket` becomes `not forced` here.
+    if forced:
+        for b in range(len(states)):
+            _unique_extend(candidates[b], seen[b], forced, total_req)
+
+    if cfg.include_real_as_j0 and not forced:
         seeds = [batched_seed(base_seed, k, _CANDIDATE_STAGE, 0, cfg.target_role) for k in keys]
         texts = _sample_stage(
             runner,
@@ -286,6 +295,7 @@ def run_buckets_batched(
     target_role: str,
     next_role: str | None,
     batch_prompts: int = DEFAULT_BATCH_PROMPTS,
+    forced_actions: Sequence[str] | None = None,
 ) -> list[Bucket]:
     """Build one bucket per restart state, batching every stage across buckets.
 
@@ -295,6 +305,12 @@ def run_buckets_batched(
     sampled texts differ from the sequential path because the seeds are derived
     differently, which is the point: the sequential path gives every replay of a
     bucket the same seed.
+
+    `forced_actions` is the `run_bucket` parameter of the same name, applied to
+    every bucket of the call: the texts are placed ahead of the sampled
+    alternatives, so the E3a null arm is j=0 everywhere. They count against
+    `cfg.num_candidates` exactly as they do in `run_bucket`, so a caller that
+    wants n sampled alternatives plus one injected arm asks for n + 1.
 
     `target_role` and `next_role` name the measured position. They must agree
     with `cfg`, which already carries them; a mismatch is refused rather than
@@ -355,6 +371,7 @@ def run_buckets_batched(
         base_seed=base_seed,
         total_req=total_req,
         batch_prompts=batch_prompts,
+        forced=[str(text) for text in (forced_actions or ())],
     )
 
     # Stage B. One dict of role outputs per (bucket, candidate, replay), grown

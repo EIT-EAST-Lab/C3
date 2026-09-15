@@ -101,7 +101,13 @@ def candidate_returns(bucket: Bucket) -> List[List[float]]:
 
 
 def n_candidates(bucket: Bucket) -> int:
-    """How many alternatives the group carries (the real action included)."""
+    """How many alternatives the group carries.
+
+    All of them are resampled from the frozen policy: the real action does not
+    take a slot (contract revision 2, `include_real_as_j0 = false`). A group can
+    still come back with fewer than the requested number, since the runner drops
+    duplicate samples.
+    """
     return len(bucket.get("candidates") or [])
 
 
@@ -288,6 +294,12 @@ class CellResult:
     pool behind wgv: the reference pools the within-group variance over every
     group that passes the alternative-count and replay-count clauses, including
     groups whose halves are flat.
+
+    n2_direction_agreement is the share of +1 among those same rho values, and
+    it is defined only when every group entering the mean carries exactly two
+    alternatives, since that is the case in which rho can only be +1 or -1. It
+    is the value the manifest's branching-2 rows print (driver ruling A3), and
+    rel_evenodd of the same pool is 2 x agreement - 1.
     """
 
     rel_evenodd: Optional[float] = None
@@ -326,11 +338,14 @@ def cell_reliability(
     rhos: List[float] = []
     variances: List[float] = []
     rand_means: List[float] = []
-    all_two = bool(buckets)
+    # Groups of exactly two alternatives among those entering the mean. The
+    # direction-agreement rate is a statement about that pool, so a collected
+    # group the exclusion rule already dropped (a branching-2 group whose two
+    # samples came back identical, for instance) must not decide whether the
+    # rate is defined.
+    two_in_pool = 0
 
     for b in buckets:
-        if n_candidates(b) != 2:
-            all_two = False
         vals = _group_matrix(b, min_cands)
         if vals is None:
             continue
@@ -341,6 +356,8 @@ def cell_reliability(
         if rho is None:
             continue
         rhos.append(rho)
+        if vals.shape[0] == 2:
+            two_in_pool += 1
         rand = bucket_splithalf_random(
             b, rng_split, min_cands=min_cands, n_splits=n_random_splits
         )
@@ -357,7 +374,7 @@ def cell_reliability(
     if rhos:
         res.rel_evenodd = float(np.mean(rhos))
         res.rel_ci_lo, res.rel_ci_hi = boot_ci(rhos, rng_boot_rho, n_boot)
-        if all_two:
+        if two_in_pool == len(rhos):
             res.n2_direction_agreement = float(np.mean(np.asarray(rhos) >= _PLUS_ONE))
     if rand_means:
         res.rel_random = float(np.mean(rand_means))

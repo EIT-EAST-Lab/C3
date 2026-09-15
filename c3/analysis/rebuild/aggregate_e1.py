@@ -20,6 +20,14 @@ rule is branching 4:
     E1.fixed_b8.a3.<model>.*            <- sweep_n3
     E1.fixed_b8.mt4.<model>.*           <- sweep_n2
 
+Two alternatives is a special case of the estimator, not a missing measurement
+(driver ruling A3, 2026-09-15). A two-alternative group's split-half correlation
+can only be +1 or -1, so the sweep row of that cell carries the direction
+agreement rate (the share of +1) while the fixed-budget row of mt4, whose unit
+is a correlation, carries the mean correlation itself; the two are the same
+reading, since mean rho = 2 x agreement - 1. Both are computed on the same pool,
+the one the exclusion rule leaves with min_cands=2.
+
 This script never writes the manifest and never writes a verdict key: filling a
 value is the driver's action, through 30_analysis/rebuild/manifest_writer.py.
 Keys the manifest does not define are skipped with a line on stderr, so the key
@@ -31,16 +39,14 @@ Only numpy, scipy and the standard library are imported (through this package).
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import os
-import subprocess
 import sys
 from collections import OrderedDict
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from . import splithalf as sh
+from .summary import build_summary, git_sha, key_refusal, load_manifest, write_summary
 
 __all__ = [
     "SummaryBuilder",
@@ -64,45 +70,42 @@ PD_WORKFLOWS = ("a2", "a3", "mt4", "c5", "c10", "branch")
 FIXED_B8_SOURCE = {"a2": (4, 2), "a3": (3, 3), "mt4": (2, 4)}  # workflow -> (n, K)
 PD_SOURCE_N = 4
 
+# The printed name of each workflow, for the manifest keys whose value is a name
+# rather than a number (driver ruling B7, 2026-09-15). The directory name is an
+# internal label; these are the words the paper uses.
+ARM_DISPLAY_NAMES = {
+    "a2": "two-agent",
+    "a3": "three-agent",
+    "mt4": "four-turn",
+    "branch": "branching",
+    "c5": "five-agent chain",
+    "c10": "ten-agent chain",
+}
+
 # Statistical settings (preregistration and results contract section 4).
 MIN_CANDS = 3
+# Two-alternative cells: the exclusion rule's alternative count is relaxed to 2,
+# which is the only way the manifest's branching-2 rows can be measured at all.
+MIN_CANDS_N2 = 2
 N_BOOT = 2000
 N_RANDOM_SPLITS = 200
 SEED = 0
 
 BUCKET_FILE = "buckets.jsonl"
 
+# Said on every row read off a two-alternative cell (ruling A3).
+N2_NOTE = "at two alternatives rho is +1 or -1; mean = 2 x agreement - 1"
+
 
 # -------------------------
 # summary plumbing (shared by the other aggregators in this package)
+#
+# `load_manifest`, `git_sha` and the document writer itself come from
+# summary.py, the one summary implementation of this package (ruling B13).
+# `source_path` below is a different function from `summary.source_path`: it
+# joins a results root with a cell's sub-path and keeps the root exactly as the
+# caller spelled it.
 # -------------------------
-
-
-def load_manifest(path: str) -> Dict[str, Dict[str, Any]]:
-    """Read the paper's manifest as key to entry.
-
-    Accepts the flat file the rebuild tree uses and a {"keys": {...}} wrapper.
-    """
-    with open(path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
-    if isinstance(data, dict) and isinstance(data.get("keys"), dict):
-        data = data["keys"]
-    if not isinstance(data, dict) or not data:
-        raise ValueError("%s does not look like a manifest" % path)
-    return data
-
-
-def git_sha(start_dir: str) -> str:
-    """Short commit of the repository holding `start_dir`, or "unknown"."""
-    try:
-        out = subprocess.run(
-            ["git", "-C", start_dir, "rev-parse", "HEAD"],
-            capture_output=True, text=True, timeout=10, check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return "unknown"
-    sha = out.stdout.strip()
-    return sha if out.returncode == 0 and sha else "unknown"
 
 
 def _as_source_list(source: Any) -> List[str]:
@@ -112,13 +115,18 @@ def _as_source_list(source: Any) -> List[str]:
 
 
 class SummaryBuilder:
-    """Collects the keys of one experiment and writes the summary.json of the
-    results contract section 3.4.
+    """Collects the keys of one experiment one at a time, then hands them to
+    `summary.write_summary` (ruling B13: one summary implementation for the whole
+    package). This class is the collecting half; the document shape, the git sha,
+    the timestamp and the empty-note rule all live in summary.py.
 
     Refusals (each reported on stderr, none fatal): a key the manifest does not
     define, a verdict key, a value that is not a finite number or a non-empty
-    string, and a non-positive n. They are refusals rather than errors because a
-    partly collected experiment should still produce the keys it can support.
+    string, and a non-positive n. The first two are `summary.key_refusal`, the
+    same rule the other aggregation path applies; the last two are this path's
+    own, because it is handed raw estimator output. They are refusals rather
+    than errors because a partly collected experiment should still produce the
+    keys it can support.
     """
 
     def __init__(self, experiment: str, script: str, manifest: Mapping[str, Any],
@@ -139,11 +147,10 @@ class SummaryBuilder:
         return False
 
     def add(self, key: str, value: Any, *, n: int, source: Any, note: str = "") -> bool:
-        entry = self.manifest.get(key)
-        if entry is None:
-            return self.refuse(key, "not a manifest key")
-        if entry.get("unit") == "verdict":
-            return self.refuse(key, "verdict key, the driver decides it")
+        why = key_refusal(key, self.manifest)
+        if why is not None:
+            return self.refuse(key, why)
+        entry = self.manifest[key]
         if isinstance(value, bool) or value is None:
             return self.refuse(key, "no value")
         if isinstance(value, (int, float)):
@@ -165,24 +172,15 @@ class SummaryBuilder:
         }
         return True
 
-    def payload(self, sha_dir: Optional[str] = None) -> Dict[str, Any]:
-        return {
-            "experiment": self.experiment,
-            "generated_by": {
-                "script": self.script,
-                "git_sha": git_sha(sha_dir or os.path.dirname(os.path.abspath(__file__))),
-                "when": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            },
-            "keys": self.keys,
-        }
+    def payload(self) -> Dict[str, Any]:
+        """The summary document, built by the package's one implementation."""
+        return build_summary(self.experiment, self.script, self.keys, self.manifest,
+                             stream=self.stream)
 
-    def write(self, path: str, sha_dir: Optional[str] = None) -> str:
-        directory = os.path.dirname(os.path.abspath(path))
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        with open(path, "w", encoding="utf-8", newline="\n") as fh:
-            json.dump(self.payload(sha_dir), fh, ensure_ascii=False, indent=2)
-            fh.write("\n")
+    def write(self, path: str) -> str:
+        """Write the document and return the path it was written to."""
+        write_summary(path, self.experiment, self.script, self.keys, self.manifest,
+                      stream=self.stream)
         return path
 
 
@@ -266,7 +264,12 @@ def scan_e1_cells(results_root: str, builder: SummaryBuilder) -> Dict[Tuple[str,
 
 
 class _CellStore:
-    """Loads each cell once and keeps its buckets and its reliability result."""
+    """Loads each cell once and keeps its buckets and its reliability result.
+
+    A cell is cached per (path, min_cands): the two-alternative cells are read
+    with the relaxed alternative count, every other cell with the preregistered
+    one, and a tree could in principle be asked for both.
+    """
 
     def __init__(self, min_cands: int = MIN_CANDS, n_boot: int = N_BOOT,
                  n_random_splits: int = N_RANDOM_SPLITS, seed: int = SEED) -> None:
@@ -275,19 +278,20 @@ class _CellStore:
         self.n_random_splits = n_random_splits
         self.seed = seed
         self._buckets: Dict[str, List[Dict[str, Any]]] = {}
-        self._cells: Dict[str, sh.CellResult] = {}
+        self._cells: Dict[Tuple[str, int], sh.CellResult] = {}
 
     def buckets(self, path: str) -> List[Dict[str, Any]]:
         if path not in self._buckets:
             self._buckets[path] = sh.load_buckets(path)
         return self._buckets[path]
 
-    def cell(self, path: str) -> sh.CellResult:
-        if path not in self._cells:
-            self._cells[path] = sh.cell_reliability(
+    def cell(self, path: str, min_cands: Optional[int] = None) -> sh.CellResult:
+        want = self.min_cands if min_cands is None else int(min_cands)
+        if (path, want) not in self._cells:
+            self._cells[(path, want)] = sh.cell_reliability(
                 self.buckets(path), n_random_splits=self.n_random_splits,
-                n_boot=self.n_boot, seed=self.seed, min_cands=self.min_cands)
-        return self._cells[path]
+                n_boot=self.n_boot, seed=self.seed, min_cands=want)
+        return self._cells[(path, want)]
 
 
 # -------------------------
@@ -296,11 +300,16 @@ class _CellStore:
 
 
 def _add_cell_block(builder: SummaryBuilder, prefix: str, cell: sh.CellResult,
-                    source: str, note_head: str) -> None:
-    """The six keys every reliability row of the manifest carries."""
+                    source: str, note_head: str, rel_extra: str = "") -> None:
+    """The six keys every reliability row of the manifest carries.
+
+    `rel_extra` is appended to the `.rel` note alone, where a row needs a word
+    about the statistic itself (the two-alternative rows do).
+    """
     head = (note_head + "; ") if note_head else ""
+    tail = ("; " + rel_extra) if rel_extra else ""
     builder.add(prefix + ".rel", cell.rel_evenodd, n=cell.n_groups, source=source,
-                note=head + rel_note(cell))
+                note=head + rel_note(cell) + tail)
     builder.add(prefix + ".rel_ci_lo", cell.rel_ci_lo, n=cell.n_groups, source=source,
                 note=head + "percentile bootstrap over groups, B=%d" % N_BOOT)
     builder.add(prefix + ".rel_ci_hi", cell.rel_ci_hi, n=cell.n_groups, source=source,
@@ -327,16 +336,22 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
     for (wf, model, n) in sorted(cells):
         path = cells[(wf, model, n)]
         key = "E1.sweep_n.%s.%s.n%d.rel" % (wf, model, n)
-        if n == 2:
-            builder.note(
-                "skip %s: with two alternatives every group is excluded by the "
-                "three-alternative rule and the manifest asks for a direction-agreement "
-                "rate rather than a correlation; the driver decides that convention" % key)
-            continue
-        cell = store.cell(path)
+        two = (n == 2)
+        cell = store.cell(path, MIN_CANDS_N2 if two else None)
         if cell.n_groups == 0:
             builder.note("skip %s: no group survives the exclusion rule (%d collected)"
                          % (key, cell.n_total))
+            continue
+        if two:
+            # The manifest's unit here is an agreement rate, not a correlation.
+            if cell.n2_direction_agreement is None:
+                builder.note(
+                    "skip %s: the cell holds groups with other than two alternatives, so a "
+                    "direction-agreement rate is not the statistic of this pool" % key)
+                continue
+            builder.add(key, cell.n2_direction_agreement, n=cell.n_groups,
+                        source=rel_path(wf, model, n),
+                        note="%s; %s" % (rel_note(cell), N2_NOTE))
             continue
         builder.add(key, cell.rel_evenodd, n=cell.n_groups, source=rel_path(wf, model, n),
                     note=rel_note(cell))
@@ -362,16 +377,18 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
                     builder.note("skip E1.fixed_b8.%s.%s.*: its source cell sweep_n%d was "
                                  "not collected" % (wf, model, n))
                 continue
-            cell = store.cell(cells[(wf, model, n)])
+            two = (n == 2)
+            cell = store.cell(cells[(wf, model, n)], MIN_CANDS_N2 if two else None)
             head = "derived from sweep_n%d (fixed budget B=8, K=%d)" % (n, k)
             if cell.n_groups == 0:
                 builder.note(
                     "skip E1.fixed_b8.%s.%s.*: %s, and no group survives the exclusion rule "
-                    "(%d collected); with branching 2 this is structural, so the convention "
-                    "for that row is the driver's call" % (wf, model, head, cell.n_total))
+                    "(%d collected)" % (wf, model, head, cell.n_total))
                 continue
+            # These rows print a correlation, so the two-alternative cell reports the
+            # mean rho of the same pool its sweep row reports as an agreement rate.
             _add_cell_block(builder, "E1.fixed_b8.%s.%s" % (wf, model), cell,
-                            rel_path(wf, model, n), head)
+                            rel_path(wf, model, n), head, N2_NOTE if two else "")
 
     # 4. the branching-8 minus branching-3 difference, paired by question
     deltas: Dict[Tuple[str, str], sh.DeltaResult] = {}
@@ -434,10 +451,9 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
         builder.add("E1.sweep_n.4b.delta_n8_n3_min_ci_lo", deltas[(worst, "4b")].ci_lo,
                     n=len(have_delta), source=src,
                     note=note + "; the interval is that workflow's own")
-        builder.note(
-            "skip E1.sweep_n.4b.delta_n8_n3_min_arm: the binding workflow is the directory "
-            "%s, and the printed name for it (the manifest note says something like "
-            "ten-agent chain) is a naming convention the driver owns" % worst)
+        builder.add("E1.sweep_n.4b.delta_n8_n3_min_arm", ARM_DISPLAY_NAMES[worst],
+                    n=len(have_delta), source=src,
+                    note=note + "; printed name of the directory %s" % worst)
     else:
         builder.note("skip E1.sweep_n.4b.delta_n8_n3_min{,_ci_lo,_arm}: %d of the six "
                      "workflows have both branching-8 and branching-3 cells" % len(have_delta))

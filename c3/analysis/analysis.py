@@ -18,6 +18,8 @@ Stability contract:
       --next_role / --next
       --analysis_yaml / --analysis-yaml
       --engine / --inference_engine
+      --inject_literal_candidate / --inject-literal-candidate
+      --null_form / --null-form
       --out / --out_jsonl
     credit/influence:
       --bucket / --buckets_jsonl
@@ -216,6 +218,49 @@ def _merge_extra_meta(bucket_dict: Dict[str, Any], extra_meta: Mapping[str, Any]
 
     for k, v in extra_meta.items():
         merged.setdefault(str(k), v)
+
+    bucket_dict["meta"] = merged
+    return bucket_dict
+
+
+#: The two shapes the E3a null action can be reported as.
+NULL_ARM_FORMS = ("empty", "deleted")
+
+#: Written on every bucket that carries an injected null action. The assembly
+#: drops a role whose output is the empty string: build_render_context filters
+#: falsy outputs out of {context}, and both prompt composers leave the Context
+#: section out when what is left is empty. So an empty message and a deleted
+#: paragraph reach the downstream roles as the same prompt, with no separator
+#: and no label left behind. The flag is kept because the two are different
+#: claims in the paper; this note records that here they are one measurement.
+NULL_FORM_NOTE = (
+    "empty and deleted are the same assembly here: a role whose output is the "
+    "empty string contributes no paragraph, no separator and no label to the "
+    "downstream context, so both forms produce identical prompts."
+)
+
+
+def _apply_null_arm_meta(bucket_dict: Dict[str, Any], null_meta: Mapping[str, Any]) -> Dict[str, Any]:
+    """Record the injected null action on one bucket dict.
+
+    Unlike `_merge_extra_meta` these keys overwrite: they state what this run
+    actually injected, so a value carried in through --meta_json cannot
+    contradict them. With no injection the input object is returned unchanged,
+    which keeps the default output byte identical.
+    """
+    if not null_meta:
+        return bucket_dict
+
+    meta = bucket_dict.get("meta")
+    if isinstance(meta, Mapping):
+        merged: Dict[str, Any] = dict(meta)
+    elif meta is None:
+        merged = {}
+    else:
+        merged = {"meta_raw": meta}
+
+    for k, v in null_meta.items():
+        merged[str(k)] = v
 
     bucket_dict["meta"] = merged
     return bucket_dict
@@ -727,6 +772,24 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
             _die(f"--meta_json must be a JSON object, got {type(parsed_meta).__name__}.")
         extra_meta = parsed_meta
 
+    # E3a null arm. The injected text is handed to the runner as a forced
+    # action, which puts it at j=0 ahead of every sampled alternative.
+    inject_text = getattr(args, "inject_literal_candidate", None)
+    null_form = str(getattr(args, "null_form", "empty") or "empty")
+    if null_form not in NULL_ARM_FORMS:
+        _die(f"--null_form must be one of {list(NULL_ARM_FORMS)}, got {null_form!r}.")
+
+    forced_actions: list[str] | None = None
+    null_meta: Dict[str, Any] = {}
+    if inject_text is not None:
+        forced_actions = [str(inject_text)]
+        null_meta = {
+            "null_arm": 0,
+            "null_form": null_form,
+            "null_text": str(inject_text),
+            "null_form_note": NULL_FORM_NOTE,
+        }
+
     inc_real_cli = _as_bool_tri(args.include_real_as_j0)
     include_real_as_j0 = (
         bool(inc_real_cli) if inc_real_cli is not None else bool(_cfg_get(defaults, ["fidelity", "include_real_as_j0"], False))
@@ -738,6 +801,16 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
         else int(_cfg_get(defaults, ["fidelity", "num_extra_samples_for_V"], 0))
     )
     num_extra_v_samples = max(int(num_extra_v_samples), 0)
+
+    if forced_actions is not None and include_real_as_j0:
+        _die(
+            "--inject_literal_candidate puts the null action at j=0, so it cannot be combined with "
+            "include_real_as_j0=true, which records j=0 as the real action. Pass --include_real_as_j0 false."
+        )
+
+    # The null action takes j=0 without spending an alternative slot, so
+    # --num_candidates keeps meaning the number of sampled alternatives.
+    total_candidates = int(num_candidates) + (1 if forced_actions is not None else 0)
 
     runner = _make_runner(args, replay_mod, decode_defaults=prefix_decoding)
 
@@ -792,7 +865,7 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
 
             return ReplayConfig(
                 target_role=canonical_target,
-                num_candidates=int(num_candidates),
+                num_candidates=int(total_candidates),
                 num_completions_per_candidate=int(num_completions),
                 decoding=dict(decoding),
                 record_next_teammate=bool(record_next),
@@ -813,9 +886,9 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
                 if cfg_obj is None:
                     cfg_obj = _make_cfg(roles_topo)
 
-                bucket_obj = run_bucket(rs, cfg_obj, forced_actions=None)
+                bucket_obj = run_bucket(rs, cfg_obj, forced_actions=forced_actions)
                 n_written += 1
-                yield _merge_extra_meta(_as_dict(bucket_obj), extra_meta)
+                yield _apply_null_arm_meta(_merge_extra_meta(_as_dict(bucket_obj), extra_meta), null_meta)
 
                 n += 1
                 if n >= num_instances:
@@ -849,8 +922,11 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
                 target_role=cfg_obj.target_role,
                 next_role=cfg_obj.next_role,
                 batch_prompts=int(getattr(args, "batch_prompts", 4096)),
+                forced_actions=forced_actions,
             )
-            return [_merge_extra_meta(_as_dict(b), extra_meta) for b in buckets]
+            return [
+                _apply_null_arm_meta(_merge_extra_meta(_as_dict(b), extra_meta), null_meta) for b in buckets
+            ]
 
         if bool(getattr(args, "batched", False)):
             rows = _build_batched()
@@ -871,6 +947,11 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
             f"candidates={num_candidates}, completions={num_completions}, "
             f"include_real_as_j0={include_real_as_j0}, num_extra_v_samples={num_extra_v_samples})"
         )
+        if forced_actions is not None:
+            _eprint(
+                f"[c3_analysis] Null arm at j=0 (null_form={null_form}, {len(forced_actions[0])} chars); "
+                f"{total_candidates} alternatives per bucket = {num_candidates} sampled + 1 injected."
+            )
 
     finally:
         close = getattr(runner, "close", None)
@@ -1334,6 +1415,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "--meta_json",
         default=None,
         help="JSON dict of experiment-level keys added to every bucket meta (existing keys are kept).",
+    )
+
+    # E3a null arm (default off: without it the output is unchanged)
+    pb.add_argument(
+        "--inject_literal_candidate",
+        "--inject-literal-candidate",
+        dest="inject_literal_candidate",
+        default=None,
+        help=(
+            "Literal text injected as alternative j=0 (an empty string is allowed). "
+            "--num_candidates keeps counting sampled alternatives, so the bucket holds one more."
+        ),
+    )
+    pb.add_argument(
+        "--null_form",
+        "--null-form",
+        dest="null_form",
+        default="empty",
+        choices=list(NULL_ARM_FORMS),
+        help="Which realisation of the null action the injected text stands for (writes meta['null_form']).",
     )
 
     # batched execution (default off: the sequential path is unchanged)

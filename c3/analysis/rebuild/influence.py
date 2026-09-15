@@ -28,22 +28,29 @@ alpha, pools Y into a top-K vocabulary plus OTHER, weights J by sample mass and
 clips at zero. None of that is done here.
 
 The package-level value conventions (p-value strings, manifest loading, the
-summary.json writer) live at the bottom of this file because the work package's
-file list is fixed and this is its base module: everything else in
-`c3.analysis.rebuild` that WP-R2b owns imports them from here.
+summary.json writer) now live in `c3.analysis.rebuild.summary`, which both
+aggregation families share (driver ruling B13, 2026-09-15). They are imported
+back into this module under their old names, so everything that reads them from
+here keeps working.
 
 Module-level imports are limited to numpy, scipy and the standard library.
 """
 
 from __future__ import annotations
 
-import datetime
 import json
 import math
-import os
-import subprocess
 from collections import Counter
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
+
+from .summary import (
+    build_summary,
+    format_p,
+    git_sha,
+    load_manifest,
+    source_path,
+    write_summary,
+)
 
 __all__ = [
     "NO_ANSWER",
@@ -228,28 +235,10 @@ def bucket_influence(
 
 # -----------------------------------------------------------------------------
 # package-level conventions: p-value strings, manifest, summary.json
+#
+# The implementations moved to `summary.py` (ruling B13); they are imported at
+# the top of this file so `influence.format_p` and the rest keep their names.
 # -----------------------------------------------------------------------------
-
-
-def format_p(p: Optional[float]) -> Optional[str]:
-    """The manifest's p-value string, or None when the p value is undefined.
-
-    Convention from `10_paper/04_rebuild/_tools/manifest_skeleton.py`: a LaTeX
-    math fragment without the letter p, ``$<\\!0.001$`` below 0.001 and
-    ``$= 0.30$`` (two decimals) otherwise. None means "not computable"; the
-    caller then leaves the key out of summary.json rather than writing null.
-    """
-    if p is None:
-        return None
-    try:
-        value = float(p)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(value):
-        return None
-    if value < 0.001:
-        return "$<\\!0.001$"
-    return "$= %.2f$" % value
 
 
 def read_jsonl(path: str) -> List[Dict[str, Any]]:
@@ -262,115 +251,3 @@ def read_jsonl(path: str) -> List[Dict[str, Any]]:
                 continue
             out.append(json.loads(line))
     return out
-
-
-def load_manifest(path: str) -> Dict[str, Dict[str, Any]]:
-    """Load `results/manifest.json`: a flat mapping key -> entry."""
-    with open(path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
-    if not isinstance(data, dict):
-        raise ValueError("manifest is not a JSON object: %s" % path)
-    return data
-
-
-def source_path(path: str) -> str:
-    """Path as written into summary.json's `source`.
-
-    The contract prints repository-relative paths such as
-    ``20_data/results/E3a/a3/4b/empty/buckets.jsonl``. The aggregate scripts are
-    handed an arbitrary directory, so the rule is mechanical: cut at the last
-    ``20_data`` segment when there is one, otherwise keep the path as given.
-    Separators are normalised to forward slashes either way.
-    """
-    parts = os.path.abspath(path).replace("\\", "/").split("/")
-    if "20_data" in parts:
-        cut = len(parts) - 1 - parts[::-1].index("20_data")
-        return "/".join(parts[cut:])
-    return path.replace("\\", "/")
-
-
-def git_sha(cwd: Optional[str] = None) -> Optional[str]:
-    """HEAD of the repository holding this file, or None if git is unavailable.
-
-    Read-only (`git rev-parse HEAD`). Any failure returns None instead of
-    raising: a missing sha must not stop an aggregation.
-    """
-    where = cwd or os.path.dirname(os.path.abspath(__file__))
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=where,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if out.returncode != 0:
-        return None
-    sha = out.stdout.decode("utf-8", "replace").strip()
-    return sha or None
-
-
-def build_summary(
-    experiment: str,
-    script: str,
-    keys: Mapping[str, Mapping[str, Any]],
-    manifest: Mapping[str, Mapping[str, Any]],
-) -> Dict[str, Any]:
-    """Assemble the summary document of results contract section 3.4.
-
-    `keys` maps a manifest key to {value, n, source, note}; the unit is taken
-    from the manifest so the two cannot drift. Two mechanical refusals:
-    a key absent from the manifest raises KeyError (the contract's "unknown key,
-    exit"), and a key whose unit is "verdict" raises ValueError, because filling
-    a verdict is the driver's action and never an aggregation's.
-    """
-    unknown = [k for k in keys if k not in manifest]
-    if unknown:
-        raise KeyError("keys absent from the manifest: %s" % ", ".join(sorted(unknown)))
-    verdicts = [k for k in keys if str(manifest[k].get("unit")) == "verdict"]
-    if verdicts:
-        raise ValueError("refusing to write verdict keys: %s" % ", ".join(sorted(verdicts)))
-
-    out_keys: Dict[str, Any] = {}
-    for key in sorted(keys):
-        entry = keys[key]
-        item: Dict[str, Any] = {
-            "value": entry.get("value"),
-            "n": entry.get("n"),
-            "unit": manifest[key].get("unit"),
-            "source": list(entry.get("source") or []),
-        }
-        note = entry.get("note")
-        if note:
-            item["note"] = note
-        out_keys[key] = item
-
-    return {
-        "experiment": experiment,
-        "generated_by": {
-            "script": script,
-            "git_sha": git_sha(),
-            "when": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        },
-        "keys": out_keys,
-    }
-
-
-def write_summary(
-    out_path: str,
-    experiment: str,
-    script: str,
-    keys: Mapping[str, Mapping[str, Any]],
-    manifest: Mapping[str, Mapping[str, Any]],
-) -> Dict[str, Any]:
-    """Build the summary document and write it as UTF-8 JSON."""
-    doc = build_summary(experiment, script, keys, manifest)
-    parent = os.path.dirname(os.path.abspath(out_path))
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, ensure_ascii=False, indent=1, sort_keys=False)
-        fh.write("\n")
-    return doc

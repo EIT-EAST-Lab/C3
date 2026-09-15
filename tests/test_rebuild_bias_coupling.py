@@ -348,9 +348,9 @@ def test_bias_map_keys_match_the_hand_computation(e3a_report):
     assert value["E3a.n_points"] == 12
     assert value["E3a.bias.mean"] == pytest.approx(1.0 / 3.0, abs=1e-12)
     # 4 x 0, 4 x 0.75, 4 x 0.25 against zero: t = 3.5456 on 11 degrees of freedom.
-    # The string is the manifest's two-decimal convention, which flattens a p of
-    # 0.0046 to "0.00" (report, objection 2).
-    assert value["E3a.bias.p"] == "$= 0.00$"
+    # p is 0.0046, which the middle tier of the p-value convention prints as
+    # "< 0.01" (driver ruling A5; two decimals would read as "p equals zero").
+    assert value["E3a.bias.p"] == "$<\\!0.01$"
     assert report["bias"]["p"] == pytest.approx(0.0045872026, abs=1e-9)
 
     assert value["E3a.strata.high_infl_diff.n"] == 4
@@ -580,22 +580,36 @@ def test_correction_is_undefined_without_a_wrong_upstream_alternative():
 
 
 def test_format_p_branches():
+    """The three tiers of driver ruling A5 (preregistration revision 13), with
+    both boundaries: 0.001 belongs to the middle tier and 0.01 to the last."""
     assert inf.format_p(0.0) == "$<\\!0.001$"
     assert inf.format_p(0.0005) == "$<\\!0.001$"
-    assert inf.format_p(0.001) == "$= 0.00$"
+    assert inf.format_p(0.0009999) == "$<\\!0.001$"
+    assert inf.format_p(0.001) == "$<\\!0.01$"
+    assert inf.format_p(0.0046) == "$<\\!0.01$"
+    assert inf.format_p(0.009999) == "$<\\!0.01$"
+    assert inf.format_p(0.01) == "$= 0.01$"
     assert inf.format_p(0.3) == "$= 0.30$"
     assert inf.format_p(1.0) == "$= 1.00$"
     assert inf.format_p(float("nan")) is None
     assert inf.format_p(None) is None
 
 
-def test_build_summary_refuses_unknown_and_verdict_keys(tmp_path):
+def test_build_summary_refuses_unknown_and_verdict_keys(tmp_path, capsys):
+    """Contract revision 2: an unknown key and a verdict key are refused, one
+    line each on stderr, and the document is written without them."""
     manifest_path = tmp_path / "manifest.json"
     manifest = write_manifest(str(manifest_path), E3A_KEYS)
-    with pytest.raises(KeyError):
-        inf.build_summary("E3a", "s", {"E3a.not_a_key": {"value": 1}}, manifest)
-    with pytest.raises(ValueError):
-        inf.build_summary("E3a", "s", {"E3a.bias_concentration": {"value": "yes"}}, manifest)
+    doc = inf.build_summary(
+        "E3a", "s",
+        {"E3a.not_a_key": {"value": 1},
+         "E3a.bias_concentration": {"value": "yes"},
+         "E3a.n_points": {"value": 12, "n": 12, "source": ["x"]}},
+        manifest)
+    assert set(doc["keys"]) == {"E3a.n_points"}
+    err = capsys.readouterr().err
+    assert "skip E3a.not_a_key: not a manifest key" in err
+    assert "skip E3a.bias_concentration: verdict key" in err
 
 
 def test_aggregate_e3a_cli(tmp_path, capsys):
@@ -623,6 +637,25 @@ def test_aggregate_e3a_cli(tmp_path, capsys):
         "20_data/results/E3a/a3/4b/empty/buckets.jsonl",
         "20_data/results/E3a/a3/4b/deleted/buckets.jsonl"]
     assert doc["keys"]["E3a.concentration_factor"]["value"] == pytest.approx(6.0, abs=1e-12)
+
+
+def test_aggregate_e3a_keeps_going_when_the_manifest_lacks_a_key(tmp_path, capsys):
+    """Contract revision 2 (ruling B9): a key the manifest does not define is
+    refused with one line on stderr, the other keys are still written and the
+    command still exits zero."""
+    root = tmp_path / "E3a"
+    write_jsonl(str(root / "a3" / "4b" / "empty" / "buckets.jsonl"), e3a_buckets())
+    manifest_path = tmp_path / "manifest.json"
+    write_manifest(str(manifest_path), [k for k in E3A_KEYS if k != "E3a.n_points"])
+    out = tmp_path / "summary.json"
+
+    rc = aggregate_e3a.main(["--results", str(root), "--manifest", str(manifest_path),
+                             "--out", str(out)])
+    assert rc == 0
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert "E3a.n_points" not in doc["keys"]
+    assert len(doc["keys"]) == len(E3A_KEYS) - 2      # n_points refused, paired_p has no arm
+    assert "skip E3a.n_points: not a manifest key" in capsys.readouterr().err
 
 
 def test_aggregate_e3a_without_the_deleted_arm(tmp_path, capsys):

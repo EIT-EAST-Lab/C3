@@ -7,24 +7,31 @@ continuation seeds (seedA and seedB). For one group:
 
   A^1, A^2   the two leave-one-out advantage vectors, each from all of that
              seed's replays
-  measured   Var(A^1 - A^2) / 2, the element-wise variance over the group's n
-             alternatives (ddof as given, 1 by default per the work order)
-  predicted  sigma^2 n^2 / (B_u (n - 1)), with B_u = n c and sigma^2 the sample
-             variance (ddof=1) of every replay return in the group
+  measured   mean((A^1 - A^2)^2) / 2, the element-wise second moment over the
+             group's n alternatives (ddof=0, the default)
+  predicted  sigma^2 n^2 / (B_u (n - 1)), with B_u = n c and sigma^2 the mean
+             over alternatives of the within-alternative sample variance
+             (ddof=1) of that alternative's replay returns
   ratio      measured / predicted
 
 The cell value is the mean ratio over its groups, with a percentile bootstrap
 interval over groups. The grid value `max_dev_pct` is the largest |ratio - 1| in
 percent and `worst_ratio` is the cell ratio farthest from one.
 
-Read the ratio with the derivation in mind: under independent replays with a
-common return variance, the expected value of Var(A^1 - A^2)/2 with ddof=0
-equals the predicted quantity exactly, while ddof=1 multiplies it by
-n / (n - 1); and pooling sigma^2 over all alternatives makes it the total
-return variance, which exceeds the within-alternative variance whenever the
-alternatives differ in quality. Both effects move the ratio away from one
-without anything being wrong in the data, which is why the estimator keeps a
-`ddof` keyword instead of hard-coding one convention.
+Both conventions are the driver's ruling of 2026-09-15 (preregistration
+revision 10), and both follow from the derivation:
+
+- the difference of the two advantage vectors has mean exactly zero, because a
+  leave-one-out vector sums to zero, so the mean of squares is the estimator of
+  its variance and its expectation is sigma^2 n^2 / (B_u (n - 1)) exactly. An
+  unbiased sample variance (ddof=1) would instead multiply every group by
+  n / (n - 1), which at two alternatives doubles the ratio whatever the data
+  says. `ddof` stays a keyword so that scaling can still be shown, but the
+  default is the convention the two sides share.
+- sigma^2 in the law is the return variance of a single alternative. Pooling
+  every return of the group instead would add the spread between alternatives,
+  which drives the ratio down whenever the alternatives differ in quality and
+  has nothing to do with the estimator being right.
 
 Only numpy and the standard library plus this package's splithalf helpers are
 imported here.
@@ -42,6 +49,7 @@ from .splithalf import boot_ci, candidate_returns, loo_adv
 Bucket = Mapping[str, Any]
 
 __all__ = [
+    "DDOF",
     "GroupNoise",
     "pair_buckets",
     "group_noise",
@@ -50,6 +58,10 @@ __all__ = [
 ]
 
 PAIR_FIELDS = ("bucket_id", "question_id")
+
+# Element-wise convention of the measured noise: mean of squares, not an
+# unbiased sample variance (driver ruling A1, preregistration revision 10).
+DDOF = 0
 
 
 @dataclass
@@ -99,12 +111,13 @@ def pair_buckets(
 
 
 def group_noise(
-    bucket_a: Bucket, bucket_b: Bucket, *, key: str = "", ddof: int = 1
+    bucket_a: Bucket, bucket_b: Bucket, *, key: str = "", ddof: int = DDOF
 ) -> Optional[GroupNoise]:
     """Measured and predicted advantage noise of one group, or None when the
     group cannot carry the comparison (different alternative counts on the two
-    seeds, fewer than two alternatives, no replays, or a group whose returns are
-    all identical so the prediction is zero).
+    seeds, fewer than two alternatives, no replays, no alternative with two
+    replays to estimate its variance from, or a group whose returns are all
+    identical so the prediction is zero).
     """
     rets_a, rets_b = candidate_returns(bucket_a), candidate_returns(bucket_b)
     n = len(rets_a)
@@ -117,10 +130,17 @@ def group_noise(
     adv_b = loo_adv([float(np.mean(r)) for r in rets_b])
     measured = float(np.var(adv_a - adv_b, ddof=ddof)) / 2.0
 
-    flat = [float(v) for r in rets_a for v in r] + [float(v) for r in rets_b for v in r]
-    if len(flat) < 2:
+    # sigma^2: the within-alternative sample variance, averaged over alternatives.
+    # The two seeds are independent replays of the same alternative, so they pool
+    # (the group in E1b is the pair, as the cell is collected).
+    per_alt: List[float] = []
+    for ra, rb in zip(rets_a, rets_b):
+        vals = [float(v) for v in ra] + [float(v) for v in rb]
+        if len(vals) >= 2:
+            per_alt.append(float(np.var(vals, ddof=1)))
+    if not per_alt:
         return None
-    sigma2 = float(np.var(flat, ddof=1))
+    sigma2 = float(np.mean(per_alt))
     # Replays per alternative per seed: the mean over alternatives and seeds, which
     # is the planned constant c whenever the cell was collected as designed.
     counts = [len(r) for r in rets_a] + [len(r) for r in rets_b]
@@ -139,7 +159,7 @@ def cell_noise_ratio(
     *,
     n_boot: int = 2000,
     seed: int = 0,
-    ddof: int = 1,
+    ddof: int = DDOF,
 ) -> Dict[str, Any]:
     """Mean measured-over-predicted ratio for one grid cell, with a bootstrap
     interval over groups.
@@ -174,7 +194,7 @@ def grid_report(
     *,
     n_boot: int = 2000,
     seed: int = 0,
-    ddof: int = 1,
+    ddof: int = DDOF,
 ) -> Dict[str, Any]:
     """Every cell's ratio plus the two grid-level numbers the manifest prints.
 

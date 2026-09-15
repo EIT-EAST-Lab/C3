@@ -241,6 +241,33 @@ def test_n2_direction_agreement_matches_the_mean():
     assert three.n2_direction_agreement is None
 
 
+def test_n2_direction_agreement_survives_a_collapsed_group():
+    """A branching-2 group whose two samples came back identical carries one
+    alternative and is excluded; the cell still reports its agreement rate.
+
+    This is the shape real data takes: the runner drops duplicate samples, so a
+    sweep_n2 cell can hold groups with a single alternative. Gating the rate on
+    every collected group having two alternatives would throw the whole key away
+    because of groups that never entered the mean.
+    """
+    rng = np.random.default_rng(22)
+    buckets = bernoulli_cell([0.2, 0.8], 4, rng, 30)
+    collapsed = make_bucket([[1, 0, 1, 0]], bucket_id="collapsed", question_id="qx")
+    cell = sh.cell_reliability(buckets + [collapsed], n_random_splits=10, n_boot=100,
+                               min_cands=2)
+    clean = sh.cell_reliability(buckets, n_random_splits=10, n_boot=100, min_cands=2)
+    assert cell.n_total == 31 and clean.n_total == 30
+    assert cell.n_groups == clean.n_groups
+    assert cell.n2_direction_agreement == pytest.approx(clean.n2_direction_agreement)
+    assert cell.rel_evenodd == pytest.approx(2 * cell.n2_direction_agreement - 1)
+
+    # A cell that really does mix widths keeps the rate undefined.
+    mixed = sh.cell_reliability(buckets + bernoulli_cell([0.2, 0.5, 0.8], 4, rng, 5,
+                                                        prefix="wide", question_prefix="qw"),
+                                n_random_splits=10, n_boot=100, min_cands=2)
+    assert mixed.n2_direction_agreement is None
+
+
 def test_pooled_within_group_variance_and_counts():
     """wgv pools every group that passes the alternative and replay counts, which
     is a larger set than the groups entering the reliability mean."""
@@ -422,44 +449,63 @@ def test_noise_law_simulation_matches_the_formula(n, c):
     land inside the preregistered probe band. This checks the implementation against
     the formula, not the real data.
 
-    ddof=0 is the convention under which the two sides are the same quantity: the
-    difference of the two advantage vectors has mean zero by construction, so the
-    mean of squares is the estimator of its variance, and its expectation is
-    sigma^2 n^2 / (B_u (n - 1)) exactly.
+    No convention is passed in: the module defaults are the ones preregistration
+    revision 10 fixed, and this is the self-test of those defaults.
     """
     rng = np.random.default_rng([2026, n, c])
     a, b = _noise_cell(n, c, rng)
-    rep = nl.cell_noise_ratio(a, b, n_boot=500, seed=0, ddof=0)
+    rep = nl.cell_noise_ratio(a, b, n_boot=500, seed=0)
     assert rep["n_groups"] >= 50
     assert 0.7 <= rep["ratio"] <= 1.4
 
 
 @pytest.mark.parametrize("n", [2, 4, 8])
 def test_noise_law_ddof_one_scales_the_ratio_by_n_over_n_minus_one(n):
-    """The work order's ddof=1 multiplies every group's measured value by
-    n / (n - 1), because the difference vector's mean is exactly zero. At n=2 that
-    doubles the ratio and puts the cell outside the [0.7, 1.4] band whatever the
-    data says, which is a definition question for the driver, not a data question.
+    """A record of the retired convention, kept because it says what changed.
+
+    An unbiased sample variance (ddof=1) multiplies every group's measured value
+    by exactly n / (n - 1), because the difference vector's mean is zero by
+    construction. At two alternatives that doubles the ratio and puts the cell
+    outside the [0.7, 1.4] band whatever the data says, which is why the default
+    is now ddof=0 (driver ruling A1).
     """
     rng = np.random.default_rng([2027, n])
     a, b = _noise_cell(n, 4, rng, n_groups=60)
     at0 = nl.cell_noise_ratio(a, b, n_boot=0, seed=0, ddof=0)
     at1 = nl.cell_noise_ratio(a, b, n_boot=0, seed=0, ddof=1)
+    assert nl.DDOF == 0
     assert at1["n_groups"] == at0["n_groups"]
     assert at1["ratio"] == pytest.approx(at0["ratio"] * n / (n - 1.0))
 
 
-def test_noise_law_ratio_falls_when_the_alternatives_differ_in_quality():
-    """The prediction divides by the pooled return variance, which also carries the
-    spread between alternatives; with alternatives of very different quality the
-    ratio drops below one even though the implementation is unchanged.
+def test_noise_law_holds_when_the_alternatives_differ_in_quality():
+    """The point of the sigma^2 convention (driver ruling A2).
+
+    sigma^2 is the return variance of one alternative, so alternatives of very
+    different quality leave the ratio inside the band. Pooling every return of
+    the group instead, which is the retired convention, adds the spread between
+    alternatives to the denominator and pushes the same data out of the band
+    with nothing wrong in it. Both numbers are computed here from the same
+    groups.
     """
     rng = np.random.default_rng(2028)
-    flat_a, flat_b = _noise_cell(4, 4, rng, n_groups=100)
-    spread_a, spread_b = _noise_cell(4, 4, rng, n_groups=100, ps=[0.02, 0.35, 0.65, 0.98])
-    flat = nl.cell_noise_ratio(flat_a, flat_b, n_boot=0, ddof=0)["ratio"]
-    spread = nl.cell_noise_ratio(spread_a, spread_b, n_boot=0, ddof=0)["ratio"]
-    assert spread < flat - 0.1
+    ps = [0.02, 0.35, 0.65, 0.98]
+    a, b = _noise_cell(4, 4, rng, n_groups=100, ps=ps)
+    rep = nl.cell_noise_ratio(a, b, n_boot=0)
+    assert rep["n_groups"] >= 90
+    assert 0.7 <= rep["ratio"] <= 1.4
+
+    n, c = len(ps), 4
+    pooled = []
+    for ba, bb in zip(a, b):
+        rets_a = np.asarray([cand["returns"] for cand in ba["candidates"]], dtype=float)
+        rets_b = np.asarray([cand["returns"] for cand in bb["candidates"]], dtype=float)
+        d = sh.loo_adv(rets_a.mean(axis=1)) - sh.loo_adv(rets_b.mean(axis=1))
+        measured = float(np.mean(d ** 2)) / 2.0
+        sigma2 = float(np.var(np.concatenate([rets_a.ravel(), rets_b.ravel()]), ddof=1))
+        if sigma2 > 0:
+            pooled.append(measured / (sigma2 * n * n / (n * c * (n - 1))))
+    assert float(np.mean(pooled)) < 0.7
 
 
 def test_noise_law_group_skips_and_pairing():
@@ -485,14 +531,25 @@ def test_noise_law_group_skips_and_pairing():
 
 
 def test_noise_law_group_measured_and_predicted_by_hand():
+    """Both defaults on one hand-computed group.
+
+    Half means (1, 0, 0.5) against (0.5, 0.5, 0). The measured side is the mean
+    of the squared difference of the two advantage vectors, halved. The three
+    alternatives pool their two seeds into [1, 1, 1, 0], [0, 0, 0, 1] and
+    [1, 0, 0, 0], each of sample variance 0.25, so sigma^2 = 0.25 and the
+    prediction is 0.25 * 9 / (6 * 2) = 0.1875.
+    """
     a = make_bucket([[1, 1], [0, 0], [1, 0]], bucket_id="b0", question_id="q0")
     b = make_bucket([[1, 0], [0, 1], [0, 0]], bucket_id="b0", question_id="q0")
-    gn = nl.group_noise(a, b, ddof=1)
+    gn = nl.group_noise(a, b)
     adv_a = sh.loo_adv([1.0, 0.0, 0.5])
     adv_b = sh.loo_adv([0.5, 0.5, 0.0])
-    measured = float(np.var(adv_a - adv_b, ddof=1)) / 2.0
-    flat = [1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0]
-    predicted = float(np.var(flat, ddof=1)) * 9 / (6 * 2)
+    measured = float(np.mean((adv_a - adv_b) ** 2)) / 2.0
+    per_alt = [float(np.var(v, ddof=1))
+               for v in ([1, 1, 1, 0], [0, 0, 0, 1], [1, 0, 0, 0])]
+    assert per_alt == [pytest.approx(0.25)] * 3
+    predicted = float(np.mean(per_alt)) * 9 / (6 * 2)
+    assert predicted == pytest.approx(0.1875)
     assert gn.n == 3 and gn.c == pytest.approx(2.0)
     assert gn.measured == pytest.approx(measured)
     assert gn.predicted == pytest.approx(predicted)
@@ -519,7 +576,12 @@ def test_grid_report_picks_the_worst_cell():
 
 
 def fake_manifest(keys):
-    """A manifest shaped like the paper's: key -> entry with a unit."""
+    """A manifest shaped like the paper's: key -> entry with a unit.
+
+    The units follow 10_paper/04_rebuild/results/manifest.json: the branching-2
+    sweep rows are an agreement rate, the binding-workflow key is a name, and
+    every other reliability row is a correlation.
+    """
     out = {}
     for key in keys:
         if key.endswith("n_groups"):
@@ -532,6 +594,10 @@ def fake_manifest(keys):
             unit, fmt = "ratio", "{:.2f}"
         elif key.endswith("dup_rate"):
             unit, fmt = "rate", "{:.2f}"
+        elif key.endswith(".n2.rel"):
+            unit, fmt = "agreement", "{:.2f}"
+        elif key.endswith("_arm"):
+            unit, fmt = "name", "{}"
         else:
             unit, fmt = "spearman", "{:.2f}"
         out[key] = {"value": None, "fmt": fmt, "unit": unit, "verdict": None,
@@ -602,8 +668,8 @@ def test_aggregate_e1_on_a_minimal_tree(tmp_path, capsys):
     keys = summary["keys"]
     assert set(keys) <= set(fake_manifest(manifest_keys))
     assert "E1.reliability.budget_not_depth" not in keys
-    assert not any(k.endswith("_arm") for k in keys)
-    assert "E1.sweep_n.a2.4b.n2.rel" not in keys          # branching 2 is a pending convention
+    assert not any(k.endswith("_arm") for k in keys)      # only two of six workflows
+    assert keys["E1.sweep_n.a2.4b.n2.rel"]["unit"] == "agreement"
     assert "E1.fixed_b8.a3.4b.rel" not in keys            # its source cell (sweep_n3 of a3) is absent
     assert "E1.per_decision_n4.a3.4b.wgv" not in keys     # not a manifest key here
     assert "E1.per_decision_n4.4b.rel_range" not in keys  # only two of six workflows
@@ -640,7 +706,6 @@ def test_aggregate_e1_on_a_minimal_tree(tmp_path, capsys):
     assert "not_a_workflow" in err
     assert "fixed_b8 is retired" in err or "is retired by the contract" in err
     assert "E1.per_decision_n4.a3.4b.wgv: not a manifest key" in err
-    assert "E1.sweep_n.a2.4b.n2.rel" in err
     assert err.count("ignored:") >= 2
 
 
@@ -742,6 +807,139 @@ def test_aggregate_e1c_temp_on_a_minimal_tree(tmp_path, capsys):
     assert "band subset calib: rel=" in err
     assert "band subset holdout: rel=" in err
     assert "t999_n4 is not a sweep condition" in err
+
+
+def _two_alternative_hand_reading(buckets):
+    """The branching-2 cell, computed from the raw returns without the module.
+
+    With two alternatives the leave-one-out advantages are (q0 - q1, q1 - q0),
+    so a half is flat exactly when its two half means are equal, and the
+    split-half correlation is +1 when the two halves order the pair the same way
+    and -1 when they do not. The within-group variance of the advantages has the
+    closed form 2 (m0 - m1)^2 with m the full means.
+    """
+    agree, usable, variances = 0, 0, []
+    for b in buckets:
+        rets = [c["returns"] for c in b["candidates"]]
+        assert len(rets) == 2
+        means = [sum(r) / len(r) for r in rets]
+        variances.append(2.0 * (means[0] - means[1]) ** 2)
+        a = [sum(r[0::2]) / len(r[0::2]) for r in rets]
+        z = [sum(r[1::2]) / len(r[1::2]) for r in rets]
+        da, dz = a[0] - a[1], z[0] - z[1]
+        if da == 0 or dz == 0:
+            continue
+        usable += 1
+        if (da > 0) == (dz > 0):
+            agree += 1
+    return {"agreement": agree / usable, "n_groups": usable,
+            "n_total": len(buckets), "wgv": float(np.mean(variances))}
+
+
+def test_two_alternative_rows_are_the_agreement_rate_and_its_correlation(tmp_path, capsys):
+    """Driver ruling A3: the sweep row of a branching-2 cell is the direction
+    agreement rate, the fixed-budget row of mt4 is the mean correlation of the
+    same pool, and the two are the same reading (mean rho = 2 x agreement - 1).
+    """
+    rng = np.random.default_rng(101)
+    root = os.path.join(str(tmp_path), "E1")
+    buckets = bernoulli_cell([0.35, 0.65], 4, rng, 40, prefix="mt4_n2_")
+    write_jsonl(os.path.join(root, "mt4", "4b", "sweep_n2", "buckets.jsonl"), buckets)
+
+    manifest_keys = (["E1.sweep_n.mt4.4b.n2.rel"]
+                     + ["E1.fixed_b8.mt4.4b.%s" % q
+                        for q in ("rel", "rel_ci_lo", "rel_ci_hi", "wgv", "n_groups",
+                                  "excluded_pct")])
+    manifest_path = os.path.join(str(tmp_path), "manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as fh:
+        json.dump(fake_manifest(manifest_keys), fh)
+    out_path = os.path.join(str(tmp_path), "summary.json")
+    assert aggregate_e1.main(["--results", root, "--manifest", manifest_path,
+                              "--out", out_path]) == 0
+    with open(out_path, "r", encoding="utf-8") as fh:
+        keys = json.load(fh)["keys"]
+
+    hand = _two_alternative_hand_reading(buckets)
+    assert 0 < hand["agreement"] < 1                      # both directions occur
+    assert hand["n_groups"] < hand["n_total"]             # some halves are flat
+
+    n2 = keys["E1.sweep_n.mt4.4b.n2.rel"]
+    assert n2["value"] == pytest.approx(hand["agreement"])
+    assert n2["n"] == hand["n_groups"]
+    assert n2["unit"] == "agreement"
+
+    mt4 = keys["E1.fixed_b8.mt4.4b.rel"]
+    assert mt4["value"] == pytest.approx(2 * n2["value"] - 1)
+    assert mt4["value"] == pytest.approx(2 * hand["agreement"] - 1)
+    assert mt4["unit"] == "spearman"
+    assert mt4["n"] == hand["n_groups"]
+
+    # the rest of the fixed-budget row reads the same min_cands=2 pool
+    assert keys["E1.fixed_b8.mt4.4b.n_groups"]["value"] == hand["n_groups"]
+    assert keys["E1.fixed_b8.mt4.4b.excluded_pct"]["value"] == pytest.approx(
+        100.0 * (hand["n_total"] - hand["n_groups"]) / hand["n_total"])
+    assert keys["E1.fixed_b8.mt4.4b.wgv"]["value"] == pytest.approx(hand["wgv"])
+    assert keys["E1.fixed_b8.mt4.4b.wgv"]["n"] == hand["n_total"]
+    assert (keys["E1.fixed_b8.mt4.4b.rel_ci_lo"]["value"]
+            <= mt4["value"] <= keys["E1.fixed_b8.mt4.4b.rel_ci_hi"]["value"])
+
+    for key in ("E1.sweep_n.mt4.4b.n2.rel", "E1.fixed_b8.mt4.4b.rel"):
+        assert aggregate_e1.N2_NOTE in keys[key]["note"]
+    assert "derived from sweep_n2 (fixed budget B=8, K=4)" in mt4["note"]
+    assert "the driver decides that convention" not in capsys.readouterr().err
+
+
+def test_arm_display_names_are_the_six_printed_names():
+    """Driver ruling B7: the name table the manifest's name keys print."""
+    assert aggregate_e1.ARM_DISPLAY_NAMES == {
+        "a2": "two-agent",
+        "a3": "three-agent",
+        "mt4": "four-turn",
+        "branch": "branching",
+        "c5": "five-agent chain",
+        "c10": "ten-agent chain",
+    }
+    assert sorted(aggregate_e1.ARM_DISPLAY_NAMES) == sorted(aggregate_e1.WORKFLOWS)
+    assert sorted(aggregate_e1.ARM_DISPLAY_NAMES) == sorted(aggregate_e1.PD_WORKFLOWS)
+
+
+def test_delta_min_arm_writes_the_printed_workflow_name(tmp_path):
+    """The binding workflow of the branching criterion is written as its printed
+    name, and it is the workflow whose own delta key holds the smallest rise."""
+    rng = np.random.default_rng(111)
+    root = os.path.join(str(tmp_path), "E1")
+    for wf in aggregate_e1.PD_WORKFLOWS:
+        for n, ps in ((3, [0.25, 0.5, 0.75]),
+                      (8, [0.02, 0.15, 0.3, 0.45, 0.6, 0.72, 0.85, 0.98])):
+            write_jsonl(os.path.join(root, wf, "4b", "sweep_n%d" % n, "buckets.jsonl"),
+                        bernoulli_cell(ps, 4, rng, 12, prefix="%s_n%d_" % (wf, n)))
+
+    manifest_keys = (["E1.sweep_n.%s.4b.n%d.rel" % (wf, n)
+                      for wf in aggregate_e1.PD_WORKFLOWS for n in (3, 8)]
+                     + ["E1.sweep_n.%s.4b.delta_n8_n3%s" % (wf, tail)
+                        for wf in aggregate_e1.PD_WORKFLOWS for tail in ("", "_ci_lo")]
+                     + ["E1.sweep_n.4b.delta_n8_n3_min",
+                        "E1.sweep_n.4b.delta_n8_n3_min_ci_lo",
+                        "E1.sweep_n.4b.delta_n8_n3_min_arm"])
+    manifest_path = os.path.join(str(tmp_path), "manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as fh:
+        json.dump(fake_manifest(manifest_keys), fh)
+    out_path = os.path.join(str(tmp_path), "summary.json")
+    assert aggregate_e1.main(["--results", root, "--manifest", manifest_path,
+                              "--out", out_path]) == 0
+    with open(out_path, "r", encoding="utf-8") as fh:
+        keys = json.load(fh)["keys"]
+
+    per_wf = {wf: keys["E1.sweep_n.%s.4b.delta_n8_n3" % wf]["value"]
+              for wf in aggregate_e1.PD_WORKFLOWS}
+    assert len(per_wf) == 6
+    binding = min(sorted(per_wf), key=lambda wf: per_wf[wf])
+    arm = keys["E1.sweep_n.4b.delta_n8_n3_min_arm"]
+    assert arm["value"] == aggregate_e1.ARM_DISPLAY_NAMES[binding]
+    assert arm["unit"] == "name"
+    assert arm["n"] == 6
+    assert keys["E1.sweep_n.4b.delta_n8_n3_min"]["value"] == pytest.approx(per_wf[binding])
+    assert binding in arm["note"]
 
 
 def test_summary_builder_refuses_what_the_contract_refuses(tmp_path, capsys):

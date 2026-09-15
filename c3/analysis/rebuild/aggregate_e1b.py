@@ -15,7 +15,9 @@ models for the same (n, c) makes the key ambiguous; such a cell is skipped with
 a line on stderr rather than resolved by a rule this script would be inventing.
 
 The measured-over-predicted ratio and its two grid summaries come from
-noise_law.py; the estimator convention it uses is that module's default.
+noise_law.py; the estimator conventions it uses (mean of squares for the
+measured noise, the within-alternative variance for sigma^2) are that module's
+defaults, which preregistration revision 10 fixed on 2026-09-15.
 """
 
 from __future__ import annotations
@@ -43,8 +45,9 @@ __all__ = ["scan_e1b_cells", "build_e1b_summary", "main"]
 WORKFLOWS = ("a2", "a3", "mt4", "branch", "c5", "c10")
 CELL_RE = re.compile(r"^n(\d+)_c(\d+)$")
 SEED_DIRS = ("seedA", "seedB")
-# Element-wise variance convention of the measured noise (work order section 1.3).
-DDOF = 1
+# Element-wise convention of the measured noise: the estimator module's default,
+# mean of squares (driver ruling A1, preregistration revision 10).
+DDOF = nl.DDOF
 
 
 def _subdirs(path: str) -> List[str]:
