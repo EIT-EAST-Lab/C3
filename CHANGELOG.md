@@ -5,6 +5,17 @@ All notable changes to this repository are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-09-15
+
+### Fixed
+
+- `scipy` is a dependency of the `c3` package (the rebuild analysis package
+  imports it) and is pinned in both lock files. It was missing from
+  `pyproject.toml`, `requirements/cpu.lock.txt` and `requirements/gpu.lock.txt`,
+  so the `cpu-tier` job of the 0.2.0 release could not collect four test
+  modules. With the pin the suite passes on the locked CPU tier (627 tests, none
+  skipped).
+
 ## [0.2.0] - 2026-09-15
 
 The first release after the maintenance pass of September 2026. The entries under
