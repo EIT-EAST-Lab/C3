@@ -15,7 +15,7 @@ outputs:
     - prealgebra
     - precalculus
     split: train
-    revision: PIN-ME
+    revision: 21a5633873b6a120296cce3e2df9d5550074f4a3
     license: check HF card
     notes: Canonical MATH training split. Upstream stores one config per subject,
       so the train split of the benchmark is the union of the seven subject train
@@ -63,7 +63,7 @@ outputs:
     config: default
     split: validation
     subtract_split: test
-    revision: PIN-ME
+    revision: 6a626b7266f7c84fd2d2421ad695ffb34b8f9d69
     license: check HF card
     notes: Upstream ships no train split, so the training artifact is the validation
       split (600 problems) minus every problem whose statement also occurs in the
@@ -80,7 +80,7 @@ outputs:
     id: weitianwen/cmath
     config: default
     split: test
-    revision: PIN-ME
+    revision: 6a626b7266f7c84fd2d2421ad695ffb34b8f9d69
     license: check HF card
     notes: The real upstream test split, 1098 problems, used for evaluation only.
       The revision previously pinned here (9b140b4015a1c33b1f91fdb04400cefb9ea6db7e)
@@ -180,8 +180,8 @@ outputs:
     id: math-ai/olympiadbench
     config: default
     split: test
-    multi_answer_policy: DECIDE-ME
-    unit_policy: DECIDE-ME
+    multi_answer_policy: drop
+    unit_policy: drop
     revision: 4faaf1e6ec17d11a4218a9bf4c049ecaf954dd84
     license: check HF card
     notes: The open-ended, text-only, English maths subset of OlympiadBench, which
@@ -190,7 +190,7 @@ outputs:
       674 rows hold more than one answer while 9 carry a separate unit string, so
       multi_answer_policy (drop, first or join_comma) and unit_policy (drop, ignore
       or append) decide what the single answer string of a prepared row is. Both are
-      DECIDE-ME until the driver rules, and the builder refuses to run while they
+      set to drop by the driver on 2026-09-15 (single-string scoring cannot take multi-answer or unit rows); the builder refuses to run while they
       are. No expected_rows is pinned because the row count follows from those two
       policies. Candidate benchmark for the start-accuracy probe.
 - name: AMC23
