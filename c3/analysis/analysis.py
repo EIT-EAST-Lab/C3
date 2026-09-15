@@ -7,6 +7,18 @@ Subcommands:
   - influence     : compute conditional MI influence from buckets
   - latex         : format JSON outputs into a LaTeX row
 
+The second continuation seed of E1b:
+  E1b measures the noise of a credit vector by building one cell twice and
+  comparing the two advantage vectors element by element. Element j of the two
+  vectors stands for the same action only if both runs replayed the same
+  alternative at j, so the second run must reuse the alternatives of the first
+  and redraw the replays alone. That is what
+  `build-buckets --reuse_candidates_from <first run's buckets.jsonl> --seed <B>`
+  does: alternatives come from the file, matched on question_id and ctx_hash,
+  and every replay below them follows seed B. Redrawing the alternatives too,
+  which is what a plain second run does, mixes the difference between two
+  alternatives into what is reported as noise.
+
 Stability contract:
   This CLI is treated as a paper-facing interface. To avoid brittle bash scripts,
   we intentionally support common argument aliases across refactors, e.g.:
@@ -20,6 +32,7 @@ Stability contract:
       --engine / --inference_engine
       --inject_literal_candidate / --inject-literal-candidate
       --null_form / --null-form
+      --reuse_candidates_from / --reuse-candidates-from
       --out / --out_jsonl
     credit/influence:
       --bucket / --buckets_jsonl
@@ -223,7 +236,7 @@ def _merge_extra_meta(bucket_dict: Dict[str, Any], extra_meta: Mapping[str, Any]
     return bucket_dict
 
 
-#: The shapes the E3a null action can be reported as (preregistration revision 15).
+#: The shapes the E3a null action can be reported as (analysis plan revision 15).
 #:   empty        the injected text is the empty string; the assembly drops the role's
 #:                paragraph, separator and label, so the downstream roles see the same
 #:                prompt as if the role had never acted (the leave-one-agent-out
@@ -269,6 +282,23 @@ def _apply_null_arm_meta(bucket_dict: Dict[str, Any], null_meta: Mapping[str, An
 
     bucket_dict["meta"] = merged
     return bucket_dict
+
+
+def _reuse_source_label(path: str) -> str:
+    """The path shape written into `meta.candidates_from`.
+
+    Same shape the results layout gives a `source`: cut at the last `20_data`
+    segment when there is one, keep the path as given when there is none, and
+    normalise separators to forward slashes either way. The statement of record
+    is `c3/analysis/rebuild/summary.py:source_path`; this copy keeps the bucket
+    CLI free of a dependency on the rebuild package, and a test pins the two
+    against each other so they cannot drift apart.
+    """
+    parts = os.path.abspath(path).replace("\\", "/").split("/")
+    if "20_data" in parts:
+        cut = len(parts) - 1 - parts[::-1].index("20_data")
+        return "/".join(parts[cut:])
+    return path.replace("\\", "/")
 
 
 # -----------------------------------------------------------------------------
@@ -817,6 +847,53 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
     # --num_candidates keeps meaning the number of sampled alternatives.
     total_candidates = int(num_candidates) + (1 if forced_actions is not None else 0)
 
+    # E1b second continuation seed: replay the alternatives of an earlier run
+    # instead of drawing new ones, so that element j of the two advantage
+    # vectors stands for the same action in both runs.
+    reuse = None
+    reuse_errors: Tuple[type, ...] = ()
+    reuse_path = getattr(args, "reuse_candidates_from", None)
+    if reuse_path:
+        if inject_text is not None:
+            _die(
+                "--reuse_candidates_from replays the alternatives an earlier run recorded, so it cannot be "
+                "combined with --inject_literal_candidate, which claims j=0 for a new one. E3a does not reuse "
+                "alternatives."
+            )
+
+        load_candidate_reuse = getattr(replay_mod, "load_candidate_reuse", None)
+        if not callable(load_candidate_reuse):
+            _die("replay.py must define load_candidate_reuse(path, source_label=...) for --reuse_candidates_from.")
+
+        error_cls = getattr(replay_mod, "CandidateReuseError", None)
+        if isinstance(error_cls, type):
+            reuse_errors = (error_cls,)
+
+        source = Path(str(reuse_path))
+        if not source.exists():
+            _die(f"Reuse source not found: {str(source)!r}")
+        try:
+            reuse = load_candidate_reuse(str(source), source_label=_reuse_source_label(str(source)))
+        except Exception as e:
+            _die(f"Cannot read alternatives from {str(source)!r}: {e}")
+
+        # The per bucket check lives in replay.py and is the gate. This one is
+        # the same rule applied early, where it can refuse before the run has
+        # spent an engine on a single prefix.
+        wanted = int(total_candidates) + int(num_extra_v_samples)
+        source_total = reuse.requested_total()
+        if source_total is not None and int(source_total) != wanted:
+            _die(
+                f"--num_candidates={num_candidates} (plus {num_extra_v_samples} V-extra) asks for {wanted} "
+                f"alternatives per bucket, the reuse source asks for {int(source_total)}. Reuse needs the two "
+                f"runs to agree on the number of alternatives."
+            )
+
+        _eprint(
+            f"[c3_analysis] Reusing alternatives from {reuse.source} ({len(reuse)} decision points); "
+            f"only the replays are redrawn, under seed={args.seed}."
+        )
+
     runner = _make_runner(args, replay_mod, decode_defaults=prefix_decoding)
 
     try:
@@ -844,6 +921,22 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
         run_bucket = getattr(runner, "run_bucket", None)
         if not callable(run_bucket):
             _die("ReplayRunner must define run_bucket(restart_state, cfg, forced_actions=None).")
+
+        # Not passed through _call_by_signature on purpose: that helper drops a
+        # keyword the callee does not take, and a dropped `reuse` would sample
+        # fresh alternatives while the run reported reuse.
+        reuse_kwargs: Dict[str, Any] = {}
+        if reuse is not None:
+            reuse_kwargs["reuse"] = reuse
+            try:
+                takes_reuse = "reuse" in inspect.signature(run_bucket).parameters
+            except (TypeError, ValueError):
+                takes_reuse = True  # unreadable signature: let the call itself decide
+            if not takes_reuse:
+                _die(
+                    "The runner's run_bucket does not accept reuse=..., so --reuse_candidates_from would be "
+                    "silently ignored. Update the runner (or its --runner_factory) before reusing alternatives."
+                )
 
         next_role_cli = args.next_role
         record_next_teammate_cli = args.record_next_teammate
@@ -891,7 +984,7 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
                 if cfg_obj is None:
                     cfg_obj = _make_cfg(roles_topo)
 
-                bucket_obj = run_bucket(rs, cfg_obj, forced_actions=forced_actions)
+                bucket_obj = run_bucket(rs, cfg_obj, forced_actions=forced_actions, **reuse_kwargs)
                 n_written += 1
                 yield _apply_null_arm_meta(_merge_extra_meta(_as_dict(bucket_obj), extra_meta), null_meta)
 
@@ -928,17 +1021,23 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
                 next_role=cfg_obj.next_role,
                 batch_prompts=int(getattr(args, "batch_prompts", 4096)),
                 forced_actions=forced_actions,
+                reuse=reuse,
             )
             return [
                 _apply_null_arm_meta(_merge_extra_meta(_as_dict(b), extra_meta), null_meta) for b in buckets
             ]
 
-        if bool(getattr(args, "batched", False)):
-            rows = _build_batched()
-            n_written = len(rows)
-            _call_by_signature(write_buckets_jsonl, path=str(out_jsonl), buckets_iter=iter(rows), overwrite=bool(args.overwrite))
-        else:
-            _call_by_signature(write_buckets_jsonl, path=str(out_jsonl), buckets_iter=_gen(), overwrite=bool(args.overwrite))
+        try:
+            if bool(getattr(args, "batched", False)):
+                rows = _build_batched()
+                n_written = len(rows)
+                _call_by_signature(write_buckets_jsonl, path=str(out_jsonl), buckets_iter=iter(rows), overwrite=bool(args.overwrite))
+            else:
+                _call_by_signature(write_buckets_jsonl, path=str(out_jsonl), buckets_iter=_gen(), overwrite=bool(args.overwrite))
+        except reuse_errors as e:
+            # A decision point the source does not cover, or a disagreement on how
+            # many alternatives a bucket holds. Both are refusals, not warnings.
+            _die(str(e))
 
         if n_written == 0:
             _die(
@@ -1440,6 +1539,23 @@ def _build_parser() -> argparse.ArgumentParser:
         default="empty",
         choices=list(NULL_ARM_FORMS),
         help="Which realisation of the null action the injected text stands for (writes meta['null_form']).",
+    )
+
+    # E1b second continuation seed (default off: without it the output is unchanged)
+    pb.add_argument(
+        "--reuse_candidates_from",
+        "--reuse-candidates-from",
+        dest="reuse_candidates_from",
+        default=None,
+        help=(
+            "Path to the buckets.jsonl of an earlier run whose alternatives this run replays instead of "
+            "sampling its own. This is how the second continuation seed of E1b is run: the two runs of a cell "
+            "must share the alternatives and differ only in the replays, otherwise the paired difference of "
+            "the two advantage vectors also carries the difference between two different actions. Decision "
+            "points are matched on question_id and ctx_hash; one the source does not cover is an error, not a "
+            "skipped bucket. --num_candidates must equal what the source asked for, and the flag cannot be "
+            "combined with --inject_literal_candidate."
+        ),
     )
 
     # batched execution (default off: the sequential path is unchanged)

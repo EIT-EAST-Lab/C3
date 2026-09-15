@@ -15,7 +15,10 @@ Stages, in order:
   A. candidates: one prompt per bucket, n = the number of alternatives the
      config asks for, with the same de-duplication and the same retry bound as
      `run_bucket`. Forced actions, when the caller passes any, go in first and
-     are not sampled, exactly as in `run_bucket`.
+     are not sampled, exactly as in `run_bucket`. The stage is skipped whole
+     when the caller passes `reuse`: the alternatives then come from an earlier
+     bucket file and only stages B and C run, which is the second continuation
+     seed of E1b.
   B. replays: for replay index r and for each role after the target role in
      topological order, one prompt per (bucket, candidate), n = 1.
   C. returns: one evaluator call per (bucket, candidate, replay).
@@ -38,11 +41,14 @@ from typing import Any, Mapping, Sequence
 
 from c3.analysis.replay import (
     Bucket,
+    CandidateReuse,
+    CandidateReuseError,
     CandidateResult,
     ReplayConfig,
     ReplayRunner,
     RestartState,
     _unique_extend,
+    reuse_meta,
 )
 
 
@@ -296,6 +302,7 @@ def run_buckets_batched(
     next_role: str | None,
     batch_prompts: int = DEFAULT_BATCH_PROMPTS,
     forced_actions: Sequence[str] | None = None,
+    reuse: CandidateReuse | None = None,
 ) -> list[Bucket]:
     """Build one bucket per restart state, batching every stage across buckets.
 
@@ -320,6 +327,13 @@ def run_buckets_batched(
     question id in one call draw from the same seeds. Their prompts still
     differ if their prefixes differ, so the texts still differ; identical
     prompts would mean identical contexts anyway.
+
+    `reuse`, when given, is an index of the alternatives an earlier run
+    recorded, and it replaces stage A: every bucket replays the texts the source
+    holds for its decision point, in the recorded j order, while stages B and C
+    run untouched and therefore follow this run's seed. A decision point the
+    source does not cover raises CandidateReuseError, naming the first one, and
+    no bucket is returned.
     """
     states = list(restart_states)
     if not states:
@@ -362,17 +376,29 @@ def run_buckets_batched(
         for b, state in enumerate(states)
     ]
 
-    candidates = _collect_candidates(
-        runner,
-        states,
-        cfg,
-        target_prompts=target_prompts,
-        decoding_base=decoding_base,
-        base_seed=base_seed,
-        total_req=total_req,
-        batch_prompts=batch_prompts,
-        forced=[str(text) for text in (forced_actions or ())],
-    )
+    if reuse is not None:
+        if forced_actions:
+            raise CandidateReuseError(
+                "reused alternatives already fix what sits at every j, so they cannot be combined with "
+                "a forced action, which claims j=0. The null arm of E3a is sampled, not reused."
+            )
+        # In order, so the refusal names the first decision point the source misses.
+        candidates = [
+            reuse.texts_for(state.question_id, ctx_hashes[b], total_req=total_req)
+            for b, state in enumerate(states)
+        ]
+    else:
+        candidates = _collect_candidates(
+            runner,
+            states,
+            cfg,
+            target_prompts=target_prompts,
+            decoding_base=decoding_base,
+            base_seed=base_seed,
+            total_req=total_req,
+            batch_prompts=batch_prompts,
+            forced=[str(text) for text in (forced_actions or ())],
+        )
 
     # Stage B. One dict of role outputs per (bucket, candidate, replay), grown
     # role by role in topological order so that each role sees what the
@@ -472,6 +498,8 @@ def run_buckets_batched(
         )
         if meta.get("real_j") is None:
             meta.pop("real_j", None)
+        if reuse is not None:
+            meta.update(reuse_meta(reuse, len(candidates[b])))
 
         buckets.append(
             Bucket(

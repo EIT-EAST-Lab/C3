@@ -52,7 +52,7 @@ from c3.mas.prompt_render import build_render_context  # noqa: E402
 
 
 # Output of `build-buckets` on the fixture below, taken with the code that had
-# no --inject_literal_candidate flag (2026-09-15, WP-R10). Adding the flag must
+# no --inject_literal_candidate flag (2026-09-15). Adding the flag must
 # not move these bytes when the flag is absent.
 LEGACY_BUCKETS_SHA256 = "f2e77be137b4f5c65d91554f548f9bc942626e29ec4becbcb00ff59c8d50287e"
 
@@ -838,7 +838,7 @@ def test_the_driver_emits_one_command_per_form(capsys: pytest.CaptureFixture) ->
     assert forms == ["empty", "placeholder"]
 
 
-def test_the_driver_asks_for_the_measurement_the_preregistration_fixed(
+def test_the_cell_driver_asks_for_the_measurement_the_analysis_plan_fixed(
     capsys: pytest.CaptureFixture,
 ) -> None:
     for line in _e3a_commands(capsys):
@@ -850,11 +850,11 @@ def test_the_driver_asks_for_the_measurement_the_preregistration_fixed(
         assert _flag(argv, "--num_candidates") == "4"
         assert _flag(argv, "--num_completions") == "4"
         assert _flag(argv, "--seed") == "0"
-        assert _flag(argv, "--split") == "MATH500"
+        assert _flag(argv, "--split") == "MATHPOOL"
         assert _flag(argv, "--inject_literal_candidate") == _e3a_cells().NULL_TEXTS[_flag(argv, "--null_form")]
 
 
-def test_the_driver_writes_where_the_contract_says(capsys: pytest.CaptureFixture) -> None:
+def test_the_cell_driver_writes_where_the_results_layout_says(capsys: pytest.CaptureFixture) -> None:
     outs = [_flag(_argv_of(line), "--out") for line in _e3a_commands(capsys, "--results_root", "/abs/results")]
     assert outs == [
         "/abs/results/E3a/a3/4b/empty/buckets.jsonl",
@@ -863,7 +863,7 @@ def test_the_driver_writes_where_the_contract_says(capsys: pytest.CaptureFixture
     assert len(set(outs)) == 2
 
 
-def test_the_driver_stamps_the_meta_the_contract_requires(capsys: pytest.CaptureFixture) -> None:
+def test_the_cell_driver_stamps_the_meta_the_results_layout_requires(capsys: pytest.CaptureFixture) -> None:
     required = {
         "workflow",
         "model",
@@ -887,7 +887,7 @@ def test_the_driver_stamps_the_meta_the_contract_requires(capsys: pytest.Capture
         assert meta["rule"] == f"e3a_{form}"
         assert meta["policy_tag"] == "sft"
         assert meta["context_scope"] == "ancestors"
-        assert meta["dataset"] == "MATH500"
+        assert meta["dataset"] == "MATHPOOL"
         # The null arm is not one of the alternatives it is compared against.
         assert meta["n_alternatives"] == 4
         assert meta["replays_per_alt"] == 4

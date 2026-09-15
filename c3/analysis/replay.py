@@ -233,6 +233,208 @@ class Bucket:
 
 
 # -----------------------------------------------------------------------------
+# Reused alternatives (the second continuation seed of E1b)
+# -----------------------------------------------------------------------------
+
+
+class CandidateReuseError(RuntimeError):
+    """The reuse source cannot supply the alternatives of a decision point.
+
+    Raised when the source holds no entry for a decision point, when it holds
+    two entries for one, or when it was built with a different number of
+    alternatives per bucket than this run asks for.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class ReusedPoint:
+    """The alternatives an earlier run recorded at one decision point.
+
+    `texts` holds the `action_text` of every alternative in the recorded `j`
+    order, so replaying them keeps the source's mapping from j to action.
+    `requested` is the source's `meta.candidate_total_req`, that is how many
+    alternatives the source run asked for; it is None when the source wrote no
+    such key. A source bucket holding fewer texts than it requested lost the
+    rest to de-duplication while it ran, and is reused at the count it has.
+    """
+
+    texts: list[str]
+    requested: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateReuse:
+    """Alternatives read from an earlier bucket file, indexed by decision point.
+
+    E1b measures the noise of a credit vector by building one cell twice and
+    comparing the two advantage vectors element by element. Element j of the two
+    vectors only refers to the same action if both runs replayed the same
+    alternative at j, so the second run must reuse the alternatives of the first
+    and redraw the replays alone. This object is how the second run carries
+    them: `run_bucket` and `run_buckets_batched` take one and skip the sampling
+    stage.
+
+    The key is (question_id, ctx_hash): the question pins the instance and the
+    context hash pins the prefix the target role is answering, which is what
+    makes a decision point. question_id is compared as a string, so a source
+    that stored it as a JSON number still matches a runner that yields an int.
+    """
+
+    source: str
+    points: dict[tuple[str, int], ReusedPoint]
+
+    def __len__(self) -> int:
+        return len(self.points)
+
+    def point_for(self, question_id: str | int, ctx_hash: int) -> ReusedPoint:
+        """The source entry of one decision point, or a refusal naming it."""
+        point = self.points.get((str(question_id), int(ctx_hash)))
+        if point is None:
+            raise CandidateReuseError(
+                f"question {question_id!r} (ctx_hash {int(ctx_hash)}) has no alternatives in the reuse "
+                f"source {self.source!r}. The two runs must reach the same decision points: same task, "
+                f"same split, same limit, same prefix decoding, same workflow."
+            )
+        return point
+
+    def texts_for(self, question_id: str | int, ctx_hash: int, *, total_req: int) -> list[str]:
+        """The alternatives to replay at one decision point, in the recorded j order.
+
+        `total_req` is how many alternatives this run asks for per bucket, that
+        is num_candidates plus num_extra_v_samples. It must equal the number the
+        source asked for, otherwise the two runs are not measuring the same
+        cell. The returned list is shorter than that when the source bucket
+        itself came up short.
+
+        The total is all that is compared: `candidate_total_req` is the only
+        request a bucket records, and it keeps no separate record of how the
+        alternatives were split between the credit segment and the V-extra
+        segment. A run that moves that split while keeping the total would
+        replay the same texts under a different reading of j and pass here.
+        E1b asks for no V-extra samples, so its split is the whole total.
+        """
+        point = self.point_for(question_id, ctx_hash)
+        expected = point.requested if point.requested is not None else len(point.texts)
+        if int(total_req) != int(expected):
+            raise CandidateReuseError(
+                f"this run asks for {int(total_req)} alternatives per bucket, the reuse source "
+                f"{self.source!r} asks for {int(expected)} at question {question_id!r}. Reuse needs the "
+                f"two runs to agree on the number of alternatives."
+            )
+        return list(point.texts)
+
+    def requested_total(self) -> int | None:
+        """The number of alternatives the whole source asked for, when it is one number.
+
+        None when any entry recorded none, or when the entries disagree; a
+        caller that wants to check early then has nothing to check against and
+        the per bucket check in `texts_for` remains the gate.
+        """
+        counts = {point.requested for point in self.points.values()}
+        if len(counts) != 1:
+            return None
+        only = counts.pop()
+        return None if only is None else int(only)
+
+
+def load_candidate_reuse(
+    path: str | os.PathLike[str],
+    *,
+    source_label: str | None = None,
+) -> CandidateReuse:
+    """Index the alternatives of an earlier buckets.jsonl by decision point.
+
+    Reads the file through the ordinary bucket reader, so a malformed line is
+    reported with its line number. Only the fields reuse needs are read, which
+    lets a file written by an older build serve as a source as long as it has
+    question_id, ctx_hash and candidates.
+
+    `source_label` is what the built buckets record under `meta.candidates_from`;
+    it defaults to the file name, and the CLI passes the path shape the results
+    layout uses for a source.
+    """
+    # Local import: the bucket reader pulls in numpy, and only this function
+    # needs it, so the module import cost of replay.py stays where it was.
+    from c3.analysis.buckets import read_buckets_jsonl
+
+    points: dict[tuple[str, int], ReusedPoint] = {}
+    for index, row in enumerate(read_buckets_jsonl(str(path))):
+        # Counted over buckets, not over file lines: the reader skips blank and
+        # commented lines, so a line number here would point at the wrong place.
+        where = f"{path} (bucket {index})"
+
+        qid = row.get("question_id")
+        if qid is None:
+            restart = row.get("restart")
+            if isinstance(restart, Mapping):
+                qid = restart.get("question_id")
+        if not isinstance(qid, (str, int)) or str(qid) == "":
+            raise CandidateReuseError(f"{where}: bucket has no usable question_id")
+
+        ctx_hash = row.get("ctx_hash")
+        if not isinstance(ctx_hash, int) or isinstance(ctx_hash, bool):
+            raise CandidateReuseError(f"{where}: bucket has no integer ctx_hash (question {qid!r})")
+
+        raw = row.get("candidates")
+        if not isinstance(raw, list) or not raw:
+            raise CandidateReuseError(f"{where}: bucket has no candidates (question {qid!r})")
+
+        entries: list[tuple[int, str]] = []
+        for idx, cand in enumerate(raw):
+            if not isinstance(cand, Mapping):
+                raise CandidateReuseError(f"{where}: candidate {idx} is not an object (question {qid!r})")
+            action_text = cand.get("action_text")
+            if not isinstance(action_text, str):
+                raise CandidateReuseError(
+                    f"{where}: candidate {idx} has no string action_text (question {qid!r})"
+                )
+            j = cand.get("j")
+            entries.append((int(j) if isinstance(j, int) and not isinstance(j, bool) else idx, action_text))
+        entries.sort(key=lambda pair: pair[0])
+        texts = [text for _, text in entries]
+
+        meta = row.get("meta")
+        requested: int | None = None
+        if isinstance(meta, Mapping):
+            value = meta.get("candidate_total_req")
+            if isinstance(value, int) and not isinstance(value, bool):
+                requested = int(value)
+        if requested is not None and requested < len(texts):
+            raise CandidateReuseError(
+                f"{where}: bucket holds {len(texts)} alternatives but records "
+                f"candidate_total_req={requested} (question {qid!r})"
+            )
+
+        key = (str(qid), int(ctx_hash))
+        if key in points:
+            raise CandidateReuseError(
+                f"{where}: question {qid!r} (ctx_hash {int(ctx_hash)}) appears twice in the reuse source; "
+                f"the decision point it stands for would be ambiguous"
+            )
+        points[key] = ReusedPoint(texts=texts, requested=requested)
+
+    if not points:
+        raise CandidateReuseError(f"{path}: the reuse source holds no buckets")
+
+    label = source_label if source_label else Path(str(path)).name
+    return CandidateReuse(source=str(label), points=points)
+
+
+def reuse_meta(reuse: CandidateReuse, n_alternatives_effective: int) -> dict[str, Any]:
+    """The meta keys every reused bucket carries, written by both replay paths.
+
+    `n_alternatives_effective` is how many alternatives this bucket actually
+    holds, which is below the requested number wherever the source bucket came
+    up short. It is stated per bucket because that shortfall is per bucket.
+    """
+    return {
+        "candidate_reuse": True,
+        "candidates_from": str(reuse.source),
+        "n_alternatives_effective": int(n_alternatives_effective),
+    }
+
+
+# -----------------------------------------------------------------------------
 # Minimal integration contracts
 # -----------------------------------------------------------------------------
 
@@ -566,8 +768,19 @@ class ReplayRunner:
         restart_state: RestartState,
         cfg: ReplayConfig,
         forced_actions: list[str] | None = None,
+        reuse: CandidateReuse | None = None,
     ) -> Bucket:
-        """Build one bucket for a fixed restart state."""
+        """Build one bucket for a fixed restart state.
+
+        `reuse`, when given, replaces the sampling of alternatives: the texts of
+        this decision point are taken from the source in the recorded j order
+        and nothing is drawn for the target role. The replays below them are
+        drawn as usual, so they follow this run's seed. That is the second
+        continuation seed of E1b: same alternatives, fresh replays. A decision
+        point the source does not cover raises CandidateReuseError rather than
+        falling back to sampling, because a bucket sampled here would put a
+        different action at j and quietly corrupt the paired difference.
+        """
         self._validate_cfg(restart_state, cfg)
         ctx_hash = self.build_context_hash(restart_state, cfg.target_role)
 
@@ -601,21 +814,30 @@ class ReplayRunner:
         candidates: list[str] = []
         seen: set[str] = set()
 
-        _unique_extend(candidates, seen, forced, total_req if total_req > 0 else (len(forced) + 1))
+        if reuse is not None:
+            if forced:
+                raise CandidateReuseError(
+                    "reused alternatives already fix what sits at every j, so they cannot be combined with "
+                    "a forced action, which claims j=0. The null arm of E3a is sampled, not reused."
+                )
+            candidates = reuse.texts_for(restart_state.question_id, ctx_hash, total_req=total_req)
+        else:
+            _unique_extend(candidates, seen, forced, total_req if total_req > 0 else (len(forced) + 1))
 
-        if cfg.include_real_as_j0 and total_req > 0 and not candidates:
-            _unique_extend(candidates, seen, self.sample_action(target_prompt, dec_at(0), n=1), total_req)
+            if cfg.include_real_as_j0 and total_req > 0 and not candidates:
+                _unique_extend(candidates, seen, self.sample_action(target_prompt, dec_at(0), n=1), total_req)
 
-        if total_req > len(candidates):
-            attempts = 0
-            max_attempts = min(30, max(5, 2 * total_req))  # hard bound; don't burn GPU
-            while len(candidates) < total_req and attempts < max_attempts:
-                need = total_req - len(candidates)
-                batch = self.sample_action(target_prompt, dec_at(1 + attempts), n=need)
-                _unique_extend(candidates, seen, batch, total_req)
-                attempts += 1
+            if total_req > len(candidates):
+                attempts = 0
+                max_attempts = min(30, max(5, 2 * total_req))  # hard bound; don't burn GPU
+                while len(candidates) < total_req and attempts < max_attempts:
+                    need = total_req - len(candidates)
+                    batch = self.sample_action(target_prompt, dec_at(1 + attempts), n=need)
+                    _unique_extend(candidates, seen, batch, total_req)
+                    attempts += 1
 
-        candidates = candidates[:total_req] if total_req > 0 else []
+            candidates = candidates[:total_req] if total_req > 0 else []
+
         credit_n = min(credit_n_req, len(candidates))
         extra_n = max(0, len(candidates) - credit_n)
 
@@ -697,6 +919,8 @@ class ReplayRunner:
         )
         if meta.get("real_j") is None:
             meta.pop("real_j", None)
+        if reuse is not None:
+            meta.update(reuse_meta(reuse, len(candidates)))
 
         return Bucket(
             ctx_hash=ctx_hash,
