@@ -48,6 +48,9 @@ environment:
     - name: "AIME24"
       path: "data/AIME24/test.jsonl"
       limit: 100
+    - name: "AIME25"
+      path: "data/AIME25/test.jsonl"
+      limit: 100
     - name: "GSM8K-test"
       path: "data/GSM8K/test.jsonl"
       limit: 100

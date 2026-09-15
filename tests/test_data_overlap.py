@@ -597,12 +597,16 @@ def test_cmath_train_subtracts_the_test_split_of_the_same_revision() -> None:
     assert test['expected_rows'] == 1098
 
 
-def test_the_three_repinned_entries_wait_for_a_revision_and_a_hash() -> None:
-    """Their upstream moved, so both pins must be refilled before a strict run."""
+def test_the_three_repinned_entries_carry_an_immutable_revision() -> None:
+    """Their upstream moved: the revision is a commit hash (pinned 2026-09-15) and the
+    sha256 is either still unfilled or a real digest written on the platform."""
     for name in ('MATH-train', 'CMATH-train', 'CMATH-test'):
         item = _entry(name)
-        assert item['sha256'] is None, name
-        assert item['source']['revision'] == 'PIN-ME', name
+        rev = item['source']['revision']
+        assert isinstance(rev, str) and len(rev) == 40 and all(c in '0123456789abcdef' for c in rev), name
+        sha = item['sha256']
+        assert sha is None or (isinstance(sha, str) and len(sha) == 64), name
+    assert _entry('CMATH-train')['source']['revision'] == _entry('CMATH-test')['source']['revision']
 
 
 def test_the_artifacts_that_did_not_change_keep_their_pins() -> None:

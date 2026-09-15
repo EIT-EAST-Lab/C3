@@ -48,6 +48,7 @@ EXPECTED_SUITES = [
     "OlympiadBench",
     "AMC23",
     "AIME24",
+    "AIME25",
     "GSM8K-test",
     "CMATH-test",
 ]
@@ -217,7 +218,7 @@ def test_a_repeated_argparse_flag_takes_the_last_value() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_probe_task_lists_the_seven_suites_each_capped_at_the_probe_budget() -> None:
+def test_probe_task_lists_the_eight_suites_each_capped_at_the_probe_budget() -> None:
     spec = yaml.safe_load(PROBE_TASK.read_text(encoding="utf-8"))
     suites = spec["environment"]["eval_suites"]
 
@@ -477,7 +478,7 @@ def test_a_suite_missing_from_the_run_is_reported_as_a_problem(tmp_path: Path) -
 
     assert block["observed_suites"] == ["MATH500"]
     assert block["missing_suites"] == [s for s in EXPECTED_SUITES if s != "MATH500"]
-    assert block["problems"], "a run that covered one suite of seven must not look clean"
+    assert block["problems"], "a run that covered one suite of eight must not look clean"
 
 
 def test_a_complete_run_reports_no_problem(tmp_path: Path) -> None:
