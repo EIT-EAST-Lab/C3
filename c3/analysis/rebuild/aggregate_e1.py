@@ -43,6 +43,24 @@ rule is branching 4:
     E1.fixed_b8.a3.<model>.*            <- sweep_n3
     E1.fixed_b8.mt4.<model>.*           <- sweep_n2
 
+Every sweep cell also carries a noise measurement, and it needs no second run:
+the even and the odd replays of one group are two independent estimates of the
+same advantage vector at the same decision point, so
+`Var(A_even - A_odd) / 2` is the noise of one half and the law predicts it at
+the half's own budget. That is the reading revision 19 of the preregistration
+(2026-09-15) made its secondary criteria a' and b', and it is the same
+estimator E1b reads off two continuation seeds: one implementation, in
+noise_law.py, called with two different pairs of sides.
+
+    E1.noise_ratio.<wf>.<model>.n<N>{,_ci_lo,_ci_hi}   per cell
+    E1.noise_ratio.median                              over the scan cells
+    E1.noise_ratio.vs_n_rho{,_ci_lo,_ci_hi}            over the scan cells
+    E1.noise_ratio.n4_all_in_band                      the verdict of b'
+
+The last of those is a verdict key, so no script writes it (`summary.key_refusal`
+refuses any key whose unit is "verdict"). The aggregation prints the six readings
+it would be decided on and leaves the decision to the maintainers.
+
 Two alternatives is a special case of the estimator, not a missing measurement
 (the maintainers' decision of 2026-09-15). A two-alternative group's split-half
 correlation can only be +1 or -1, so the sweep row of that cell carries the
@@ -68,6 +86,7 @@ import sys
 from collections import OrderedDict
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from . import noise_law as nl
 from . import splithalf as sh
 from . import summary as summary_mod
 from .summary import build_summary, git_sha, key_refusal, load_manifest, write_summary
@@ -573,6 +592,106 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
                      "branching-3 cells"
                      % (builder.key("E1.sweep_n.4b.delta_n8_n3_min{,_ci_lo,_arm}"),
                         len(have_delta)))
+
+    # 7. the noise ratio of each sweep cell, read off that cell's own halves
+    noise: Dict[Tuple[str, str, int], Dict[str, Any]] = {}
+    for (wf, model, n) in sorted(cells):
+        two = (n == 2)
+        rep = nl.cell_noise_ratio_halves(
+            store.buckets(cells[(wf, model, n)]), n_boot=N_BOOT, seed=SEED,
+            min_cands=MIN_CANDS_N2 if two else MIN_CANDS)
+        base = "E1.noise_ratio.%s.%s.n%d" % (wf, model, n)
+        if rep["ratio"] is None:
+            builder.note("skip %s: no group of this cell carries a halves reading "
+                         "(%d collected)" % (builder.key(base), rep["n_total"]))
+            continue
+        noise[(wf, model, n)] = rep
+        src = rel_path(wf, model, n)
+        note = ("measured over predicted noise of the advantage estimate, read off the even "
+                "and odd halves of this cell's own replays (%.1f replays per half per "
+                "alternative, so the prediction is at budget %d x %.1f); %d of %d groups "
+                "usable, %.0f%% excluded"
+                % (rep["replays_per_half"], n, rep["replays_per_half"],
+                   rep["n_groups"], rep["n_total"], rep["excluded_pct"]))
+        if rep["n_flat_half"]:
+            # The one clause this reading does not take from the reliability path
+            # (revision 19(h) of the preregistration, 2026-09-15): a flat half is
+            # kept here, and the reading the reliability pool would give rides
+            # along as a sensitivity rather than as a key of its own.
+            note += ("; %d group(s) came back with a flat half and are kept, which the "
+                     "correlation cannot do and this reading can" % rep["n_flat_half"])
+            if rep["ratio_flat_dropped"] is not None:
+                note += ("; dropping them instead would read %.4f on %d group(s)"
+                         % (rep["ratio_flat_dropped"], rep["n_groups_flat_dropped"]))
+        if rep["n_half_uneven"]:
+            note += ("; %d group(s) hold an odd number of replays, so their halves differ by "
+                     "one and the budget above is their average"
+                     % rep["n_half_uneven"])
+        builder.add(base, rep["ratio"], n=rep["n_groups"], source=src, note=note)
+        for tail, value in (("_ci_lo", rep["ci_lo"]), ("_ci_hi", rep["ci_hi"])):
+            builder.add(base + tail, value, n=rep["n_groups"], source=src,
+                        note="percentile bootstrap over groups, B=%d" % N_BOOT)
+
+    # 8. the three cross-cell readings of that ratio (revision 19, criteria a' and b')
+    band_lo, band_hi = nl.RATIO_BAND
+    if noise:
+        scanned = sorted(noise)
+        values = [noise[k]["ratio"] for k in scanned]
+        src_all = [rel_path(wf, model, n) for (wf, model, n) in scanned]
+        models_read = ", ".join(sorted({model for (_, model, _) in scanned}))
+        # Pooled across substrates on purpose (the maintainers' decision of
+        # 2026-09-15): the law is not a statement about one base model, and the
+        # more cells the correlation has the more it can say. The band test of
+        # criterion b' is the one reading tied to a substrate, because it compares
+        # the six workflows at one branching.
+        builder.add("E1.noise_ratio.median", nl.ratio_median(values), n=len(values),
+                    source=src_all,
+                    note="median over the %d scan cell(s) that carry a ratio, pooled across "
+                         "substrates (model(s) %s); the preregistered band is [%.2f, %.2f]"
+                         % (len(values), models_read, band_lo, band_hi))
+        vs_n = nl.ratio_vs_n([(n, noise[(wf, model, n)]["ratio"])
+                              for (wf, model, n) in scanned], n_boot=N_BOOT, seed=SEED)
+        if vs_n["rho"] is None:
+            builder.note("skip %s{,_ci_lo,_ci_hi}: the %d cell(s) carrying a ratio do not "
+                         "vary in branching or in ratio"
+                         % (builder.key("E1.noise_ratio.vs_n_rho"), len(values)))
+        else:
+            head = ("rank correlation of the cell ratio against branching over the %d scan "
+                    "cell(s) that carry one, pooled across substrates (model(s) %s)"
+                    % (vs_n["n_cells"], models_read))
+            builder.add("E1.noise_ratio.vs_n_rho", vs_n["rho"], n=vs_n["n_cells"],
+                        source=src_all, note=head)
+            boot = ("percentile bootstrap over cells, B=%d (%d draw(s) kept, %d dropped for "
+                    "holding one branching or one ratio only)"
+                    % (N_BOOT, vs_n["n_draws"], vs_n["n_degenerate"]))
+            for tail, value in (("_ci_lo", vs_n["ci_lo"]), ("_ci_hi", vs_n["ci_hi"])):
+                builder.add("E1.noise_ratio.vs_n_rho" + tail, value, n=vs_n["n_cells"],
+                            source=src_all, note=head + "; " + boot)
+    else:
+        builder.note("skip %s and %s{,_ci_lo,_ci_hi}: no scan cell carries a ratio"
+                     % (builder.key("E1.noise_ratio.median"),
+                        builder.key("E1.noise_ratio.vs_n_rho")))
+
+    # The verdict of criterion b', printed and not written: `summary.key_refusal`
+    # refuses every key whose unit is "verdict", and filling one is the
+    # maintainers' action. Printed on the question-pool tree alone, which is where
+    # the preregistration decides E1; the appendix tree carries no verdict key to
+    # name here.
+    if builder.key_prefix == DEFAULT_KEY_PREFIX:
+        n4 = [(wf, noise[(wf, "4b", PD_SOURCE_N)]["ratio"]) for wf in PD_WORKFLOWS
+              if (wf, "4b", PD_SOURCE_N) in noise]
+        if len(n4) == len(PD_WORKFLOWS):
+            outside = [wf for wf, ratio in n4 if not nl.in_band(ratio)]
+            builder.note(
+                "E1.noise_ratio.n4_all_in_band is a verdict key and no script writes it. "
+                "The reading it is decided on, the six workflows at branching 4 on Qwen3-4B: "
+                "%s. Inside [%.2f, %.2f]: %d of 6%s."
+                % ("; ".join("%s %.3f" % (wf, ratio) for wf, ratio in n4),
+                   band_lo, band_hi, len(n4) - len(outside),
+                   ("" if not outside else " (outside: %s)" % ", ".join(outside))))
+        else:
+            builder.note("E1.noise_ratio.n4_all_in_band cannot be read yet: %d of the six "
+                         "workflows have a branching-4 ratio on Qwen3-4B" % len(n4))
 
     builder.note("%s: %d key(s) written, %d refused"
                  % (builder.key_prefix or builder.experiment, len(builder.keys),

@@ -18,6 +18,18 @@ Exclusion rule (the analysis plan, restated in the results layout section 4):
 fewer than `min_cands` alternatives, fewer than two replays, or a half whose
 advantages are constant. An excluded group returns None and never enters a mean.
 
+Two pieces of that are public rather than private, because a second statistic is
+read off the same split: `noise_law.cell_noise_ratio_halves` measures the noise
+of the advantage estimate from the very same even and odd halves (revision 19 of
+the preregistration, 2026-09-15). `even_odd_halves` hands over the two halves
+themselves and `advantages_are_flat` is the flat-half clause of the rule. One
+split and one flat-half test, two statistics; the alternative was a second copy
+of both in the other module. The two statistics do not use the test the same
+way: the correlation cannot exist on a flat half and drops the group, while the
+noise reading keeps it and only counts it (revision 19(h) of the
+preregistration, 2026-09-15, recorded in `noise_law.group_noise_halves`).
+Nothing on this side changed with that decision.
+
 Note (mechanical): adv() is an increasing affine map of q inside a group
 (adv = q * n / (n - 1) - sum(q) / (n - 1)), so it never reorders the
 alternatives; the split-half Spearman is the same on the advantages and on the
@@ -48,6 +60,8 @@ __all__ = [
     "loo_adv_rows",
     "spearman_rows",
     "boot_ci",
+    "advantages_are_flat",
+    "even_odd_halves",
     "bucket_splithalf",
     "bucket_splithalf_random",
     "cell_reliability",
@@ -195,12 +209,22 @@ def _group_matrix(bucket: Bucket, min_cands: int) -> Optional[np.ndarray]:
     return np.asarray([r[:c_min] for r in rets], dtype=float)
 
 
+def advantages_are_flat(adv: Optional[np.ndarray]) -> bool:
+    """The flat-half clause of the exclusion rule: a half whose advantage vector is
+    constant orders nothing, so the group never enters a mean.
+
+    A half with fewer than two alternatives (`loo_adv` returns None there) counts
+    as flat, which is how the clause has always behaved.
+    """
+    if adv is None:
+        return True
+    return not (np.std(adv) > 0)
+
+
 def _spearman_of_halves(q_a: Sequence[float], q_b: Sequence[float]) -> Optional[float]:
     """Spearman of the two half advantage vectors, or None when a half is flat."""
     adv_a, adv_b = loo_adv(q_a), loo_adv(q_b)
-    if adv_a is None or adv_b is None:
-        return None
-    if not (np.std(adv_a) > 0 and np.std(adv_b) > 0):
+    if advantages_are_flat(adv_a) or advantages_are_flat(adv_b):
         return None
     rho = stats.spearmanr(adv_a, adv_b).statistic
     if np.isnan(rho):
@@ -211,6 +235,29 @@ def _spearman_of_halves(q_a: Sequence[float], q_b: Sequence[float]) -> Optional[
 def _even_odd_means(vals: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Half means on the even and odd replay indices below c_min."""
     return vals[:, 0::2].mean(axis=1), vals[:, 1::2].mean(axis=1)
+
+
+def even_odd_halves(
+    bucket: Bucket, *, min_cands: int = DEFAULT_MIN_CANDS
+) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    """The two halves of one group's replays as (n, k) return matrices, or None
+    when the group is excluded by the alternative-count or replay-count clause.
+
+    The same split the reliability estimator correlates: replay indices below
+    c_min, even ones on one side and odd ones on the other. The halves are
+    returned whole rather than as their two means, because the noise estimator
+    needs the replays themselves (their count is the per-half budget and their
+    spread is sigma^2).
+
+    With an odd c_min the even half carries one replay more than the odd half.
+    That is the split the reliability estimator has always taken; it matters to
+    the noise estimator, which reports the mean of the two half sizes as the
+    per-half budget, so the cell-level caller counts those groups.
+    """
+    vals = _group_matrix(bucket, min_cands)
+    if vals is None:
+        return None
+    return vals[:, 0::2], vals[:, 1::2]
 
 
 def _random_half_means(vals: np.ndarray, rng: np.random.Generator) -> Tuple[np.ndarray, np.ndarray]:

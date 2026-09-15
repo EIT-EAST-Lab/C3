@@ -589,6 +589,13 @@ def fake_manifest(keys):
             unit, fmt = "%", "{:.0f}"
         elif key.endswith("wgv"):
             unit, fmt = "variance", "{:.3f}"
+        elif ".noise_ratio." in key:
+            # The halves reading of a sweep cell: a ratio, except the rank
+            # correlation of that ratio against branching.
+            if "vs_n_rho" in key:
+                unit, fmt = "spearman", "{:+.2f}"
+            else:
+                unit, fmt = "ratio", "{:.2f}"
         elif ".ratio." in key or key.endswith("worst_ratio"):
             unit, fmt = "ratio", "{:.2f}"
         elif key.endswith("dup_rate"):
@@ -601,9 +608,10 @@ def fake_manifest(keys):
             unit, fmt = "spearman", "{:.2f}"
         out[key] = {"value": None, "fmt": fmt, "unit": unit, "verdict": None,
                     "source": None, "n": None, "experiment": key.split(".")[0], "note": ""}
-    out["E1.reliability.budget_not_depth"] = {
-        "value": None, "fmt": "{}", "unit": "verdict", "verdict": None, "source": None,
-        "n": None, "experiment": "E1", "note": "a verdict key, never written by a script"}
+    for verdict_key in ("E1.reliability.budget_not_depth", "E1.noise_ratio.n4_all_in_band"):
+        out[verdict_key] = {
+            "value": None, "fmt": "{}", "unit": "verdict", "verdict": None, "source": None,
+            "n": None, "experiment": "E1", "note": "a verdict key, never written by a script"}
     return out
 
 
@@ -620,6 +628,12 @@ E1_MANIFEST_KEYS = (
     + ["E1.per_decision_n4.4b.rel_min", "E1.per_decision_n4.4b.rel_max",
        "E1.per_decision_n4.4b.rel_range", "E1.sweep_n.4b.delta_n8_n3_min",
        "E1.sweep_n.4b.delta_n8_n3_min_ci_lo", "E1.sweep_n.4b.delta_n8_n3_min_arm"]
+    # the halves reading of every sweep cell, and its three cross-cell readings
+    + ["E1.noise_ratio.%s.4b.n%d%s" % (wf, n, tail)
+       for wf in ("a2", "a3") for n in (2, 3, 4, 6, 8)
+       for tail in ("", "_ci_lo", "_ci_hi")]
+    + ["E1.noise_ratio.median", "E1.noise_ratio.vs_n_rho",
+       "E1.noise_ratio.vs_n_rho_ci_lo", "E1.noise_ratio.vs_n_rho_ci_hi"]
 )
 
 
@@ -1071,3 +1085,441 @@ def test_load_buckets_reports_a_broken_line(tmp_path):
     with pytest.raises(ValueError) as exc:
         sh.load_buckets(path)
     assert "line 3" in str(exc.value)
+
+
+# -------------------------
+# 9. the noise ratio read off each sweep cell's own halves
+#
+# Revision 19 of the preregistration (2026-09-15) reads the noise law off the E1
+# sweep cells as well as off the E1b grid: the even and the odd replays of one
+# group are two independent estimates of the same advantage vector at the same
+# decision point, so a cell collected once already carries a noise measurement
+# and nothing is rerun for it. The estimator is the one E1b calls; the first two
+# tests here are the guard that factoring it out moved no E1b number.
+# -------------------------
+
+
+def _hand_e1b_reading(bucket_a, bucket_b, ddof=0):
+    """One group's E1b reading, transcribed from noise_law.group_noise as it stood
+    before `returns_noise` was factored out of it (2026-09-15).
+
+    A second copy rather than a pinned constant: it can be read against the
+    implementation line by line, and it catches a moved number on any data, not
+    just on the one group a constant would cover.
+    """
+    rets_a = [list(c["returns"]) for c in bucket_a["candidates"]]
+    rets_b = [list(c["returns"]) for c in bucket_b["candidates"]]
+    n = len(rets_a)
+    if n < 2 or len(rets_b) != n:
+        return None
+    if any(len(r) == 0 for r in rets_a) or any(len(r) == 0 for r in rets_b):
+        return None
+    adv_a = sh.loo_adv([float(np.mean(r)) for r in rets_a])
+    adv_b = sh.loo_adv([float(np.mean(r)) for r in rets_b])
+    measured = float(np.var(adv_a - adv_b, ddof=ddof)) / 2.0
+    per_alt = []
+    for ra, rb in zip(rets_a, rets_b):
+        vals = [float(v) for v in ra] + [float(v) for v in rb]
+        if len(vals) >= 2:
+            per_alt.append(float(np.var(vals, ddof=1)))
+    if not per_alt:
+        return None
+    sigma2 = float(np.mean(per_alt))
+    counts = [len(r) for r in rets_a] + [len(r) for r in rets_b]
+    c = float(np.mean(counts))
+    budget = n * c
+    predicted = sigma2 * n * n / (budget * (n - 1))
+    if not (predicted > 0):
+        return None
+    return {"n": n, "c": c, "measured": measured, "predicted": predicted,
+            "ratio": measured / predicted}
+
+
+def _hand_halves_reading(bucket, ddof=0):
+    """One group's halves reading, written out from the raw returns.
+
+    Independent of the module on purpose: truncate every alternative to the
+    smallest replay count, split the replay indices into even and odd, take each
+    half's leave-one-out advantages, halve the mean of their squared difference,
+    and predict from the within-alternative sample variance of all the replays
+    the halves used at the budget of ONE half.
+    """
+    rets = [list(c["returns"]) for c in bucket["candidates"]]
+    n = len(rets)
+    c_min = min(len(r) for r in rets)
+    used = [r[:c_min] for r in rets]
+    even = [r[0::2] for r in used]
+    odd = [r[1::2] for r in used]
+    adv_even = sh.loo_adv([float(np.mean(r)) for r in even])
+    adv_odd = sh.loo_adv([float(np.mean(r)) for r in odd])
+    measured = float(np.var(adv_even - adv_odd, ddof=ddof)) / 2.0
+    sigma2 = float(np.mean([float(np.var(r, ddof=1)) for r in used]))
+    k = (len(even[0]) + len(odd[0])) / 2.0
+    predicted = sigma2 * n * n / ((n * k) * (n - 1))
+    return {"n": n, "c": k, "measured": measured, "predicted": predicted,
+            "ratio": measured / predicted if predicted > 0 else None}
+
+
+def test_the_e1b_reading_is_unchanged_by_the_shared_estimator():
+    """The regression the refactor owes: every E1b number, group by group, is the
+    one the pre-refactor body produced. Exact equality, not approximate: the
+    operations and their order are meant to be the same ones."""
+    rng = np.random.default_rng(1801)
+    a, b = _noise_cell(4, 4, rng, n_groups=40)
+    checked = 0
+    for ba, bb in zip(a, b):
+        got = nl.group_noise(ba, bb)
+        hand = _hand_e1b_reading(ba, bb)
+        assert (got is None) == (hand is None)
+        if got is None:
+            continue
+        checked += 1
+        assert got.n == hand["n"]
+        assert got.c == hand["c"]
+        assert got.measured == hand["measured"]
+        assert got.predicted == hand["predicted"]
+        assert got.ratio == hand["ratio"]
+    assert checked >= 30
+
+    # the wrapper adds nothing but a choice of which returns are the two sides
+    core = nl.returns_noise(sh.candidate_returns(a[0]), sh.candidate_returns(b[0]))
+    direct = nl.group_noise(a[0], b[0])
+    assert (core.measured, core.predicted, core.ratio, core.n, core.c) == (
+        direct.measured, direct.predicted, direct.ratio, direct.n, direct.c)
+
+
+def test_the_e1b_cell_numbers_are_unchanged_by_the_shared_estimator():
+    """The same guard one level up, including the bootstrap interval, which is
+    what the manifest key prints."""
+    rng = np.random.default_rng(1802)
+    a, b = _noise_cell(4, 4, rng, n_groups=30)
+    rep = nl.cell_noise_ratio(a, b, n_boot=500, seed=0)
+    hand = [_hand_e1b_reading(ba, bb) for ba, bb in zip(a, b)]
+    hand = [h["ratio"] for h in hand if h is not None]
+
+    assert rep["n_groups"] == len(hand)
+    assert sorted(rep["ratios"]) == pytest.approx(sorted(hand))
+    assert rep["ratio"] == pytest.approx(float(np.mean(hand)))
+    assert rep["ci_lo"] <= rep["ratio"] <= rep["ci_hi"]
+    # the E1b cell reading does not see the halves flag at all: its two sides are
+    # the two seeds, and a flat half is not a thing it can have
+    assert "n_flat_half" not in rep
+
+
+@pytest.mark.parametrize("n,c", [(2, 4), (3, 4), (4, 4), (6, 4), (8, 4), (4, 8), (8, 8)])
+def test_the_halves_reading_matches_the_law_on_data_built_to_it(n, c):
+    """The anchor of the whole reading, and the reason this work package has one.
+
+    Returns are drawn exactly under the model the prediction assumes: every
+    alternative has the same return variance (Bernoulli(0.5), so sigma^2 = 0.25)
+    and replays are independent. A half then holds k = c / 2 replays per
+    alternative, the leave-one-out advantage of a half has variance
+    sigma^2 n / (k (n - 1)) per element, and the difference of the two halves
+    measures exactly that. Both sides of the ratio have to land on that closed
+    form.
+
+    Read with the shipped defaults, which since 2026-09-15 keep the groups whose
+    half came back flat. That matters to this check as much as to the data: the
+    clause is a selection on the quantity being measured, so switching it on
+    would move the mean away from the closed form with nothing wrong in the
+    estimator (test_the_flat_half_clause_lifts_the_halves_ratio measures it).
+
+    The tolerance is Monte Carlo, not a claim about the estimator: a thousand
+    groups of a statistic whose own spread is larger than its mean leave the mean
+    good to a few percent, and 15 percent is several times that. What the check
+    really pins is the factor of two: using the whole cell's budget n c, instead
+    of one half's n c / 2, would halve the prediction and no tolerance of this
+    size would hide that.
+    """
+    rng = np.random.default_rng([2029, n, c])
+    buckets = bernoulli_cell([0.5] * n, c, rng, 1000)
+    min_cands = 2 if n == 2 else sh.DEFAULT_MIN_CANDS
+    readings = [nl.group_noise_halves(b, min_cands=min_cands) for b in buckets]
+    readings = [g for g in readings if g is not None]
+    assert len(readings) >= 900
+
+    k = c / 2.0
+    closed_form = 0.25 * n / (k * (n - 1))
+    assert float(np.mean([g.measured for g in readings])) == pytest.approx(
+        closed_form, rel=0.15)
+    assert float(np.mean([g.predicted for g in readings])) == pytest.approx(
+        closed_form, rel=0.15)
+    assert all(g.c == k for g in readings)
+    assert all(g.n == n for g in readings)
+
+    rep = nl.cell_noise_ratio_halves(buckets, n_boot=200, seed=0, min_cands=min_cands)
+    assert rep["n_groups"] == len(readings)
+    assert rep["replays_per_half"] == pytest.approx(k)
+    assert rep["n_half_uneven"] == 0
+    assert nl.in_band(rep["ratio"]), rep["ratio"]
+    assert rep["ci_lo"] <= rep["ratio"] <= rep["ci_hi"]
+
+
+def test_the_halves_prediction_is_read_at_one_half_s_budget():
+    """The budget of the prediction, on one hand-built group and with no
+    randomness: four replays per alternative, so two per half, so the prediction
+    is at n x 2 and not at n x 4. Read against the E1b reading of the same
+    returns split as two seeds, which is the same arithmetic at twice the budget.
+    """
+    returns = [[1.0, 0.0, 1.0, 1.0], [0.0, 0.0, 1.0, 0.0], [1.0, 1.0, 0.0, 1.0]]
+    bucket = make_bucket(returns)
+    got = nl.group_noise_halves(bucket)
+    hand = _hand_halves_reading(bucket)
+
+    assert got.n == 3
+    assert got.c == pytest.approx(2.0)                    # replays per HALF
+    assert got.measured == pytest.approx(hand["measured"])
+    assert got.predicted == pytest.approx(hand["predicted"])
+    assert got.ratio == pytest.approx(hand["ratio"])
+
+    sigma2 = float(np.mean([float(np.var(r, ddof=1)) for r in returns]))
+    assert got.predicted == pytest.approx(sigma2 * 9 / (6 * 2))   # budget 3 x 2, not 3 x 4
+
+    # Handing the same two halves to the E1b entry point as if they were two
+    # seeds gives the same numbers, which is the claim that the two readings are
+    # one estimator: same pooled sigma^2, same two replays per side, same budget.
+    even = make_bucket([r[0::2] for r in returns])
+    odd = make_bucket([r[1::2] for r in returns])
+    as_two_seeds = nl.group_noise(even, odd)
+    assert as_two_seeds.measured == pytest.approx(got.measured)
+    assert as_two_seeds.predicted == pytest.approx(got.predicted)
+    assert as_two_seeds.c == pytest.approx(got.c)
+
+
+def test_the_halves_reading_takes_the_count_clauses_and_counts_the_flat_one():
+    """Which groups the two statistics share, and the two places they part.
+
+    The count clauses are shared: too few alternatives and too few replays drop
+    a group from both. The two asymmetries are deliberate and go in opposite
+    directions. A group with a flat half has no correlation and does have a noise
+    reading, so it stays here and is counted (the maintainers' decision of
+    2026-09-15). A group whose replays never vary has a perfectly good
+    correlation and no noise reading at all, because its predicted noise is zero
+    and the ratio would divide by it.
+    """
+    short = make_bucket([[1.0, 0.0], [0.0, 1.0]], bucket_id="b_short")
+    one_replay = make_bucket([[1.0], [0.0], [1.0]], bucket_id="b_one")
+    flat = make_bucket([[1.0, 1.0], [1.0, 1.0], [0.0, 1.0]], bucket_id="b_flat")
+    frozen = make_bucket([[1.0, 1.0], [0.0, 0.0], [1.0, 1.0]], bucket_id="b_frozen")
+    good = make_bucket([[1.0, 0.0, 1.0, 1.0], [0.0, 0.0, 1.0, 0.0],
+                        [1.0, 1.0, 0.0, 1.0]], bucket_id="b_good")
+
+    assert sh.bucket_splithalf(short) is None
+    assert nl.group_noise_halves(short) is None
+    assert sh.bucket_splithalf(one_replay) is None
+    assert nl.group_noise_halves(one_replay) is None
+    # the flat half: the correlation cannot exist, the noise reading can, and by
+    # default it is taken
+    assert sh.bucket_splithalf(flat) is None
+    assert nl.group_noise_halves(flat) is not None
+    assert nl.group_noise_halves(flat, drop_flat_halves=True) is None
+    # the frozen group: the correlation exists, the noise reading cannot
+    assert sh.bucket_splithalf(frozen) == pytest.approx(1.0)
+    assert nl.group_noise_halves(frozen) is None
+    assert nl.group_noise_halves(frozen, drop_flat_halves=True) is None
+
+    cell = [short, one_replay, flat, frozen, good]
+    rep = nl.cell_noise_ratio_halves(cell, n_boot=0)
+    assert rep["n_groups"] == 2 and rep["n_total"] == 5
+    assert rep["excluded_pct"] == pytest.approx(60.0)
+    assert rep["n_flat_half"] == 1
+    hand_flat = _hand_halves_reading(flat)["ratio"]
+    hand_good = _hand_halves_reading(good)["ratio"]
+    assert rep["ratio"] == pytest.approx((hand_flat + hand_good) / 2.0)
+    # the other pool rides along: the same cell without the flat-half group
+    assert rep["n_groups_flat_dropped"] == 1
+    assert rep["ratio_flat_dropped"] == pytest.approx(hand_good)
+    assert nl.cell_noise_ratio_halves(cell, n_boot=0, drop_flat_halves=True)["ratio"] == (
+        pytest.approx(rep["ratio_flat_dropped"]))
+    # the reliability of the same cell keeps the frozen group and drops the flat one
+    assert sh.cell_reliability(cell, n_random_splits=5, n_boot=0).n_groups == 2
+
+
+def test_the_flat_half_clause_lifts_the_halves_ratio():
+    """What the flat-half clause costs, measured rather than argued.
+
+    A group whose even half comes back flat is a group whose even estimate is
+    exactly zero. Under the null used here (every alternative the same quality)
+    its squared difference is one side's variance instead of two, so it sits in
+    the low half of the measured noise, and dropping it lifts the cell mean. The
+    clause therefore lifts the ratio most where flat halves are common, which is
+    at few alternatives: with two alternatives and four replays about six groups
+    in ten come back with a flat half, against roughly one in eight at four
+    alternatives.
+
+    This is the measurement the maintainers decided on (2026-09-15): the noise
+    reading keeps the flat-half groups, because that lift falls with the number
+    of alternatives and would plant a trend in exactly the quantity secondary
+    criterion a' tests. The clause stays reachable as a keyword, and every cell
+    reports the other pool's reading, so the sensitivity is never lost.
+
+    The assertion is only on the direction and only at two alternatives, where
+    the effect is far larger than the Monte Carlo spread.
+    """
+    rng = np.random.default_rng(1803)
+    buckets = bernoulli_cell([0.5, 0.5], 4, rng, 800)
+    kept = nl.cell_noise_ratio_halves(buckets, n_boot=0, min_cands=2,
+                                      drop_flat_halves=False)
+    dropped = nl.cell_noise_ratio_halves(buckets, n_boot=0, min_cands=2,
+                                         drop_flat_halves=True)
+
+    # the measured noise itself, where the selection acts and the Monte Carlo
+    # spread is smallest: the surviving groups are the noisier ones
+    def measured(flag):
+        got = [nl.group_noise_halves(b, min_cands=2, drop_flat_halves=flag)
+               for b in buckets]
+        return float(np.mean([g.measured for g in got if g is not None]))
+
+    assert measured(True) > measured(False)
+    assert dropped["n_flat_half"] == kept["n_flat_half"] > 0
+    # the pool only grows by flat-half groups, and by at most all of them (a flat
+    # group whose replays never varied has no prediction either way)
+    assert dropped["n_groups"] < kept["n_groups"] <= dropped["n_groups"] + dropped["n_flat_half"]
+    assert dropped["ratio"] > kept["ratio"]
+    # the sensitivity every cell reports is exactly the other pool's reading
+    assert kept["ratio_flat_dropped"] == pytest.approx(dropped["ratio"])
+    assert kept["n_groups_flat_dropped"] == dropped["n_groups"]
+    assert dropped["ratio_flat_dropped"] == pytest.approx(dropped["ratio"])
+
+
+def test_the_cross_cell_readings():
+    """The three statements revision 19 makes over the cells: a median, a rank
+    correlation against branching with an interval over cells, and a band test.
+    """
+    assert nl.RATIO_BAND == (0.7, 1.4)
+    assert nl.in_band(0.7) and nl.in_band(1.4) and nl.in_band(1.0)
+    assert not nl.in_band(0.69) and not nl.in_band(1.41)
+    assert not nl.in_band(None) and not nl.in_band(float("nan"))
+    assert nl.all_in_band([0.8, 1.2]) is True
+    assert nl.all_in_band([0.8, 1.5]) is False
+    assert nl.all_in_band([]) is None
+    assert nl.ratio_median([]) is None
+    assert nl.ratio_median([1.0, 2.0, 3.0]) == pytest.approx(2.0)
+    assert nl.ratio_median([1.0, 2.0]) == pytest.approx(1.5)
+
+    # a set that rises with branching: the correlation is exactly one, and the
+    # interval over cells sits above zero
+    rising = [(n, 0.8 + 0.05 * n) for n in (2, 3, 4, 6, 8) for _ in range(6)]
+    up = nl.ratio_vs_n(rising, n_boot=500, seed=0)
+    assert up["rho"] == pytest.approx(1.0)
+    assert up["n_cells"] == 30
+    assert up["n_draws"] + up["n_degenerate"] == 500
+    assert up["ci_lo"] > 0
+
+    # the same branchings with no trend, built so the correlation is exactly zero
+    # rather than zero on average: every branching carries the same six ratios, so
+    # the interval has to contain zero, which is what criterion a' asks of the
+    # real cells
+    plateau = [(n, r) for n in (2, 3, 4, 6, 8)
+               for r in (0.90, 0.95, 1.00, 1.05, 1.10, 1.15)]
+    none = nl.ratio_vs_n(plateau, n_boot=500, seed=0)
+    assert none["rho"] == pytest.approx(0.0, abs=1e-9)
+    assert none["ci_lo"] < 0 < none["ci_hi"]
+
+    # the point estimate is the tie-corrected Spearman scipy computes
+    ns = np.asarray([p[0] for p in plateau], dtype=float)
+    rs = np.asarray([p[1] for p in plateau], dtype=float)
+    assert none["rho"] == pytest.approx(stats.spearmanr(ns, rs).statistic, abs=1e-9)
+
+    # degenerate inputs say so instead of inventing a correlation
+    assert nl.ratio_vs_n([(4, 1.0)])["rho"] is None
+    assert nl.ratio_vs_n([(4, 1.0), (4, 1.2), (4, 0.9)])["rho"] is None
+    assert nl.ratio_vs_n(rising, n_boot=0)["ci_lo"] is None
+
+
+def test_aggregate_e1_writes_the_halves_noise_ratio(tmp_path, capsys):
+    """The keys the sweep gains, on the same minimal tree the other aggregator
+    tests use: one ratio and two bounds per cell, the median and the rank
+    correlation over cells, and the verdict of criterion b' printed rather than
+    written.
+    """
+    root = os.path.join(str(tmp_path), "E1")
+    made = build_e1_tree(root)
+    manifest_path = os.path.join(str(tmp_path), "manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as fh:
+        json.dump(fake_manifest(E1_MANIFEST_KEYS), fh)
+    out_path = os.path.join(str(tmp_path), "summary.json")
+
+    assert aggregate_e1.main(["--results", root, "--manifest", manifest_path,
+                              "--out", out_path]) == 0
+    with open(out_path, "r", encoding="utf-8") as fh:
+        keys = json.load(fh)["keys"]
+    err = capsys.readouterr().err
+
+    expected = {}
+    for (wf, n), buckets in made.items():
+        expected[(wf, n)] = nl.cell_noise_ratio_halves(
+            buckets, n_boot=aggregate_e1.N_BOOT, seed=aggregate_e1.SEED,
+            min_cands=aggregate_e1.MIN_CANDS_N2 if n == 2 else aggregate_e1.MIN_CANDS)
+
+    written = [k for k in keys if k.startswith("E1.noise_ratio.")]
+    assert written, "no halves noise key was written at all"
+    for (wf, n), rep in sorted(expected.items()):
+        base = "E1.noise_ratio.%s.4b.n%d" % (wf, n)
+        if rep["ratio"] is None:
+            assert base not in keys
+            continue
+        assert keys[base]["value"] == pytest.approx(rep["ratio"])
+        assert keys[base]["n"] == rep["n_groups"]
+        assert keys[base]["unit"] == "ratio"
+        assert keys[base]["source"] == [
+            "%s/%s/4b/sweep_n%d/buckets.jsonl" % (root.replace("\\", "/"), wf, n)]
+        assert keys[base + "_ci_lo"]["value"] == pytest.approx(rep["ci_lo"])
+        assert keys[base + "_ci_hi"]["value"] == pytest.approx(rep["ci_hi"])
+        assert (keys[base + "_ci_lo"]["value"] <= keys[base]["value"]
+                <= keys[base + "_ci_hi"]["value"])
+        # a cell holding flat-half groups keeps them and says what dropping them
+        # would have read (the maintainers' decision of 2026-09-15)
+        if rep["n_flat_half"]:
+            assert "came back with a flat half and are kept" in keys[base]["note"]
+            assert ("dropping them instead would read %.4f" % rep["ratio_flat_dropped"]
+                    in keys[base]["note"])
+    assert "replays per half" in keys["E1.noise_ratio.a2.4b.n4"]["note"]
+
+    # the three cross-cell readings
+    usable = {cell: rep for cell, rep in expected.items() if rep["ratio"] is not None}
+    ordered = sorted((wf, "4b", n) for (wf, n) in usable)
+    values = [usable[(wf, n)]["ratio"] for (wf, _, n) in ordered]
+    assert keys["E1.noise_ratio.median"]["value"] == pytest.approx(nl.ratio_median(values))
+    assert keys["E1.noise_ratio.median"]["n"] == len(values)
+    assert keys["E1.noise_ratio.median"]["unit"] == "ratio"
+    vs_n = nl.ratio_vs_n([(n, usable[(wf, n)]["ratio"]) for (wf, _, n) in ordered],
+                         n_boot=aggregate_e1.N_BOOT, seed=aggregate_e1.SEED)
+    assert keys["E1.noise_ratio.vs_n_rho"]["value"] == pytest.approx(vs_n["rho"])
+    assert keys["E1.noise_ratio.vs_n_rho_ci_lo"]["value"] == pytest.approx(vs_n["ci_lo"])
+    assert keys["E1.noise_ratio.vs_n_rho_ci_hi"]["value"] == pytest.approx(vs_n["ci_hi"])
+    assert keys["E1.noise_ratio.vs_n_rho"]["unit"] == "spearman"
+    # both cross-cell keys say that they pool the substrates together
+    for key in ("E1.noise_ratio.median", "E1.noise_ratio.vs_n_rho"):
+        assert "pooled across substrates" in keys[key]["note"]
+
+    # the verdict of criterion b' is printed and never written, and this tree has
+    # only two of the six workflows, so the line says it cannot be read yet
+    assert "E1.noise_ratio.n4_all_in_band" not in keys
+    assert "E1.noise_ratio.n4_all_in_band cannot be read yet" in err
+    assert "2 of the six workflows" in err
+
+
+def test_the_appendix_tree_carries_the_cell_ratios_and_decides_nothing(tmp_path, capsys):
+    """The halves reading is measured on both trees and decided on neither by a
+    script. The per-cell keys are renamed like every other cell key; the three
+    cross-cell keys belong to the question-pool tree, so the appendix run refuses
+    them the way it refuses any key its manifest does not define, and the verdict
+    line is not printed there at all.
+    """
+    root = os.path.join(str(tmp_path), "E1_math500all")
+    build_e1_tree(root)
+    manifest = fake_manifest(_appendix_manifest_keys())
+    for key in ("E1app.noise_ratio.median", "E1app.noise_ratio.vs_n_rho",
+                "E1app.noise_ratio.vs_n_rho_ci_lo", "E1app.noise_ratio.vs_n_rho_ci_hi"):
+        manifest.pop(key, None)
+
+    payload = aggregate_e1.build_e1_summary(root, manifest, key_prefix="E1app").payload()
+    err = capsys.readouterr().err
+
+    ratios = [k for k in payload["keys"] if k.startswith("E1app.noise_ratio.")]
+    assert ratios
+    assert all(".4b.n" in k for k in ratios)
+    assert "skip E1app.noise_ratio.median: not a manifest key" in err
+    assert "n4_all_in_band" not in err
+    assert "skip E1." not in err
