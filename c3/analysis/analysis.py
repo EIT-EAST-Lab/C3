@@ -1169,7 +1169,7 @@ def _cmd_credit(args: argparse.Namespace) -> None:
         p_out = Path(args.out_details)
         _ensure_parent_dir(p_out)
         n_rows = 0
-        with p_out.open("w", encoding="utf-8") as fh:
+        with p_out.open("w", encoding="utf-8", newline="\n") as fh:
             for b in _validated_iter():
                 meta = b.get("meta", {})
                 if not isinstance(meta, Mapping):
@@ -1280,7 +1280,7 @@ def _cmd_influence(args: argparse.Namespace) -> None:
     if args.out_points:
         p = Path(args.out_points)
         _ensure_parent_dir(p)
-        out_points_fh = p.open("w", encoding="utf-8")
+        out_points_fh = p.open("w", encoding="utf-8", newline="\n")
 
     report = _call_by_signature(
         influence_report,

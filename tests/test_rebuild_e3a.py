@@ -54,7 +54,7 @@ from c3.mas.prompt_render import build_render_context  # noqa: E402
 # Output of `build-buckets` on the fixture below, taken with the code that had
 # no --inject_literal_candidate flag (2026-09-15, WP-R10). Adding the flag must
 # not move these bytes when the flag is absent.
-LEGACY_BUCKETS_SHA256 = "1b37e5686e2ef3718376f9b6ceb26b6f641e378d7aecee9b82544a3c529f0840"
+LEGACY_BUCKETS_SHA256 = "f2e77be137b4f5c65d91554f548f9bc942626e29ec4becbcb00ff59c8d50287e"
 
 
 # ---------------------------------------------------------------------------

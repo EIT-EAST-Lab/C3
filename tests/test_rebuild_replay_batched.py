@@ -48,7 +48,7 @@ from c3.analysis.buckets import read_buckets_jsonl, write_buckets_jsonl  # noqa:
 
 # Output of `build-buckets` on the fixture below, taken with the code that had
 # no --batched flag (2026-09-15, WP-R7). The flag must not move these bytes.
-LEGACY_BUCKETS_SHA256 = "1edebda9eb700f97819e8a1e4044db6e22ea960f06b7749056b081adaa230993"
+LEGACY_BUCKETS_SHA256 = "e78e914b338c8d3e149a2d15d3d436c8a4412af6ac4fe4848d1fb37189168df4"
 
 
 # ---------------------------------------------------------------------------

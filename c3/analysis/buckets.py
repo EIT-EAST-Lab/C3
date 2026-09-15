@@ -256,7 +256,7 @@ def write_buckets_jsonl(path: str | os.PathLike[str], buckets_iter: Iterable[Buc
 
     p.parent.mkdir(parents=True, exist_ok=True)
 
-    with p.open("w", encoding="utf-8") as f:
+    with p.open("w", encoding="utf-8", newline="\n") as f:
         for b in buckets_iter:
             d = _normalize_bucket_for_write(b)
             validate_bucket(d)  # fail early with precise path
