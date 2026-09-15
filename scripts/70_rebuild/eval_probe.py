@@ -225,6 +225,12 @@ def build_runs(args: argparse.Namespace) -> List[ProbeRun]:
         # repeated here so the command states what it really does, and because a
         # later flag of the same name wins in the argparse parser on the far end.
         extra = f"--eval_n_samples_per_prompt {int(n_samples)} --eval_temperature {float(temperature)}"
+        # Platform specific trainer flags (for example --attn_implementation sdpa where flash-attn
+        # is not installed, or the GPU counts of a one GPU run) are appended from the environment,
+        # so the probe itself stays free of machine details.
+        extra_env = os.environ.get("EVAL_PROBE_EXTRA_ARGS", "").strip()
+        if extra_env:
+            extra = f"{extra} {extra_env}"
 
         argv = [
             args.bash,
