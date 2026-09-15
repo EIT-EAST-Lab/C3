@@ -196,9 +196,17 @@ For the authoritative values (including exact commits and SHA256), always consul
 - Revision: pinned commit SHA (see manifest)
 - Output: `data/MATH/train.jsonl`
 - Rows keep `level`, `subject` (upstream calls that column `type`) and `solution`.
+- Prepared rows: 7,498. The seven subject train splits are the 7,500 problem MATH
+  train split; the prepared file is that union after two reductions, the
+  deduplication rule below and the answer gate of `prepare_math.py`, which drops
+  and counts a row whose solution ends in an empty `\boxed{}` because such a row
+  has no answer to score against.
 
 This is the canonical MATH training split: upstream stores one config per subject,
 so the train split of the benchmark is the union of the seven subject train splits.
+
+The manifest pins this artifact by `sha256`, not by `expected_rows`, so the count
+above is documentation and the `sha256` pin is the gate.
 
 > Correction, and the reason this section changed. Until now the training artifact
 > was pinned to the mirror `qwedsacf/competition_math`. That mirror has a single
@@ -269,10 +277,21 @@ problem can carry a different id in two splits.
 
 - Upstream HF ID: `google-research-datasets/mbpp` (`config: full`)
 - Splits: `train`, `test`
-- Revision: pinned commit SHA
+- Revision: pinned commit SHA, the same for both entries
 - Outputs:
-  - `data/MBPP/train.jsonl`
+  - `data/MBPP/train.jsonl`, 371 prepared rows
   - `data/MBPP/test.jsonl`
+
+`MBPP-test` is prepared first, and `MBPP-train` is written minus every problem
+that also occurs in it. This revision of the `full` config ships three problems in
+both splits, so the training split as shipped is not disjoint from `MBPP-test` or
+from `MBPP+`, and the overlap gate fails on it. The subtraction keys on the same
+normalized problem text the gate compares, so the two cannot disagree, and
+`check_overlap.py` verifies the result against both evaluation artifacts.
+
+As with `MATH-train`, the manifest pins these artifacts by `sha256` and declares
+no `expected_rows` for them, so the count above is documentation and the `sha256`
+pin is the gate.
 
 ### MBPP+ (EvalPlus-pinned with strict provenance)
 
@@ -313,11 +332,13 @@ Three of the five need more than a column rename:
   keeps any unit out of it in a separate `unit` column. The reward path compares
   one string, so `source.multi_answer_policy` (`drop`, `first` or `join_comma`)
   and `source.unit_policy` (`drop`, `ignore` or `append`) say what the single
-  answer string of a prepared row is. Both ship as `DECIDE-ME` and the builder
-  refuses to run while they hold that value, the same contract as a `PIN-ME`
-  revision. Of the 674 rows, 93 carry more than one answer and 9 carry a unit,
-  so the choice moves the row count as well as the answers, which is why no
-  `expected_rows` is pinned for this entry.
+  answer string of a prepared row is. The manifest ships `drop` for both, so a
+  row with more than one answer and a row that carries a unit are not prepared at
+  all. `DECIDE-ME` is the unset sentinel for either field and the builder refuses
+  to run while one of them holds it, the same contract as a `PIN-ME` revision. Of
+  the 674 rows, 93 carry more than one answer and 9 carry a unit, so the choice
+  moves the row count as well as the answers, which is why no `expected_rows` is
+  pinned for this entry.
 - `math-ai/olympiadbench` is used rather than `Hothan/OlympiadBench`, which is
   the same subset. Upstream files the English text-only open-ended maths subset
   under config `OE_TO_maths_en_COMP` and split `train`; the mirror ships the same

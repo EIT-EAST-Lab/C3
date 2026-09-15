@@ -7,6 +7,86 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+0.2.0 candidate, date to be set by the driver.
+
+### Added
+
+- Six workflow configurations for the depth study, all on the same data as
+  `configs/tasks/math.yaml`: `math_a3.yaml` (three agents), `math_mt4.yaml`
+  (four turns), `math_branch.yaml` (branching), `math_c5.yaml` (five-agent
+  chain), `math_c10.yaml` (ten-agent chain), and `math_screen.yaml` for the E1
+  screening pass. The role files are
+  `configs/roles/math/roles_{trio,mt4,branch,c5,c10}.json`.
+- `scripts/70_rebuild/e1_cells.py` and `scripts/70_rebuild/e3a_cells.py`, which
+  emit and optionally run the bucket-generation cells of the E1 depth study and
+  of the E3a bias map. `--dry-run` prints the commands and the cell count, and
+  needs neither a GPU nor a model.
+- `scripts/70_rebuild/eval_probe.py`, which measures the start accuracy of a
+  frozen policy on the candidate benchmarks. It drives the existing evaluation
+  path in two decodings (greedy, and four samples at temperature 0.7) and writes
+  a `probe_summary.json` with Wilson intervals per suite.
+  `EVAL_PROBE_EXTRA_ARGS` is appended to the trainer flags, which is where the
+  attention backend and the GPU counts of the host go.
+- `c3/analysis/replay_batched.py`, cross bucket batched counterfactual replay. It
+  keeps the semantics of `ReplayRunner.run_bucket` and only changes when the
+  calls are issued: every bucket that needs a generation at the same stage is
+  handed to the policy in one `sample_many` call.
+  `c3.analysis.analysis build-buckets --batched` selects it.
+- `build-buckets --meta_json`, which merges experiment meta into every written
+  bucket, and `--inject_literal_candidate` with `--null_form`, which put a null
+  arm at `j=0` in both the sequential and the batched path and record it in the
+  bucket meta.
+- `c3/analysis/rebuild/`, the analysis package of the rebuild study: split-half
+  reliability with a group bootstrap (`splithalf.py`), the duplicate rate
+  (`duplicates.py`), the estimator noise law (`noise_law.py`), answer-level
+  plug-in influence with the Miller-Madow correction, in nats (`influence.py`),
+  the ablation bias map (`bias_map.py`), the paired coupling contrast
+  (`coupling.py`), one `summary.json` writer (`summary.py`), and the aggregators
+  `aggregate_e1.py`, `aggregate_e1b.py`, `aggregate_e1c_temp.py`,
+  `aggregate_e3a.py` and `aggregate_e5.py`.
+- `scripts/10_data/check_overlap.py`, the contamination gate. It fails when an
+  evaluation problem also occurs in a training file, `prepare_all.sh --strict 1`
+  runs it last, and it imports the standard library only.
+- Five candidate evaluation benchmarks in the manifest, prepared only with
+  `--prepare_eval_probe_sets 1`: Minerva Math, OlympiadBench (the English,
+  text-only, open-ended maths subset), AMC23, AIME24 and AIME25. They are
+  evaluation only and no training configuration reads them.
+- `configs/tasks/math_eval_probe.yaml`, the probe task. Its evaluation suites are
+  the candidate benchmarks plus the ceiling controls, each capped at 100
+  problems.
+- Fifteen test files for the above: the two cell drivers and the probe, the
+  analysis package, the five workflow configurations, the batched replay path,
+  the context scope, the bucket guard, the overlap gate, the data-preparation
+  gates and the schema alignment. Four fixtures under `tests/fixtures/data/`
+  come with them.
+
+### Changed
+
+- `configs/tasks/math.yaml` and the six workflow task files sample by `concat`,
+  so every problem appears once per epoch. `merge_epoch`, the previous setting,
+  oversamples the smaller source.
+- Generation-time context is the transitive ancestors of a role rather than the
+  topological prefix, so the two parallel solvers of the branching workflow no
+  longer see each other. The chain workflows are unaffected, because prefix and
+  ancestors coincide there. E1 cell meta records `context_scope=ancestors`.
+- The forms of the E3a null arm are `empty` and `placeholder`, and `deleted`
+  stays an alias of `empty`. In this code base an empty message and a deleted
+  paragraph reach the downstream roles as the same prompt, so the second form is
+  a fixed placeholder message that keeps the role present.
+- Estimator conventions for the rebuild study are fixed in code: the noise law
+  uses `mean(d^2)/2` and the per-alternative return variance, a cell with two
+  alternatives reports direction agreement, p-values are rendered in three
+  tiers, and the summary document has a single writer.
+- `swap_space` is no longer passed in the vLLM engine arguments, because vLLM
+  0.28 rejects it.
+- `MATHPOOL` is an evaluation suite of `configs/tasks/math.yaml` and of the
+  workflow task files.
+- The manifest pins the `EleutherAI/hendrycks_math` and `weitianwen/cmath`
+  revisions, and OlympiadBench ships `multi_answer_policy: drop` and
+  `unit_policy: drop`, so its multi-answer and unit rows are not prepared.
+- The probe task declares eight evaluation suites, AIME 2025 among them, and the
+  manifest test expects pinned revisions.
+
 ### Fixed
 
 - Evaluation suites with different prepared columns are aligned before they are
@@ -40,6 +120,18 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `CMATH-train` is the validation split minus the problems it shares with the test
   split, and `scripts/10_data/check_overlap.py` fails the preparation when any
   evaluation problem occurs in any training file. See `docs/30_data_sources.md`.
+- `MBPP-train` is written minus the problems it shares with `MBPP-test`. Upstream
+  MBPP (`full` config, revision `4bb6404`) ships three problems in both splits,
+  so the training artifact as shipped failed the overlap gate against
+  `MBPP-test` and `MBPP+`. `prepare_code.py` now prepares `MBPP-test` first and
+  subtracts its problems from `MBPP-train` by the same normalized problem text
+  the gate compares, which leaves 371 rows. The `MBPP+` entry keeps
+  `evalplus@0.3.1`.
+- `c3.analysis.buckets.validate_bucket` has its own context-key collision guard.
+  It and `ReplayRunner.build_context_hash` used to observe the same `ctx_hash`
+  on one process-global guard with fingerprint strings that differ by
+  construction, so the first bucket ever written by `build-buckets` was reported
+  as a context-key collision. Both checks still fail fast on a real collision.
 
 ## [0.2.0]
 

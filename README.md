@@ -311,6 +311,46 @@ bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
   --mappo_critic_ckpt <PATH_TO_MAPPO_CRITIC>
 ```
 
+### Reliability and ablation drivers
+
+Three drivers under [scripts/70_rebuild/](scripts/70_rebuild/) measure the credit
+estimator itself on a frozen policy. They are not on the training path and they
+change nothing in it. Each one takes `--dry-run`, which prints the commands it
+would run and the cell count without a GPU or a model, so you can read the full
+sweep before spending anything on it.
+
+- [scripts/70_rebuild/e1_cells.py](scripts/70_rebuild/e1_cells.py): emit, and optionally run, the bucket-generation cells of the E1 depth study.
+- [scripts/70_rebuild/e3a_cells.py](scripts/70_rebuild/e3a_cells.py): emit, and optionally run, the bucket-generation cells of the E3a bias map.
+- [scripts/70_rebuild/eval_probe.py](scripts/70_rebuild/eval_probe.py): measure the start accuracy of a frozen policy on the candidate benchmarks.
+
+```bash
+# Print the 60 commands of the full E1 sweep and the cell count.
+python scripts/70_rebuild/e1_cells.py --model_root /models --dry-run
+
+# Run one E1 cell.
+python scripts/70_rebuild/e1_cells.py --model_root /models \
+    --results_root /abs/path/20_data/results --only a3/4b/3
+
+# Print the two E3a commands and the cell count.
+python scripts/70_rebuild/e3a_cells.py --model_root /models --dry-run
+
+# Run one E3a cell.
+python scripts/70_rebuild/e3a_cells.py --model_root /models \
+    --results_root /abs/path/20_data/results --only empty
+
+# Print the two start-accuracy probe commands and stop.
+python scripts/70_rebuild/eval_probe.py --policy /models/Qwen3-4B-Instruct-2507 --dry-run
+
+# Run both decodings of the probe and write the summary.
+python scripts/70_rebuild/eval_probe.py --policy /models/Qwen3-4B-Instruct-2507 \
+    --out /abs/path/probe_summary.json
+```
+
+The probe reads the suites declared in
+[configs/tasks/math_eval_probe.yaml](configs/tasks/math_eval_probe.yaml), which
+are prepared only with `--prepare_eval_probe_sets 1`; see
+[Data Sources](docs/30_data_sources.md).
+
 ## Implementation Note
 
 The paper's credit assignment lives in [c3/credit/counterfactual/](c3/credit/counterfactual/) and [openrlhf/trainer/ppo_utils/experience_maker.py](openrlhf/trainer/ppo_utils/experience_maker.py); see the [Implementation Audit](docs/20_implementation_audit.md) for the full paper-to-code mapping.
