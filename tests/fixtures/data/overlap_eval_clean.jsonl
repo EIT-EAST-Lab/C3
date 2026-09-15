@@ -1,0 +1,2 @@
+{"input": "What is the derivative of x^2?", "answer": "2x", "source": "fixture:eval"}
+{"input": "How many degrees are in a right angle?", "answer": "90", "source": "fixture:eval"}

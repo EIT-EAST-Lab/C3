@@ -1,0 +1,33 @@
+outputs:
+- name: FIXTURE-train
+  type: math
+  output_path: data/overlap/train.jsonl
+  sha256: null
+  expected_rows: 3
+  source:
+    kind: huggingface
+    id: example/fixture
+    config: default
+    split: train
+    revision: PIN-ME
+    license: not a real dataset
+    notes: Fixture manifest for tests/test_data_overlap.py. It is shaped like
+      configs/data_manifest.yaml, including a nested list and an unpinned sha256,
+      so the gate is tested against the real manifest layout. The files it points
+      at are written by the test.
+- name: FIXTURE-eval
+  type: math
+  output_path: data/overlap/eval.jsonl
+  sha256: null
+  expected_rows: 2
+  source:
+    kind: huggingface
+    id: example/fixture
+    configs:
+    - first
+    - second
+    split: test
+    revision: PIN-ME
+    license: not a real dataset
+    notes: The evaluation half of the fixture pair. The nested configs list is here
+      on purpose; the manifest reader must not mistake its items for entries.

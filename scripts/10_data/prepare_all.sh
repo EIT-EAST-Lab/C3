@@ -42,6 +42,8 @@ Notes:
   - The code datasets default to MBPP and MBPP+ only (HumanEval and APPS are not downloaded).
   - Downloads go to the official sources. Export HF_ENDPOINT or GITHUB_MIRROR_PREFIX
     to route them through a mirror; see docs/31_network_mirrors.md.
+  - With --strict 1 the run ends in scripts/10_data/check_overlap.py, which fails
+    when an evaluation problem also occurs in a training file.
 EOF
 }
 
@@ -183,5 +185,14 @@ run_with_hf_fallback scripts/10_data/prepare_code.py \
   --prepare_apps "$PREPARE_APPS" \
   --prepare_mbpp "$PREPARE_MBPP" \
   --prepare_mbpp_plus "$PREPARE_MBPP_PLUS"
+
+# Strict runs end in the contamination gate. It reads only the prepared files,
+# so it must run last, and a non-zero exit fails the whole preparation.
+if [[ "$STRICT" == "1" ]]; then
+  echo "[INFO] Checking that no evaluation problem occurs in a training file..."
+  # Same precedence as prepare_math.py: --out_dir wins, then --data_dir, then data.
+  OVERLAP_DIR="${OUT_DIR:-${DATA_DIR:-data}}"
+  "$PYTHON_BIN" scripts/10_data/check_overlap.py --out_dir "$OVERLAP_DIR"
+fi
 
 echo "[OK] Done."

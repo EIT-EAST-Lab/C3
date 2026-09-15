@@ -5,6 +5,24 @@ All notable changes to this repository are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Data manifest v2: `MATH-train` is the canonical train split (the 7,500 problem
+  train split, assembled from the seven subject configs of
+  `EleutherAI/hendrycks_math`), `CMATH-test` is the real test split, and an
+  overlap gate was added. Both artifacts were wrong in 0.2.0 and both errors were
+  silent. `MATH-train` was pinned to a mirror whose only split is named `train`
+  but holds the MATH train and test sets together, 12,500 rows, so the training
+  file contained all 500 MATH500 problems. `CMATH-test` was pinned to a revision
+  that has no test split, and the loader fell back to the only data file in the
+  repository, so the CMATH evaluation file was a byte-for-byte copy of the CMATH
+  training file. The loader now fails instead of substituting a split,
+  `CMATH-train` is the validation split minus the problems it shares with the test
+  split, and `scripts/10_data/check_overlap.py` fails the preparation when any
+  evaluation problem occurs in any training file. See `docs/30_data_sources.md`.
+
 ## [0.2.0]
 
 A maintenance release focused on one thing: making the repository installable,

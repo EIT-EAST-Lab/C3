@@ -1,0 +1,67 @@
+# ===== Task: math_eval_probe (start-accuracy probe over candidate benchmarks) =====
+#
+# Evaluation only. The training block is byte for byte the one in math.yaml, so
+# the probe measures the same policy on the same task definition and differs from
+# the main task in one place: the evaluation suites. Nothing here trains, and no
+# paper number comes from this file.
+#
+# The seven suites are the benchmark candidates plus the two ceiling controls.
+# Each is capped at 100 problems, which is the probe budget, and the cap takes
+# the first 100 rows of the prepared file, not a random sample. AMC23 and AIME24
+# are smaller than the cap, so they contribute all of their rows.
+#
+# Run it with scripts/70_rebuild/eval_probe.py.
+
+experiment_name: "c3_math_eval_probe"
+
+environment:
+  env_name: "MathEnv"
+  sampling_mode: concat        # every problem appears once per epoch; merge_epoch oversamples the smaller source
+  reshuffle_each_epoch: true   # reshuffle at the start of every epoch; set false to keep a fixed order
+
+  # Training set: identical to math.yaml. Present because the task schema requires
+  # it; the probe only ever runs the evaluation path.
+  train_datasets:
+    - name: "MATH-train"
+      path: "data/MATH/train.jsonl"
+      weight: 1.0
+      limit: null
+    - name: "CMATH-train"
+      path: "data/CMATH/train.jsonl"
+      weight: 1.0
+      limit: null
+
+  # Evaluation: the seven candidate and control suites, 100 problems each.
+  eval_suites:
+    - name: "MATH500"
+      path: "data/MATH500/test.jsonl"
+      limit: 100
+    - name: "Minerva-Math"
+      path: "data/MINERVA_MATH/test.jsonl"
+      limit: 100
+    - name: "OlympiadBench"
+      path: "data/OLYMPIADBENCH/test.jsonl"
+      limit: 100
+    - name: "AMC23"
+      path: "data/AMC23/test.jsonl"
+      limit: 100
+    - name: "AIME24"
+      path: "data/AIME24/test.jsonl"
+      limit: 100
+    - name: "GSM8K-test"
+      path: "data/GSM8K/test.jsonl"
+      limit: 100
+    - name: "CMATH-test"
+      path: "data/CMATH/test.jsonl"
+      limit: 100
+
+  # Environment and reward conventions: the same scorer as math.yaml, unchanged.
+  episode_length: 1
+  math_backend: marft            # marft | simple
+  reward_mode: vote_binary       # vote_binary | avg_per_answer
+  use_math_verify: true
+  mix_seed: 42                   # deterministic seed for the mixed sampling
+
+# Roles (Duo by default).
+mas:
+  roles_path: "../roles/math/roles_duo.json"

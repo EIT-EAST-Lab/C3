@@ -1,0 +1,2 @@
+{"input": "  Compute the sum   of the first\tthree primes.\n", "answer": "10", "source": "fixture:eval"}
+{"input": "How many degrees are in a right angle?", "answer": "90", "source": "fixture:eval"}
