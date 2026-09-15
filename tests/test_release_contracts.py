@@ -2,11 +2,20 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 from c3.utils.budget_ledger import append_ledger, make_budget_record
 from c3.utils.context_key import fingerprint, hash63
-from c3.utils.paper_train_contract import PAPER_TRAIN_BUDGET_B, PAPER_TRAIN_METHOD_N_SAMPLES, get_paper_train_n_samples
+from c3.utils.paper_train_contract import (
+    PAPER_TRAIN_BUDGET_B,
+    PAPER_TRAIN_DEPARTURES,
+    PAPER_TRAIN_METHOD_N_SAMPLES,
+    PAPER_TRAIN_RECIPE,
+    PAPER_TRAIN_STORE_TRUE_FLAGS,
+    get_paper_train_n_samples,
+    render_paper_train_args,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +29,10 @@ def _load_module(rel_path: str, module_name: str):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def _paper_train_script_text() -> str:
+    return (REPO_ROOT / 'scripts' / '40_train' / 'paper_train.sh').read_text(encoding='utf-8')
 
 
 def test_hash63_is_stable_and_non_negative() -> None:
@@ -63,6 +76,66 @@ def test_paper_train_script_uses_contract_helper() -> None:
     text = (REPO_ROOT / 'scripts' / '40_train' / 'paper_train.sh').read_text(encoding='utf-8')
     assert 'from c3.utils.paper_train_contract import get_paper_train_n_samples' in text
     assert '--n_samples_per_prompt "$n_samples_per_prompt"' in text
+
+
+def test_paper_train_script_renders_the_recipe_contract() -> None:
+    # Half one: the script asks this module for the recipe and expands the answer.
+    text = _paper_train_script_text()
+    assert 'from c3.utils.paper_train_contract import render_paper_train_args' in text
+    assert 'print(render_paper_train_args())' in text
+    assert 'recipe_args_line="$(_paper_train_recipe_args)"' in text
+    assert 'read -r -a recipe_args <<< "$recipe_args_line"' in text
+    assert '"${recipe_args[@]}"' in text
+
+    # Half two: the rendered string splits on whitespace into exactly the recipe,
+    # which is what the shell does with it.
+    tokens = render_paper_train_args().split()
+    n_valued = 2 * len(PAPER_TRAIN_RECIPE)
+    assert tokens[:n_valued:2] == list(PAPER_TRAIN_RECIPE)
+    assert tokens[1:n_valued:2] == list(PAPER_TRAIN_RECIPE.values())
+    assert tokens[n_valued:] == list(PAPER_TRAIN_STORE_TRUE_FLAGS)
+
+
+def test_every_contract_flag_exists_in_the_trainer_parser() -> None:
+    # Read the parser as text on purpose: importing it would pull in torch, which
+    # the CPU tier does not install.
+    text = (REPO_ROOT / 'openrlhf' / 'cli' / 'train_ppo_ray_tooling.py').read_text(encoding='utf-8')
+    flags = list(PAPER_TRAIN_RECIPE) + list(PAPER_TRAIN_STORE_TRUE_FLAGS) + list(PAPER_TRAIN_DEPARTURES)
+    missing = [
+        flag
+        for flag in flags
+        if not re.search(r'add_argument\(\s*[\'"]' + re.escape(flag) + r'[\'"]', text)
+    ]
+    assert missing == [], f'flags the trainer parser does not define: {missing}'
+
+
+def test_paper_train_departures_are_disjoint_and_explained() -> None:
+    recipe = set(PAPER_TRAIN_RECIPE)
+    store_true = set(PAPER_TRAIN_STORE_TRUE_FLAGS)
+    departures = set(PAPER_TRAIN_DEPARTURES)
+    assert recipe & store_true == set()
+    assert recipe & departures == set()
+    assert store_true & departures == set()
+
+    for flag, departure in PAPER_TRAIN_DEPARTURES.items():
+        assert departure.value.strip(), flag
+        assert departure.paper_value.strip(), flag
+        assert departure.value.strip() != departure.paper_value.strip(), flag
+        # A departure has to say what it departs from and point at the document
+        # that argues for it, otherwise it is just an undocumented difference.
+        assert 'docs/' in departure.reason, flag
+
+
+def test_paper_train_script_does_not_repeat_recipe_flags() -> None:
+    text = _paper_train_script_text()
+    repeated = [flag for flag in list(PAPER_TRAIN_RECIPE) + list(PAPER_TRAIN_STORE_TRUE_FLAGS) if flag in text]
+    assert repeated == [], f'flags written in the script as well as in the recipe: {repeated}'
+
+
+def test_paper_train_script_passes_the_declared_departures() -> None:
+    text = _paper_train_script_text()
+    missing = [f'{flag} {d.value}' for flag, d in PAPER_TRAIN_DEPARTURES.items() if f'{flag} {d.value}' not in text]
+    assert missing == [], f'departures declared but not passed by the script: {missing}'
 
 
 def test_experience_maker_no_longer_forces_mappo_to_single_sample() -> None:

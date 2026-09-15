@@ -5,6 +5,34 @@ All notable changes to this repository are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-09-15
+
+### Fixed
+
+- `scripts/40_train/paper_train.sh` passed none of the paper's batch
+  configuration and several of its optimization settings, so a run launched from
+  it silently fell back to the trainer's library defaults: instance batch 128
+  where the paper's Table 3 says 256, rollout batch 512 where it says 128, micro
+  batches 4 and 8 where it says 64 and 32, one PPO epoch per batch where it says
+  five, no KL target where it says 0.1, the k1 KL estimator where it says k3,
+  and no bf16. This is the second half of issue #1 and the reporter was right.
+  The table's recipe now lives in `c3/utils/paper_train_contract.py`, the
+  launcher renders its flags from there rather than spelling them out, and
+  `tests/test_release_contracts.py` checks that every flag in the recipe exists
+  in the trainer's parser, that the launcher does not write any of them a second
+  time, and that the two deliberate departures from the table are declared with
+  their reasons and actually passed. Those two are the generation cap of 2048
+  and the evaluation every tenth of the run, both argued in
+  `docs/32_evaluation_protocol.md`.
+
+### Added
+
+- The E1 aggregation writes the two counts behind every sweep reliability
+  number: the groups it is read on, and the share of the collected groups that
+  the exclusion rule dropped. The derived rows already carried them; the
+  exclusion rate moves with the branching factor, so a reliability read on a
+  tenth of the pool is a different claim from one read on most of it.
+
 ## [0.2.2] - 2026-09-15
 
 ### Fixed

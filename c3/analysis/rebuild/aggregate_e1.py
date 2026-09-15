@@ -425,6 +425,21 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
     def rel_path(wf: str, model: str, n: int) -> str:
         return source_path(results_root, wf, model, "sweep_n%d" % n, BUCKET_FILE)
 
+    def add_cell_counts(prefix: str, cell: sh.CellResult, source: str) -> None:
+        """The two counts behind a reliability number: how many groups it is read on,
+        and what share of the collected groups the exclusion rule dropped.
+
+        The derived rows carry these already through `_add_cell_block`. The sweep
+        rows need them too, because the exclusion rate moves with n: a reliability
+        read on a tenth of the pool is a different claim from one read on most of
+        it, and the appendix reports the pair next to every cell.
+        """
+        builder.add(prefix + ".n_groups", cell.n_groups, n=cell.n_groups, source=source,
+                    note=excluded_note(cell))
+        builder.add(prefix + ".excluded_pct", cell.excluded_pct, n=cell.n_groups,
+                    source=source,
+                    note="denominator is the %d collected groups" % cell.n_total)
+
     # 1. the sweep itself
     for (wf, model, n) in sorted(cells):
         path = cells[(wf, model, n)]
@@ -445,9 +460,13 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
             builder.add(key, cell.n2_direction_agreement, n=cell.n_groups,
                         source=rel_path(wf, model, n),
                         note="%s; %s" % (rel_note(cell), N2_NOTE))
+            add_cell_counts("E1.sweep_n.%s.%s.n%d" % (wf, model, n), cell,
+                            rel_path(wf, model, n))
             continue
         builder.add(key, cell.rel_evenodd, n=cell.n_groups, source=rel_path(wf, model, n),
                     note=rel_note(cell))
+        add_cell_counts("E1.sweep_n.%s.%s.n%d" % (wf, model, n), cell,
+                        rel_path(wf, model, n))
 
     # 2. the constant per-decision rule, read off sweep_n4
     for (wf, model, n) in sorted(cells):
