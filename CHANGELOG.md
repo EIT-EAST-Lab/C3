@@ -5,6 +5,23 @@ All notable changes to this repository are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-09-15
+
+### Fixed
+
+- The `scipy` pin added in 0.2.1 was the then-current release, 1.18.1, which
+  requires CPython 3.12 and publishes no wheels for 3.11. This repository
+  supports 3.11 (`requires-python = ">=3.11"`), both lock files were resolved on
+  3.11, and CI installs on 3.11, so the CPU tier could no longer be installed
+  from `requirements/cpu.lock.txt` at all. Both locks now pin `scipy==1.17.1`,
+  the last release that ships 3.11 wheels, and the header of each lock records
+  why that one pin is held by hand rather than taken from a fresh freeze.
+  Verified on CPython 3.11.15 in a virtual environment built from the lock alone:
+  the install completes, `pip check` is clean, the 627 unit tests pass, both
+  fixture smokes pass, and the pre-release audit passes. The same suite passes
+  with this pin on 3.12, so the downgrade costs nothing at the other end of the
+  supported range.
+
 ## [0.2.1] - 2026-09-15
 
 ### Fixed

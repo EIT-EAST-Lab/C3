@@ -20,6 +20,13 @@
 #   letting the resolver choose it last sends it backtracking through every
 #   release.
 #
+#   One pin is held by hand rather than frozen: `scipy` sits at the last release
+#   that still publishes wheels for CPython 3.11, which is this project's
+#   minimum supported version and the version CI installs on. scipy 1.18 raised
+#   its floor to 3.12. A later re-freeze on a newer interpreter must not carry a
+#   3.12-only pin into this file without raising `requires-python` in
+#   pyproject.toml first.
+#
 # How to install it
 #   python -m pip install -r requirements/gpu.lock.txt
 #   python -m pip install -e . --no-deps
@@ -296,7 +303,7 @@ rich-toolkit==0.20.4
 rignore==0.8.1
 rpds-py==2026.6.3
 safetensors==0.8.0
-scipy==1.18.1
+scipy==1.17.1
 sentencepiece==0.2.2
 sentry-sdk==2.68.1
 setproctitle==1.3.7

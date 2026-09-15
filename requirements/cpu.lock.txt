@@ -16,6 +16,13 @@
 #   Verified on that machine with `python -m pip check` (clean), the full test
 #   suite, and both fixture smoke tests.
 #
+#   One pin is held by hand rather than frozen: `scipy` sits at the last release
+#   that still publishes wheels for CPython 3.11, which is this project's
+#   minimum supported version and the version CI installs on. scipy 1.18 raised
+#   its floor to 3.12. A later re-freeze on a newer interpreter must not carry a
+#   3.12-only pin into this file without raising `requires-python` in
+#   pyproject.toml first.
+#
 # How to install it
 #   python -m pip install -r requirements/cpu.lock.txt
 #   python -m pip install -e . --no-deps
@@ -110,7 +117,7 @@ regex==2026.9.3
 requests==2.34.2
 rich==15.0.0
 safetensors==0.8.0
-scipy==1.18.1
+scipy==1.17.1
 shellingham==1.5.4
 six==1.17.0
 sniffio==1.3.1

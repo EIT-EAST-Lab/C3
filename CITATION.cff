@@ -25,7 +25,7 @@ keywords:
   - large language models
   - counterfactual evaluation
   - RLHF infrastructure
-version: 0.2.1
+version: 0.2.2
 date-released: "2026-09-15"
 preferred-citation:
   type: article

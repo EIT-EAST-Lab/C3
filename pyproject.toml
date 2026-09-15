@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "c3-marl-llm"
-version = "0.2.1"
+version = "0.2.2"
 description = "Reference implementation for Contextual Counterfactual Credit Assignment (C3)."
 readme = "README.md"
 requires-python = ">=3.11"

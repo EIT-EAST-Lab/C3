@@ -28,7 +28,7 @@ Reference implementation for the paper **Contextual Counterfactual Credit Assign
 
 Paper status: now available on arXiv as [2603.06859](https://arxiv.org/abs/2603.06859). The companion project page is available at [eit-east-lab.github.io/C3](https://eit-east-lab.github.io/C3/), and the official PDF is available [here](https://arxiv.org/pdf/2603.06859).
 
-Repository version 0.2.1. See [CHANGELOG.md](CHANGELOG.md) for what changed and why.
+Repository version 0.2.2. See [CHANGELOG.md](CHANGELOG.md) for what changed and why.
 
 ## TL;DR
 
