@@ -4,11 +4,12 @@
 Every fixture is synthetic and hand computable; nothing here reads real data.
 Run with the light local environment:
 
-    C:/Users/10350/.venvs/c3-light/Scripts/python.exe -m pytest tests/test_rebuild_bias_coupling.py -q
+    python -m pytest tests/test_rebuild_bias_coupling.py -q
 """
 
 from __future__ import annotations
 
+import io
 import json
 import math
 import os
@@ -115,27 +116,30 @@ def boxed(text):
     return "\\boxed{%s}" % text
 
 
-def e3a_buckets():
-    """Twelve decision points: 4 zero-bias no-difference, 4 top, 4 low influence.
+def e3a_buckets(per_stratum=4):
+    """Decision points in three equal groups: zero-bias no-difference, top, low
+    influence. `per_stratum` of each, four of each by default (twelve points).
 
     Alternative 0 is the injected null arm in every bucket. The three real
-    alternatives carry a distinct downstream answer each in the first eight
-    buckets (high influence) and a single shared answer in the last four
-    (influence exactly zero).
+    alternatives carry a distinct downstream answer each in the first two groups
+    (high influence) and a single shared answer in the last (influence exactly
+    zero). `per_stratum` only repeats the same three patterns, so every number
+    read off the map except the counts is the same at any size; the tests of the
+    degeneracy warning use that.
     """
     out = []
     distinct = [[boxed("z")] * 4, [boxed("A")] * 4, [boxed("B")] * 4, [boxed("C")] * 4]
     shared = [[boxed("Z")] * 4] * 4
     meta = {"null_arm": 0, "null_form": "empty", "workflow": "a3", "model": "4b"}
-    for i in range(4):  # high influence, no value difference, bias exactly zero
+    for i in range(per_stratum):  # high influence, no value difference, bias exactly zero
         out.append(make_bucket("A%d" % i,
                                [[1, 1, 0, 0], [1, 1, 0, 0], [1, 1, 0, 0], [1, 1, 0, 0]],
                                distinct, meta=meta))
-    for i in range(4):  # high influence, values differ, large bias
+    for i in range(per_stratum):  # high influence, values differ, large bias
         out.append(make_bucket("B%d" % i,
                                [[0, 0, 0, 0], [1, 1, 1, 1], [1, 1, 1, 0], [1, 1, 0, 0]],
                                distinct, meta=meta))
-    for i in range(4):  # low influence, small bias
+    for i in range(per_stratum):  # low influence, small bias
         out.append(make_bucket("C%d" % i,
                                [[0, 0, 0, 0], [1, 0, 0, 0], [1, 0, 0, 0], [1, 0, 0, 0]],
                                shared, meta=meta))
@@ -280,6 +284,61 @@ def test_answer_symbol_maps_none_and_blank_to_no_answer():
     assert inf.answer_symbol("x", lambda t: "   ") == inf.NO_ANSWER
     assert inf.answer_symbol("x", lambda t: " 7 ") == "7"
     assert inf.answer_symbol(None, inf.boxed_extractor) == inf.NO_ANSWER
+
+
+# -----------------------------------------------------------------------------
+# 2b. math_extractor, the extractor the aggregation runs (WP-R14 item 2)
+#
+# It is the repository's own parser (`c3.envs.math.parsing.parse_math_answer`)
+# followed by the repository's expression normaliser
+# (`c3.envs.math.backends.marft.normalize.normalize_expr`). These tests pin the
+# four shapes the E3a downstream outputs actually take, not the parser itself,
+# which has its own tests.
+# -----------------------------------------------------------------------------
+
+
+def test_math_extractor_reads_a_boxed_answer():
+    assert inf.math_extractor("work, then \\boxed{\\frac{1}{2}}") == "(1)/(2)"
+    # The point of the normaliser: the same value written with and without the
+    # display wrapper is one symbol, where the raw strings are two.
+    assert inf.math_extractor("so \\boxed{$\\frac{1}{2}$}") == inf.math_extractor(
+        "so \\boxed{\\frac{1}{2}}")
+
+
+def test_math_extractor_does_not_fold_dfrac_into_frac():
+    """A limit of the repository normaliser, pinned so it is not mistaken for a
+    property of the estimator: `normalize_expr` rewrites \\frac and \\sqrt only,
+    so a replay that writes \\dfrac keeps a symbol of its own."""
+    assert inf.math_extractor("\\boxed{\\dfrac{1}{2}}") == "dfrac12"
+    assert inf.math_extractor("\\boxed{\\dfrac{1}{2}}") != inf.math_extractor(
+        "\\boxed{\\frac{1}{2}}")
+
+
+def test_math_extractor_reads_a_hash_answer():
+    assert inf.math_extractor("long working\n#### 42") == "42"
+    # The last one wins, as in the parser.
+    assert inf.math_extractor("#### 7\nmore\n#### 42") == "42"
+
+
+def test_math_extractor_has_no_answer_only_when_there_is_no_text():
+    assert inf.math_extractor("") == inf.NO_ANSWER
+    assert inf.math_extractor("   \n  ") == inf.NO_ANSWER
+    assert inf.math_extractor(None) == inf.NO_ANSWER
+
+
+def test_math_extractor_strips_the_dollar_signs_of_an_expression():
+    assert inf.math_extractor("Final answer: $x + 1$") == "x + 1"
+    assert inf.math_extractor("Final answer: $(3, \\frac{\\pi}{2})$") == "(3, (pi)/(2))"
+    # This is the shape most of the real E3a outputs end on, and the one the
+    # boxed placeholder reads as no answer at all.
+    assert inf.boxed_extractor("Final answer: $x + 1$") == inf.NO_ANSWER
+
+
+def test_math_extractor_keeps_the_parsed_token_when_normalising_empties_it():
+    """The normaliser drops characters outside its allowed set, so it can empty a
+    string the parser did find. That is not "no answer": no answer is reserved
+    for the parser finding nothing, so the parsed token is kept instead."""
+    assert inf.math_extractor("#### \\%\\%") == "\\%\\%"
 
 
 def test_bucket_influence_excludes_the_null_arm_and_honours_credit_n():
@@ -457,6 +516,82 @@ def test_extra_strata_keys_are_opt_in(e3a_report):
     assert set(extra) - set(default) == set(E3A_EXTRA_KEYS)
     assert extra["E3a.strata.high_infl_diff.mean_bias"]["value"] == pytest.approx(0.75, abs=1e-12)
     assert extra["E3a.strata.high_infl_nodiff.zero_n"]["value"] == 4
+
+
+# -----------------------------------------------------------------------------
+# 3b. the degenerate-split warning (WP-R14 item 3)
+#
+# The first real E3a cell put 148 of 150 points on the high side of the median
+# influence, leaving a low stratum of two. That is a reporting problem, not a
+# rule problem: the split is preregistered and nothing here moves it. What is
+# pinned below is that the summary says so out loud.
+# -----------------------------------------------------------------------------
+
+
+def _degeneracy_line(name, n):
+    return ("stratum %s has n=%d points; the median split is degenerate on this data"
+            % (name, n))
+
+
+def test_bias_map_names_every_thin_stratum_and_warns_once_each():
+    points, _ = bm.decision_points(e3a_buckets(), inf.boxed_extractor)
+    stream = io.StringIO()
+    report = bm.bias_map_report(points, stream=stream)
+
+    degenerate = report["strata"]["degenerate"]
+    assert set(degenerate) == set(bm.STRATUM_NAMES)          # four points in each
+    for name in bm.STRATUM_NAMES:
+        assert degenerate[name] == _degeneracy_line(name, 4)
+        assert "[bias_map] " + _degeneracy_line(name, 4) in stream.getvalue()
+    assert stream.getvalue().count("[bias_map]") == 3
+
+
+def test_bias_map_is_quiet_when_no_stratum_is_thin():
+    points, _ = bm.decision_points(e3a_buckets(per_stratum=bm.MIN_STRATUM_N),
+                                   inf.boxed_extractor)
+    stream = io.StringIO()
+    report = bm.bias_map_report(points, stream=stream)
+
+    assert report["strata"]["degenerate"] == {}
+    assert stream.getvalue() == ""
+    keys = bm.e3a_key_values(report)
+    assert not any("degenerate" in entry["note"] for entry in keys.values())
+
+
+def test_a_thin_stratum_reaches_the_note_of_the_keys_read_off_it():
+    """The warning has to ride into the summary, since whoever reads the summary
+    later is not the one who watched the stderr of the run."""
+    points, _ = bm.decision_points(e3a_buckets(), inf.boxed_extractor)
+    report = bm.bias_map_report(points, stream=io.StringIO())
+    keys = bm.e3a_key_values(report, null_forms=bm.null_forms_paired(points, points))
+
+    assert keys["E3a.strata.low_infl.mean_abs_bias"]["note"].endswith(
+        _degeneracy_line("low_infl", 4))
+    assert keys["E3a.strata.high_infl_diff.n"]["note"] == _degeneracy_line("high_infl_diff", 4)
+    # the top stratum is the high-influence-and-differed stratum under another name
+    assert _degeneracy_line("high_infl_diff", 4) in keys["E3a.top_stratum.mean_abs_bias"]["note"]
+    assert _degeneracy_line("high_infl_diff", 4) in keys["E3a.concentration_factor"]["note"]
+    # the Mann-Whitney key compares the two high strata, so it carries both
+    for name in ("high_infl_diff", "high_infl_nodiff"):
+        assert _degeneracy_line(name, 4) in keys["E3a.strata.mw_p"]["note"]
+    # n_points stands for the whole point set and carries every warning there is
+    for name in bm.STRATUM_NAMES:
+        assert _degeneracy_line(name, 4) in keys["E3a.n_points"]["note"]
+    # a key that reads no stratum is untouched
+    assert "degenerate" not in keys["E3a.influence.mean_nats"]["note"]
+
+
+def test_the_warning_does_not_move_the_split_or_drop_a_key():
+    """Same points, same numbers: only the notes differ between a run that warns
+    and the values themselves."""
+    points, _ = bm.decision_points(e3a_buckets(), inf.boxed_extractor)
+    report = bm.bias_map_report(points, stream=io.StringIO())
+    keys = bm.e3a_key_values(report)
+
+    assert set(keys) == set(E3A_KEYS) - {"E3a.null_forms.paired_p"}
+    assert keys["E3a.strata.high_infl_diff.n"]["value"] == 4
+    assert keys["E3a.strata.high_infl_nodiff.n"]["value"] == 4
+    assert keys["E3a.strata.low_infl.mean_abs_bias"]["value"] == pytest.approx(0.25, abs=1e-12)
 
 
 # -----------------------------------------------------------------------------
@@ -658,7 +793,10 @@ def test_aggregate_e3a_keeps_going_when_the_manifest_lacks_a_key(tmp_path, capsy
     assert "skip E3a.n_points: not a manifest key" in capsys.readouterr().err
 
 
-def test_aggregate_e3a_without_the_deleted_arm(tmp_path, capsys):
+def test_aggregate_e3a_without_the_placeholder_arm(tmp_path, capsys):
+    """WP-R14 item 1: with neither the contract name nor its legacy alias on
+    disk, the message has to name both, or the operator looks for the wrong
+    directory."""
     root = tmp_path / "E3a"
     write_jsonl(str(root / "a3" / "4b" / "empty" / "buckets.jsonl"), e3a_buckets())
     manifest_path = tmp_path / "manifest.json"
@@ -669,7 +807,49 @@ def test_aggregate_e3a_without_the_deleted_arm(tmp_path, capsys):
     assert rc == 0
     doc = json.loads(out.read_text(encoding="utf-8"))
     assert "E3a.null_forms.paired_p" not in doc["keys"]
-    assert "no deleted arm" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "no placeholder arm (nor its legacy name deleted) under" in err
+
+
+def test_aggregate_e3a_prefers_the_placeholder_arm(tmp_path, capsys):
+    """WP-R14 item 1: `placeholder` is the arm the cell driver writes (results
+    contract revision 3), so it is the one looked for, and finding it says
+    nothing about a legacy name."""
+    root = tmp_path / "20_data" / "results" / "E3a"
+    write_jsonl(str(root / "a3" / "4b" / "empty" / "buckets.jsonl"), e3a_buckets())
+    write_jsonl(str(root / "a3" / "4b" / "placeholder" / "buckets.jsonl"), e3a_buckets())
+    manifest_path = tmp_path / "manifest.json"
+    write_manifest(str(manifest_path), E3A_KEYS)
+    out = tmp_path / "summary.json"
+
+    rc = aggregate_e3a.main(["--results", str(root), "--manifest", str(manifest_path),
+                             "--out", str(out), "--extractor", "boxed"])
+    assert rc == 0
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert doc["keys"]["E3a.null_forms.paired_p"]["source"] == [
+        "20_data/results/E3a/a3/4b/empty/buckets.jsonl",
+        "20_data/results/E3a/a3/4b/placeholder/buckets.jsonl"]
+    err = capsys.readouterr().err
+    assert "legacy arm name" not in err
+
+
+def test_aggregate_e3a_reads_the_legacy_arm_name_and_says_so(tmp_path, capsys):
+    """WP-R14 item 1: a tree written before the rename still aggregates, with one
+    line on stderr, because a summary built off a legacy tree is worth noticing."""
+    root = tmp_path / "20_data" / "results" / "E3a"
+    write_jsonl(str(root / "a3" / "4b" / "empty" / "buckets.jsonl"), e3a_buckets())
+    write_jsonl(str(root / "a3" / "4b" / "deleted" / "buckets.jsonl"), e3a_buckets())
+    manifest_path = tmp_path / "manifest.json"
+    write_manifest(str(manifest_path), E3A_KEYS)
+    out = tmp_path / "summary.json"
+
+    rc = aggregate_e3a.main(["--results", str(root), "--manifest", str(manifest_path),
+                             "--out", str(out), "--extractor", "boxed"])
+    assert rc == 0
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert doc["keys"]["E3a.null_forms.paired_p"]["source"][1] == \
+        "20_data/results/E3a/a3/4b/deleted/buckets.jsonl"
+    assert "using the legacy arm name deleted" in capsys.readouterr().err
 
 
 def test_aggregate_e3a_reports_a_missing_tree(tmp_path, capsys):

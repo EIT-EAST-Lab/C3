@@ -33,7 +33,10 @@ aggregation families share (driver ruling B13, 2026-09-15). They are imported
 back into this module under their old names, so everything that reads them from
 here keeps working.
 
-Module-level imports are limited to numpy, scipy and the standard library.
+Module-level imports are limited to numpy, scipy and the standard library. The
+repository's own math parser, which `math_extractor` runs, is imported inside
+that function instead, so importing this module still costs nothing beyond the
+standard library.
 """
 
 from __future__ import annotations
@@ -41,7 +44,7 @@ from __future__ import annotations
 import json
 import math
 from collections import Counter
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .summary import (
     build_summary,
@@ -55,6 +58,7 @@ from .summary import (
 __all__ = [
     "NO_ANSWER",
     "boxed_extractor",
+    "math_extractor",
     "answer_symbol",
     "plugin_mi_nats",
     "bucket_influence",
@@ -88,10 +92,13 @@ def boxed_extractor(text: Optional[str]) -> str:
     well-formed occurrence, or the content is empty, the result is
     :data:`NO_ANSWER`.
 
-    Limits, stated because this is a placeholder: no escape handling (a literal
-    ``\{`` counts as an opening brace) and no mathematical normalisation.
-    The driver replaces this with the repository's own math parser at run time;
-    the signature (str -> str) is the contract, not the parsing quality.
+    Limits, stated because this is a placeholder implementation kept for the
+    tests: no escape handling (a literal ``\{`` counts as an opening brace) and
+    no mathematical normalisation. On the real E3a buckets it fails on about
+    half the downstream outputs, because the models end on ``Final answer: ...``
+    rather than on a box. :func:`math_extractor` is the extractor the
+    aggregation runs; this one stays because its output is hand-checkable, which
+    is what the unit tests of the estimator need.
     """
     s = "" if text is None else str(text)
     out = NO_ANSWER
@@ -111,6 +118,72 @@ def boxed_extractor(text: Optional[str]) -> str:
             out = content if content else NO_ANSWER
         start = s.find(_BOXED, start + 1)
     return out
+
+
+#: Cache for the repository's math parser, filled on the first `math_extractor`
+#: call so this module's import surface stays numpy / scipy / standard library.
+_MATH_PARSER: Optional[Tuple[Callable[[str], Any], Callable[[str], str]]] = None
+
+
+def _math_parser() -> Tuple[Callable[[str], Any], Callable[[str], str]]:
+    """`(parse_math_answer, normalize_expr)` of the repository, imported once.
+
+    `c3.envs.math.parsing.parse_math_answer` is the extraction half and
+    `c3.envs.math.backends.marft.normalize.normalize_expr` the normalisation
+    half. Both are pure standard library, so this import pulls in no optional
+    dependency of the math backends (the SymPy-based graders sit behind the
+    guarded stubs of `c3.envs.math.backends.marft.__init__` and are not touched).
+    """
+    global _MATH_PARSER
+    if _MATH_PARSER is None:
+        from c3.envs.math.backends.marft.normalize import normalize_expr
+        from c3.envs.math.parsing import parse_math_answer
+        _MATH_PARSER = (parse_math_answer, normalize_expr)
+    return _MATH_PARSER
+
+
+def math_extractor(text: Optional[str]) -> str:
+    r"""The extractor the E3a and E5 aggregations run (driver ruling, 2026-09-15).
+
+    Two steps, both taken from the repository rather than reimplemented here:
+
+    1. `parse_math_answer` returns the final answer string. It tries, in order,
+       the last ``#### ...`` line, the last balanced ``\boxed{...}``, a
+       ``Final answer: ...`` style anchor, and finally the last non-empty line.
+    2. `normalize_expr` rewrites that string into one shape, so ``$\frac{1}{2}$``
+       and ``\frac{1}{2}`` become the same symbol.
+
+    The result is the answer SYMBOL of the estimator, not a claim that the
+    answer is right: two replays that write the same value in different notation
+    must land on one symbol, which is the whole reason for step 2.
+
+    Step 2 is best effort and is the repository's, not this module's. It folds
+    ``\frac`` and ``\sqrt``, the math delimiters and the LaTeX spacing commands,
+    and it does NOT fold ``\dfrac`` or ``\tfrac``, so those keep symbols of their
+    own. Step 1 has no "unparseable" verdict either: its last resort is the last
+    non-empty line, so an output that never states an answer contributes that
+    line as its symbol. Both are properties of the extractor that show up in the
+    influence numbers, which is why they are written down here.
+
+    :data:`NO_ANSWER` is returned when step 1 finds nothing, which is what the
+    contract calls "no answer for this replay" and which stays a real symbol of
+    the estimator. Step 2 emptying a non-empty step 1 result is a different
+    thing: the answer was found and only the normaliser had nothing left to keep
+    (it drops characters outside its allowed set), so the stripped step 1 string
+    is returned instead of :data:`NO_ANSWER`.
+    """
+    parse_math_answer, normalize_expr = _math_parser()
+    s = "" if text is None else str(text)
+    if not s.strip():
+        return NO_ANSWER
+    token, _method = parse_math_answer(s)
+    if token is None:
+        return NO_ANSWER
+    raw = str(token).strip()
+    if not raw:
+        return NO_ANSWER
+    normalised = str(normalize_expr(raw)).strip()
+    return normalised if normalised else raw
 
 
 def answer_symbol(text: Optional[str], extractor: Callable[[str], Optional[str]]) -> str:

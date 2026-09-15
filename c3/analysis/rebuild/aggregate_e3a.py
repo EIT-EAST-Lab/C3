@@ -3,18 +3,29 @@
 
     python -m c3.analysis.rebuild.aggregate_e3a \
         --results 20_data/results/E3a --manifest 10_paper/04_rebuild/results/manifest.json \
-        --out 20_data/results/E3a/summary.json [--extractor boxed]
+        --out 20_data/results/E3a/summary.json [--extractor math]
 
-Directory layout, from the results contract section 2:
+Directory layout, from the results contract section 2 as revised on 2026-09-15
+(revision 3):
 
     E3a/<workflow>/<model>/empty/buckets.jsonl
-    E3a/<workflow>/<model>/deleted/buckets.jsonl
+    E3a/<workflow>/<model>/placeholder/buckets.jsonl
+
+`placeholder` is the directory name the cell driver writes. `deleted` is the
+name the first version of the contract used for the same arm; it is accepted as
+a legacy alias, with one line on stderr when it is what was found.
 
 The empty arm is the reported one (preregistration, note of 2026-09-13: the
-empty message is the main reading and the deleted paragraph is reported only as
-a paired difference), so every key but `E3a.null_forms.paired_p` comes from it.
-A missing deleted arm drops that one key and says so on stderr; it is not
+empty message is the main reading and the placeholder message is reported only
+as a paired difference), so every key but `E3a.null_forms.paired_p` comes from
+it. A missing second arm drops that one key and says so on stderr; it is not
 written as null.
+
+The answer extractor is `--extractor math`, the repository's own math parser
+followed by its expression normaliser (`influence.math_extractor`). `boxed` is
+kept as an explicit option, but it is a placeholder implementation, for tests:
+it reads only a balanced \boxed{...} and on the real buckets it finds nothing on
+about half the downstream outputs.
 
 This script does not touch `manifest.json`. It reads the key names from it,
 refuses any key the manifest does not have, and never writes a verdict key:
@@ -37,14 +48,24 @@ from c3.analysis.rebuild.bias_map import (
 from c3.analysis.rebuild.influence import (
     boxed_extractor,
     load_manifest,
+    math_extractor,
     read_jsonl,
     source_path,
     write_summary,
 )
 
-EXTRACTORS: Dict[str, Callable[[str], Optional[str]]] = {"boxed": boxed_extractor}
+EXTRACTORS: Dict[str, Callable[[str], Optional[str]]] = {
+    "math": math_extractor,
+    "boxed": boxed_extractor,
+}
+DEFAULT_EXTRACTOR = "math"
 
 BUCKETS = "buckets.jsonl"
+
+#: The second arm's directory name, and the name the first contract revision
+#: used for it. The alias is read, never written.
+NULL_ARM_DIR = "placeholder"
+NULL_ARM_DIR_LEGACY = "deleted"
 
 
 def find_arm(results: str, arm: str) -> Optional[str]:
@@ -71,6 +92,25 @@ def find_arm(results: str, arm: str) -> Optional[str]:
     return hits[0] if hits else None
 
 
+def find_null_arm(results: str, *, stream=None) -> Optional[str]:
+    """Locate the second arm: `placeholder`, else its legacy name `deleted`.
+
+    The contract revision of 2026-09-15 renamed the arm, and the cell driver has
+    written `placeholder` since. Bucket trees produced before that carry the old
+    name, so it is still read; finding one says so on stderr, because a summary
+    built off a legacy tree is worth noticing.
+    """
+    stream = sys.stderr if stream is None else stream
+    path = find_arm(results, NULL_ARM_DIR)
+    if path is not None:
+        return path
+    legacy = find_arm(results, NULL_ARM_DIR_LEGACY)
+    if legacy is not None:
+        print("[aggregate_e3a] using the legacy arm name %s: %s"
+              % (NULL_ARM_DIR_LEGACY, legacy), file=stream)
+    return legacy
+
+
 def run(
     results: str,
     manifest_path: str,
@@ -86,7 +126,7 @@ def run(
     empty_path = find_arm(results, "empty")
     if empty_path is None:
         raise FileNotFoundError("no empty arm found under %s" % results)
-    deleted_path = find_arm(results, "deleted")
+    null_path = find_null_arm(results, stream=stream)
 
     points, skipped = decision_points(read_jsonl(empty_path), extractor)
     if not points:
@@ -96,27 +136,28 @@ def run(
         print("[aggregate_e3a] %s: %d buckets skipped %s" % (empty_path, dropped, skipped),
               file=stream)
 
-    report = bias_map_report(points)
+    report = bias_map_report(points, stream=stream)
     paired = None
-    if deleted_path is None:
-        print("[aggregate_e3a] no deleted arm under %s: E3a.null_forms.paired_p not written"
-              % results, file=stream)
+    if null_path is None:
+        print("[aggregate_e3a] no %s arm (nor its legacy name %s) under %s: "
+              "E3a.null_forms.paired_p not written"
+              % (NULL_ARM_DIR, NULL_ARM_DIR_LEGACY, results), file=stream)
     else:
-        other, other_skipped = decision_points(read_jsonl(deleted_path), extractor)
+        other, other_skipped = decision_points(read_jsonl(null_path), extractor)
         paired = null_forms_paired(points, other)
         if paired["n_pairs"] == 0:
-            print("[aggregate_e3a] empty and deleted arms share no question id: "
-                  "E3a.null_forms.paired_p not written", file=stream)
+            print("[aggregate_e3a] the empty and %s arms share no question id: "
+                  "E3a.null_forms.paired_p not written" % NULL_ARM_DIR, file=stream)
         other_dropped = sum(other_skipped.values())
         if other_dropped:
             print("[aggregate_e3a] %s: %d buckets skipped %s"
-                  % (deleted_path, other_dropped, other_skipped), file=stream)
+                  % (null_path, other_dropped, other_skipped), file=stream)
 
     keys = e3a_key_values(report, null_forms=paired)
     sources = [source_path(empty_path)]
     for key, entry in keys.items():
-        if key == "E3a.null_forms.paired_p" and deleted_path is not None:
-            entry["source"] = sources + [source_path(deleted_path)]
+        if key == "E3a.null_forms.paired_p" and null_path is not None:
+            entry["source"] = sources + [source_path(null_path)]
         else:
             entry["source"] = list(sources)
 
@@ -129,8 +170,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--results", required=True, help="the E3a results directory")
     ap.add_argument("--manifest", required=True, help="10_paper/04_rebuild/results/manifest.json")
     ap.add_argument("--out", required=True, help="where summary.json is written")
-    ap.add_argument("--extractor", default="boxed", choices=sorted(EXTRACTORS),
-                    help="answer extractor; the driver injects the repository parser through run()")
+    ap.add_argument("--extractor", default=DEFAULT_EXTRACTOR, choices=sorted(EXTRACTORS),
+                    help="answer extractor: math is the repository parser plus its expression "
+                         "normaliser; boxed is a placeholder implementation, for tests")
     args = ap.parse_args(argv)
 
     try:

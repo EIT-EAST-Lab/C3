@@ -727,6 +727,109 @@ def test_aggregate_e1_runs_as_a_module(tmp_path):
     assert set(summary["keys"]) <= set(fake_manifest(E1_MANIFEST_KEYS))
 
 
+# -------------------------
+# the two E1 trees (WP-R14 item 4)
+#
+# `E1` is the question-pool study the paper reports and `E1_math500all` the
+# full-suite appendix comparison. They have the same layout and are different
+# measurements, so the appendix tree writes `E1app.*`.
+# -------------------------
+
+
+def _appendix_manifest_keys():
+    return [k.replace("E1.", "E1app.", 1) for k in E1_MANIFEST_KEYS]
+
+
+def test_the_appendix_tree_under_the_default_prefix_is_refused(tmp_path, capsys):
+    root = os.path.join(str(tmp_path), "E1_math500all")
+    build_e1_tree(root)
+    manifest_path = os.path.join(str(tmp_path), "manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as fh:
+        json.dump(fake_manifest(E1_MANIFEST_KEYS), fh)
+    out_path = os.path.join(str(tmp_path), "summary.json")
+
+    assert aggregate_e1.main(["--results", root, "--manifest", manifest_path,
+                              "--out", out_path]) == 2
+    assert not os.path.exists(out_path)
+    err = capsys.readouterr().err
+    assert "appendix tree E1_math500all" in err
+    assert "--key_prefix E1app" in err
+    # the refusal is the same whether it is reached through the CLI or the library
+    assert aggregate_e1.key_prefix_refusal(root, "E1") is not None
+    assert aggregate_e1.key_prefix_refusal(root, "E1app") is None
+    assert aggregate_e1.key_prefix_refusal(root + os.sep, "E1") is not None
+    with pytest.raises(ValueError):
+        aggregate_e1.build_e1_summary(root, fake_manifest(E1_MANIFEST_KEYS))
+
+
+def test_the_appendix_prefix_renames_every_key(tmp_path):
+    root = os.path.join(str(tmp_path), "E1_math500all")
+    build_e1_tree(root)
+    manifest_path = os.path.join(str(tmp_path), "manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as fh:
+        json.dump(fake_manifest(_appendix_manifest_keys()), fh)
+    out_path = os.path.join(str(tmp_path), "summary.json")
+
+    assert aggregate_e1.main(["--results", root, "--manifest", manifest_path,
+                              "--out", out_path, "--key_prefix", "E1app"]) == 0
+    with open(out_path, "r", encoding="utf-8") as fh:
+        summary = json.load(fh)
+
+    assert summary["keys"]
+    assert all(k.startswith("E1app.") for k in summary["keys"])
+    assert not any(k.startswith("E1.") for k in summary["keys"])
+    # the experiment name is the measurement's, the prefix is the tree's
+    assert summary["experiment"] == "E1"
+    assert summary["key_prefix"] == "E1app"
+    assert summary["results_root"].endswith("E1_math500all")
+    assert "\\" not in summary["results_root"]
+
+
+def test_the_two_trees_write_the_same_values_under_different_names(tmp_path):
+    """Nothing but the key names changes: the same buckets under the two prefixes
+    give the same numbers, which is what makes the rename safe."""
+    pool = os.path.join(str(tmp_path), "E1")
+    appendix = os.path.join(str(tmp_path), "E1_math500all")
+    build_e1_tree(pool)
+    build_e1_tree(appendix)
+    man = fake_manifest(E1_MANIFEST_KEYS + _appendix_manifest_keys())
+
+    a = aggregate_e1.build_e1_summary(pool, man).payload()
+    b = aggregate_e1.build_e1_summary(appendix, man, key_prefix="E1app").payload()
+
+    assert set(b["keys"]) == {k.replace("E1.", "E1app.", 1) for k in a["keys"]}
+    for key, entry in a["keys"].items():
+        other = b["keys"][key.replace("E1.", "E1app.", 1)]
+        assert other["value"] == entry["value"]
+        assert other["n"] == entry["n"]
+        assert other["unit"] == entry["unit"]
+
+
+def test_the_prefix_only_renames_the_builders_own_experiment_segment():
+    man = fake_manifest(["E1app.sweep_n.a2.4b.n4.rel", "E1b.noise_law.max_dev_pct"])
+    builder = aggregate_e1.SummaryBuilder("E1", "script", man, key_prefix="E1app")
+    assert builder.key("E1.sweep_n.a2.4b.n4.rel") == "E1app.sweep_n.a2.4b.n4.rel"
+    assert builder.key("E1b.noise_law.max_dev_pct") == "E1b.noise_law.max_dev_pct"
+    assert builder.key("no_dot") == "no_dot"
+    # a builder with no prefix is the old behaviour exactly
+    plain = aggregate_e1.SummaryBuilder("E1", "script", man)
+    assert plain.key("E1.sweep_n.a2.4b.n4.rel") == "E1.sweep_n.a2.4b.n4.rel"
+
+
+def test_the_skip_lines_name_the_keys_the_tree_would_have_written(tmp_path, capsys):
+    """An operator reading stderr of the appendix run must not be sent looking
+    for `E1.*` keys that run never writes."""
+    root = os.path.join(str(tmp_path), "E1_math500all")
+    build_e1_tree(root)
+    aggregate_e1.build_e1_summary(root, fake_manifest(_appendix_manifest_keys()),
+                                  key_prefix="E1app")
+    err = capsys.readouterr().err
+    assert "skip E1app.per_decision_n4.4b.rel_{min,max,range}" in err
+    assert "skip E1app.sweep_n.4b.delta_n8_n3_min{,_ci_lo,_arm}" in err
+    assert "E1app: " in err
+    assert "skip E1." not in err
+
+
 def test_aggregate_e1b_on_a_minimal_tree(tmp_path, capsys):
     rng = np.random.default_rng(81)
     root = os.path.join(str(tmp_path), "E1b")

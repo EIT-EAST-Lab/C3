@@ -8,7 +8,7 @@ two paths agree on the top-level shape and on the three conventions that used to
 differ (git sha null, timestamp ending in Z, empty note left out), and that both
 refuse an unknown key and a verdict key without stopping.
 
-    C:/Users/10350/.venvs/c3-light/Scripts/python.exe -m pytest tests/test_rebuild_summary.py -q
+    python -m pytest tests/test_rebuild_summary.py -q
 """
 
 from __future__ import annotations
@@ -227,3 +227,58 @@ def test_source_path_cuts_at_the_data_root(tmp_path):
     inside = os.path.join(str(tmp_path), "20_data", "results", "E1", "buckets.jsonl")
     assert summary.source_path(inside) == "20_data/results/E1/buckets.jsonl"
     assert summary.source_path("some/other/place.jsonl") == "some/other/place.jsonl"
+
+
+# -----------------------------------------------------------------------------
+# 5. the source shape, on both paths (WP-R14 item 5)
+#
+# The E1 family joins a results root with a cell's sub-path; the other family
+# passes a whole path. Before this the E1 join kept the root as the caller
+# spelled it, so aggregating by absolute path wrote the operator's own machine
+# path into the summary of every cell.
+# -----------------------------------------------------------------------------
+
+
+def test_the_two_source_functions_agree_on_absolute_and_relative_input(tmp_path):
+    parts = ("E1", "a2", "4b", "sweep_n4", "buckets.jsonl")
+    want = "20_data/results/" + "/".join(parts)
+
+    absolute = os.path.join(str(tmp_path), "20_data", "results")
+    assert aggregate_e1.source_path(absolute, *parts) == want
+    assert aggregate_e1.source_path(absolute.replace("\\", "/"), *parts) == want
+    assert aggregate_e1.source_path("20_data/results", *parts) == want
+    assert aggregate_e1.source_path("./20_data/results", *parts) == want
+    # the whole-path function, handed the same file, says the same thing
+    assert summary.source_path(os.path.join(absolute, *parts)) == want
+
+
+def test_the_join_keeps_a_root_that_has_no_data_segment(tmp_path):
+    """Outside a 20_data tree there is nothing to cut at, so the path stays as
+    spelled. The unit tests of the aggregation live in such a tree."""
+    root = os.path.join(str(tmp_path), "elsewhere")
+    joined = aggregate_e1.source_path(root, "E1", "buckets.jsonl")
+    assert joined == root.replace("\\", "/") + "/E1/buckets.jsonl"
+
+
+def test_the_last_data_segment_is_the_one_cut_at(tmp_path):
+    nested = os.path.join(str(tmp_path), "20_data", "mirror", "20_data", "results")
+    assert aggregate_e1.source_path(nested, "E1", "buckets.jsonl") == \
+        "20_data/results/E1/buckets.jsonl"
+
+
+# -----------------------------------------------------------------------------
+# 6. the extra top-level fields (WP-R14 item 4)
+# -----------------------------------------------------------------------------
+
+
+def test_extra_fields_sit_beside_experiment_and_cannot_overwrite_the_shape():
+    man = manifest()
+    doc = summary.build_summary("E1", "script", entries(), man,
+                                extra={"results_root": "20_data/results/E1",
+                                       "key_prefix": "E1"})
+    assert list(doc) == ["experiment", "results_root", "key_prefix", "generated_by", "keys"]
+    assert doc["results_root"] == "20_data/results/E1"
+
+    for reserved in summary.RESERVED_TOP_LEVEL:
+        with pytest.raises(ValueError):
+            summary.build_summary("E1", "script", entries(), man, extra={reserved: "x"})

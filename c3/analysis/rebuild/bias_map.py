@@ -3,7 +3,7 @@
 
 One bucket is one decision point. One alternative in it is not a sampled
 message but an injected null action (`meta.null_arm`, realised either as an
-empty message or as a deleted paragraph, `meta.null_form`). Against that arm:
+empty message or as a placeholder message, `meta.null_form`). Against that arm:
 
     barR_j         mean return of alternative j over its replays
     bias           mean_{j != j0} barR_j - barR_{j0}
@@ -31,6 +31,7 @@ Module-level imports are limited to numpy, scipy and the standard library.
 
 from __future__ import annotations
 
+import sys
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
@@ -44,6 +45,8 @@ from c3.analysis.rebuild.influence import (
 __all__ = [
     "ZERO_TOL",
     "CUTOFF_PCTS",
+    "MIN_STRATUM_N",
+    "STRATUM_NAMES",
     "decision_points",
     "bias_map_report",
     "null_forms_paired",
@@ -64,6 +67,17 @@ CUTOFF_PCTS = (60, 50, 40, 30)
 #: split, and because influence has heavy ties at zero (many decision points
 #: produce one single downstream answer), where "gt" would empty the high half.
 DEFAULT_HIGH_SIDE = "ge"
+
+#: The three strata of the preregistered split, in the order they are reported.
+STRATUM_NAMES = ("high_infl_diff", "high_infl_nodiff", "low_infl")
+
+#: Below this many points a stratum is reported as degenerate. It is a REPORTING
+#: threshold only: the split rule itself is preregistered and is not touched
+#: here, and no key is dropped because of it. What it catches is the failure mode
+#: seen on the first real E3a cell, where the influence estimator returned
+#: exactly zero on most decision points, so the median split put almost every
+#: point on the high side and left the low stratum with a handful.
+MIN_STRATUM_N = 10
 
 
 # -----------------------------------------------------------------------------
@@ -198,10 +212,32 @@ def decision_points(
 # -----------------------------------------------------------------------------
 
 
+def _degenerate_strata(strata: Mapping[str, Any], *, stream=None) -> Dict[str, str]:
+    """Which strata came out below :data:`MIN_STRATUM_N`, and what to say of them.
+
+    One line per thin stratum on stderr, and the same sentence returned so it can
+    ride into the note of every key read off that stratum. Nothing is dropped and
+    no threshold moves: the split rule is preregistered, and whether a degenerate
+    split means the measurement has to be rerun is the driver's call, taken on a
+    summary that says so out loud instead of on a number that looks ordinary.
+    """
+    out = stream if stream is not None else sys.stderr
+    messages: Dict[str, str] = {}
+    for name in STRATUM_NAMES:
+        n = int(strata[name]["n"])
+        if n >= MIN_STRATUM_N:
+            continue
+        messages[name] = ("stratum %s has n=%d points; the median split is degenerate "
+                          "on this data" % (name, n))
+        print("[bias_map] %s" % messages[name], file=out)
+    return messages
+
+
 def bias_map_report(
     points: Sequence[Mapping[str, Any]],
     *,
     high_side: str = DEFAULT_HIGH_SIDE,
+    stream=None,
 ) -> Dict[str, Any]:
     """Every quantity the E3a keys are read off, plus the red-team R1 level.
 
@@ -210,6 +246,11 @@ def bias_map_report(
     factor. A concentration factor with a zero denominator is reported as
     infinity when the top stratum is non-zero and as nan when both vanish; it is
     not silently replaced by a finite number.
+
+    `strata["degenerate"]` maps each stratum thinner than :data:`MIN_STRATUM_N`
+    to the sentence `e3a_key_values` appends to the notes of the keys read off
+    it; `stream` is where the same sentences are warned about (stderr by
+    default).
     """
     if high_side not in ("ge", "gt"):
         raise ValueError("high_side must be 'ge' or 'gt', got %r" % (high_side,))
@@ -238,12 +279,13 @@ def bias_map_report(
     nodiff_mask = high & ~has_diff
     rest_mask = ~top_mask
 
-    strata = {
+    strata: Dict[str, Any] = {
         "high_infl_diff": _stratum_stats(bias[top_mask].tolist()),
         "high_infl_nodiff": _stratum_stats(bias[nodiff_mask].tolist()),
         "low_infl": _stratum_stats(bias[low].tolist()),
         "mw_p": _mw_p(abs_bias[top_mask].tolist(), abs_bias[nodiff_mask].tolist()),
     }
+    strata["degenerate"] = _degenerate_strata(strata, stream=stream)
 
     top_abs = abs_bias[top_mask]
     rest_abs = abs_bias[rest_mask]
@@ -326,6 +368,26 @@ def null_forms_paired(
 # -----------------------------------------------------------------------------
 
 
+def _strata_of(key: str) -> Tuple[str, ...]:
+    """Which strata a key is read off, for the degeneracy note.
+
+    A prefix rule rather than a table, so a key added later inherits the right
+    warning instead of silently losing it. `E3a.top_stratum.*` and
+    `E3a.concentration_factor` are readings of `high_infl_diff` under another
+    name; `E3a.n_points` stands for the whole point set and takes every warning.
+    """
+    if key == "E3a.n_points":
+        return STRATUM_NAMES
+    if key == "E3a.strata.mw_p":
+        return ("high_infl_diff", "high_infl_nodiff")
+    if key == "E3a.concentration_factor" or key.startswith("E3a.top_stratum."):
+        return ("high_infl_diff",)
+    for name in STRATUM_NAMES:
+        if key.startswith("E3a.strata.%s." % name):
+            return (name,)
+    return ()
+
+
 def e3a_key_values(
     report: Mapping[str, Any],
     *,
@@ -343,26 +405,39 @@ def e3a_key_values(
     A key whose value is nan, whose p value is not computable, or whose own n is
     zero is left out entirely rather than written as null: a statistic with no
     unit behind it is not a measurement.
+
+    Every key read off a stratum that `bias_map_report` found thinner than
+    :data:`MIN_STRATUM_N` carries that finding at the end of its note, so a
+    degenerate split is visible in the summary and not only on the stderr of the
+    run that produced it.
     """
     strata = report["strata"]
     top = report["top_stratum"]
     rest = report["rest"]
     n_points = int(report["n_points"])
+    degenerate = dict(strata.get("degenerate") or {})
     out: Dict[str, Dict[str, Any]] = {}
+
+    def full_note(key: str, note: str) -> str:
+        """The note plus the degeneracy sentence of every stratum the key reads."""
+        parts = [note] if note else []
+        parts += [degenerate[name] for name in _strata_of(key) if name in degenerate]
+        return "; ".join(parts)
 
     def put(key: str, value: Any, n: Optional[int], note: str = "") -> None:
         if value is None or (n is not None and n <= 0):
             return
         if isinstance(value, float) and not np.isfinite(value):
             return
-        out[key] = {"value": value, "n": n, "note": note}
+        out[key] = {"value": value, "n": n, "note": full_note(key, note)}
 
     def put_p(key: str, p: float, n: Optional[int], note: str = "") -> None:
         text = format_p(p)
         if text is None or (n is not None and n <= 0):
             return
         raw = "raw p = %.6g" % p
-        out[key] = {"value": text, "n": n, "note": (note + "; " + raw) if note else raw}
+        head = (note + "; " + raw) if note else raw
+        out[key] = {"value": text, "n": n, "note": full_note(key, head)}
 
     put("E3a.n_points", n_points, n_points,
         "decision points with a landed null arm and at least one real alternative")

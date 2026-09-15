@@ -9,6 +9,21 @@ Directory layout (results contract section 2, as revised on 2026-09-14):
 
     <results>/<workflow>/<model>/sweep_n{2,3,4,6,8}/buckets.jsonl
 
+Two result trees have this layout, and they are different measurements: `E1` is
+the question-pool study the paper reports, `E1_math500all` the full-suite
+appendix comparison. Their keys must not collide, so the appendix tree is
+aggregated with `--key_prefix E1app` and writes `E1app.*`. Running the appendix
+tree under the default prefix is refused rather than silently overwritten, and
+every summary records the tree it read (`results_root`) and the prefix it wrote
+(`key_prefix`) at the top level.
+
+One key of this experiment is not produced here.
+`E1.c10.median_prefix_tokens` is the median token length of the context the
+ten-agent chain's decision points condition on, so it needs a tokenizer and the
+model files. It is produced platform side by
+`scripts/70_rebuild/prefix_tokens.py`, which writes its own summary.json through
+this package's writer.
+
 The sweep cells are the only measurement. The fixed-budget and per-decision
 rows of the manifest are read off the sweep cells, because a fixed instance
 budget B=8 split over K decision points gives ceil(8 / K) alternatives at the
@@ -46,6 +61,7 @@ from collections import OrderedDict
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from . import splithalf as sh
+from . import summary as summary_mod
 from .summary import build_summary, git_sha, key_refusal, load_manifest, write_summary
 
 __all__ = [
@@ -54,6 +70,10 @@ __all__ = [
     "git_sha",
     "scan_e1_cells",
     "build_e1_summary",
+    "DEFAULT_KEY_PREFIX",
+    "APPENDIX_ROOT_NAME",
+    "APPENDIX_KEY_PREFIX",
+    "key_prefix_refusal",
     "main",
 ]
 
@@ -93,6 +113,11 @@ SEED = 0
 
 BUCKET_FILE = "buckets.jsonl"
 
+# The two result trees with this layout, and the key prefix each one writes.
+DEFAULT_KEY_PREFIX = "E1"
+APPENDIX_ROOT_NAME = "E1_math500all"
+APPENDIX_KEY_PREFIX = "E1app"
+
 # Said on every row read off a two-alternative cell (ruling A3).
 N2_NOTE = "at two alternatives rho is +1 or -1; mean = 2 x agreement - 1"
 
@@ -102,9 +127,9 @@ N2_NOTE = "at two alternatives rho is +1 or -1; mean = 2 x agreement - 1"
 #
 # `load_manifest`, `git_sha` and the document writer itself come from
 # summary.py, the one summary implementation of this package (ruling B13).
-# `source_path` below is a different function from `summary.source_path`: it
-# joins a results root with a cell's sub-path and keeps the root exactly as the
-# caller spelled it.
+# `source_path` below has a different signature from `summary.source_path`: it
+# joins a results root with a cell's sub-path. The shaping of the joined path is
+# `summary.source_path`, which it calls, so the two families cannot drift.
 # -------------------------
 
 
@@ -127,16 +152,35 @@ class SummaryBuilder:
     own, because it is handed raw estimator output. They are refusals rather
     than errors because a partly collected experiment should still produce the
     keys it can support.
+
+    `key_prefix` renames the leading segment of every key, which is how one
+    result tree writes `E1.*` and its appendix twin writes `E1app.*` off the same
+    code. It is empty by default, meaning no rename, and it only ever replaces
+    the builder's own experiment segment, so a builder collecting `E1b.*` cannot
+    be redirected by it. `extra` is written at the top level of the document,
+    beside `experiment`.
     """
 
     def __init__(self, experiment: str, script: str, manifest: Mapping[str, Any],
-                 *, stream=None) -> None:
+                 *, stream=None, key_prefix: str = "",
+                 extra: Optional[Mapping[str, Any]] = None) -> None:
         self.experiment = experiment
         self.script = script
         self.manifest = manifest
+        self.key_prefix = str(key_prefix or "")
+        self.extra: Dict[str, Any] = dict(extra or {})
         self.keys: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
         self.refused: List[str] = []
         self.stream = stream if stream is not None else sys.stderr
+
+    def key(self, name: str) -> str:
+        """The manifest key this builder writes for a canonical key name."""
+        if not self.key_prefix:
+            return name
+        head, sep, tail = name.partition(".")
+        if not sep or head != self.experiment:
+            return name
+        return self.key_prefix + "." + tail
 
     def note(self, message: str) -> None:
         print(message, file=self.stream)
@@ -147,6 +191,7 @@ class SummaryBuilder:
         return False
 
     def add(self, key: str, value: Any, *, n: int, source: Any, note: str = "") -> bool:
+        key = self.key(key)
         why = key_refusal(key, self.manifest)
         if why is not None:
             return self.refuse(key, why)
@@ -175,20 +220,28 @@ class SummaryBuilder:
     def payload(self) -> Dict[str, Any]:
         """The summary document, built by the package's one implementation."""
         return build_summary(self.experiment, self.script, self.keys, self.manifest,
-                             stream=self.stream)
+                             stream=self.stream, extra=self.extra)
 
     def write(self, path: str) -> str:
         """Write the document and return the path it was written to."""
         write_summary(path, self.experiment, self.script, self.keys, self.manifest,
-                      stream=self.stream)
+                      stream=self.stream, extra=self.extra)
         return path
 
 
 def source_path(results_root: str, *parts: str) -> str:
-    """The path string that goes into a summary's `source`, in the shape the
-    caller gave the results root (relative stays relative), forward slashes."""
+    """The path string that goes into a summary's `source`.
+
+    The root is joined with a cell's sub-path and the whole thing is then put
+    through `summary.source_path`, so both aggregation families write the same
+    shape: repository-relative from the last `20_data` segment when there is
+    one (`20_data/results/E1/a2/4b/sweep_n4/buckets.jsonl`), and the path as
+    spelled, with forward slashes, when there is not. Before this the root was
+    kept exactly as the caller gave it, which put the operator's own absolute
+    path into the summary of every cell aggregated by absolute path.
+    """
     root = str(results_root).replace("\\", "/").rstrip("/")
-    return "/".join([root] + [str(p) for p in parts])
+    return summary_mod.source_path("/".join([root] + [str(p) for p in parts]))
 
 
 def excluded_note(cell: sh.CellResult) -> str:
@@ -322,10 +375,41 @@ def _add_cell_block(builder: SummaryBuilder, prefix: str, cell: sh.CellResult,
                 note=head + "denominator is the %d collected groups" % cell.n_total)
 
 
+def key_prefix_refusal(results_root: str, key_prefix: str) -> Optional[str]:
+    """Why this tree must not be aggregated under this key prefix, or None.
+
+    One refusal so far, and it is the collision the two trees make: the appendix
+    tree `E1_math500all` under the default prefix would write exactly the key
+    names of the question-pool tree, so the second run to finish would look like
+    the first. The check is on the last segment of the results root, which is the
+    tree's name.
+    """
+    name = os.path.basename(str(results_root).replace("\\", "/").rstrip("/"))
+    if name == APPENDIX_ROOT_NAME and key_prefix == DEFAULT_KEY_PREFIX:
+        return ("the results root is the appendix tree %s, whose keys must not collide with the "
+                "question-pool tree: pass --key_prefix %s" % (APPENDIX_ROOT_NAME,
+                                                              APPENDIX_KEY_PREFIX))
+    return None
+
+
 def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
-                     stream=None, store: Optional[_CellStore] = None) -> SummaryBuilder:
-    """Compute every E1 key the collected cells support."""
-    builder = SummaryBuilder("E1", "c3.analysis.rebuild.aggregate_e1", manifest, stream=stream)
+                     stream=None, store: Optional[_CellStore] = None,
+                     key_prefix: str = DEFAULT_KEY_PREFIX) -> SummaryBuilder:
+    """Compute every E1 key the collected cells support.
+
+    `key_prefix` is the leading segment of the keys written, `E1` for the
+    question-pool tree and `E1app` for the appendix tree. It is recorded in the
+    summary together with the results root, both in the shape of the contract.
+    """
+    refusal = key_prefix_refusal(results_root, key_prefix)
+    if refusal is not None:
+        raise ValueError(refusal)
+    builder = SummaryBuilder(
+        "E1", "c3.analysis.rebuild.aggregate_e1", manifest, stream=stream,
+        key_prefix=key_prefix,
+        extra={"results_root": summary_mod.source_path(results_root),
+               "key_prefix": key_prefix},
+    )
     store = store or _CellStore()
     cells = scan_e1_cells(results_root, builder)
 
@@ -335,7 +419,7 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
     # 1. the sweep itself
     for (wf, model, n) in sorted(cells):
         path = cells[(wf, model, n)]
-        key = "E1.sweep_n.%s.%s.n%d.rel" % (wf, model, n)
+        key = builder.key("E1.sweep_n.%s.%s.n%d.rel" % (wf, model, n))
         two = (n == 2)
         cell = store.cell(path, MIN_CANDS_N2 if two else None)
         if cell.n_groups == 0:
@@ -362,8 +446,8 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
             continue
         cell = store.cell(cells[(wf, model, n)])
         if cell.n_groups == 0:
-            builder.note("skip E1.per_decision_n4.%s.%s.*: no group survives the exclusion rule"
-                         % (wf, model))
+            builder.note("skip %s: no group survives the exclusion rule"
+                         % builder.key("E1.per_decision_n4.%s.%s.*" % (wf, model)))
             continue
         _add_cell_block(builder, "E1.per_decision_n4.%s.%s" % (wf, model), cell,
                         rel_path(wf, model, n),
@@ -374,16 +458,16 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
         for model in MODELS:
             if (wf, model, n) not in cells:
                 if any(c[0] == wf and c[1] == model for c in cells):
-                    builder.note("skip E1.fixed_b8.%s.%s.*: its source cell sweep_n%d was "
-                                 "not collected" % (wf, model, n))
+                    builder.note("skip %s: its source cell sweep_n%d was not collected"
+                                 % (builder.key("E1.fixed_b8.%s.%s.*" % (wf, model)), n))
                 continue
             two = (n == 2)
             cell = store.cell(cells[(wf, model, n)], MIN_CANDS_N2 if two else None)
             head = "derived from sweep_n%d (fixed budget B=8, K=%d)" % (n, k)
             if cell.n_groups == 0:
                 builder.note(
-                    "skip E1.fixed_b8.%s.%s.*: %s, and no group survives the exclusion rule "
-                    "(%d collected)" % (wf, model, head, cell.n_total))
+                    "skip %s: %s, and no group survives the exclusion rule (%d collected)"
+                    % (builder.key("E1.fixed_b8.%s.%s.*" % (wf, model)), head, cell.n_total))
                 continue
             # These rows print a correlation, so the two-alternative cell reports the
             # mean rho of the same pool its sweep row reports as an agreement rate.
@@ -397,14 +481,16 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
             hi, lo = cells.get((wf, model, 8)), cells.get((wf, model, 3))
             if hi is None or lo is None:
                 if hi is not None or lo is not None:
-                    builder.note("skip E1.sweep_n.%s.%s.delta_n8_n3{,_ci_lo}: only one of the "
-                                 "branching-8 and branching-3 cells was collected" % (wf, model))
+                    builder.note("skip %s: only one of the branching-8 and branching-3 cells "
+                                 "was collected"
+                                 % builder.key("E1.sweep_n.%s.%s.delta_n8_n3{,_ci_lo}"
+                                               % (wf, model)))
                 continue
             delta = sh.paired_cell_delta(store.buckets(hi), store.buckets(lo),
                                          n_boot=N_BOOT, seed=SEED, min_cands=MIN_CANDS)
             if delta.delta is None:
-                builder.note("skip E1.sweep_n.%s.%s.delta_n8_n3: no question is usable on both sides"
-                             % (wf, model))
+                builder.note("skip %s: no question is usable on both sides"
+                             % builder.key("E1.sweep_n.%s.%s.delta_n8_n3" % (wf, model)))
                 continue
             deltas[(wf, model)] = delta
             src = [rel_path(wf, model, 8), rel_path(wf, model, 3)]
@@ -436,8 +522,8 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
                                            ci_lo if ci_lo is not None else float("nan"),
                                            ci_hi if ci_hi is not None else float("nan")))
     else:
-        builder.note("skip E1.per_decision_n4.4b.rel_{min,max,range}: %d of the six "
-                     "workflows have a usable branching-4 cell" % len(have))
+        builder.note("skip %s: %d of the six workflows have a usable branching-4 cell"
+                     % (builder.key("E1.per_decision_n4.4b.rel_{min,max,range}"), len(have)))
 
     # 6. the binding workflow of the branching criterion on Qwen3-4B
     have_delta = [wf for wf in PD_WORKFLOWS if (wf, "4b") in deltas]
@@ -455,10 +541,14 @@ def build_e1_summary(results_root: str, manifest: Mapping[str, Any], *,
                     n=len(have_delta), source=src,
                     note=note + "; printed name of the directory %s" % worst)
     else:
-        builder.note("skip E1.sweep_n.4b.delta_n8_n3_min{,_ci_lo,_arm}: %d of the six "
-                     "workflows have both branching-8 and branching-3 cells" % len(have_delta))
+        builder.note("skip %s: %d of the six workflows have both branching-8 and "
+                     "branching-3 cells"
+                     % (builder.key("E1.sweep_n.4b.delta_n8_n3_min{,_ci_lo,_arm}"),
+                        len(have_delta)))
 
-    builder.note("E1: %d key(s) written, %d refused" % (len(builder.keys), len(builder.refused)))
+    builder.note("%s: %d key(s) written, %d refused"
+                 % (builder.key_prefix or builder.experiment, len(builder.keys),
+                    len(builder.refused)))
     return builder
 
 
@@ -472,9 +562,20 @@ def build_parser(experiment: str) -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    args = build_parser("E1").parse_args(argv)
+    ap = build_parser("E1")
+    ap.add_argument("--key_prefix", default=DEFAULT_KEY_PREFIX,
+                    help="leading segment of the keys written; %s for the question-pool tree, "
+                         "%s for the appendix tree %s"
+                         % (DEFAULT_KEY_PREFIX, APPENDIX_KEY_PREFIX, APPENDIX_ROOT_NAME))
+    args = ap.parse_args(argv)
+
+    refusal = key_prefix_refusal(args.results, args.key_prefix)
+    if refusal is not None:
+        print("[aggregate_e1] ERROR: %s" % refusal, file=sys.stderr)
+        return 2
+
     manifest = load_manifest(args.manifest)
-    builder = build_e1_summary(args.results, manifest)
+    builder = build_e1_summary(args.results, manifest, key_prefix=args.key_prefix)
     builder.write(args.out)
     print("wrote %d key(s) to %s" % (len(builder.keys), args.out))
     return 0

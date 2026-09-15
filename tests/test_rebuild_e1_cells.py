@@ -31,6 +31,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import e1_cells  # noqa: E402
+import prefix_tokens  # noqa: E402
 
 from c3.analysis import analysis as analysis_cli  # noqa: E402
 from c3.analysis import replay as replay_mod  # noqa: E402
@@ -553,3 +554,139 @@ def test_build_buckets_refuses_a_meta_json_that_is_not_an_object(tmp_path: Path)
     with pytest.raises(SystemExit) as excinfo:
         _run_build_buckets(tmp_path / "bad2.jsonl", "--meta_json", "{not json")
     assert excinfo.value.code == 2
+
+
+# ---------------------------------------------------------------------------
+# scripts/70_rebuild/prefix_tokens.py (WP-R14 item 6)
+#
+# The one E1 key the aggregation cannot produce, `E1.c10.median_prefix_tokens`,
+# needs a tokenizer and the model files. What is testable without either is the
+# scan: which cells there are, and which of their buckets carry a prefix at all.
+# That is `--dry-run`, and it is also the channel that reports what the bucket
+# schema is missing.
+# ---------------------------------------------------------------------------
+
+
+def _c10_bucket(qid: str, outputs: Dict[str, str], **extra: Any) -> Dict[str, Any]:
+    """One bucket in the schema of c3/analysis/buckets.py, c10 shaped."""
+    row: Dict[str, Any] = {
+        "bucket_id": "bkt_" + qid,
+        "ctx_hash": 1,
+        "target_role": "reader",
+        "question_id": qid,
+        "restart": {
+            "roles_topo": ["reader", "planner", "solver"],
+            "role_outputs_prefix": dict(outputs),
+            "question": "What is 2 + 2?",
+        },
+        "candidates": [{"j": 0, "action_text": "a", "returns": [1.0], "next_actions": ["x"]}],
+        "meta": {"workflow": "c10", "model": "4b", "rule": "sweep_n4"},
+    }
+    row["restart"].update(extra)
+    return row
+
+
+def _write_c10_cell(root: Path, rows: Sequence[Dict[str, Any]], n: int = 4) -> Path:
+    path = root / "c10" / "4b" / ("sweep_n%d" % n) / "buckets.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return path
+
+
+def test_prefix_tokens_dry_run_needs_neither_transformers_nor_a_model(
+        tmp_path: Path, capsys: Any) -> None:
+    root = tmp_path / "20_data" / "results" / "E1"
+    _write_c10_cell(root, [_c10_bucket("q%d" % i, {"reader": "R" * (i + 1)})
+                           for i in range(3)])
+    had_transformers = "transformers" in sys.modules
+
+    rc = prefix_tokens.main(["--results", str(root), "--prefix_scope", "context",
+                             "--dry-run"])
+    assert rc == 0
+    out = capsys.readouterr()
+    assert "# cells: 1" in out.out
+    assert "# buckets: 3" in out.out
+    assert "# with a prefix: 3" in out.out
+    assert "20_data/results/E1/c10/4b/sweep_n4/buckets.jsonl" in out.err
+    if not had_transformers:
+        assert "transformers" not in sys.modules
+
+
+def test_prefix_tokens_reports_the_empty_prefix_the_real_trees_carry(
+        tmp_path: Path, capsys: Any) -> None:
+    """Every bucket on disk on 2026-09-15 has an empty `role_outputs_prefix`,
+    because the measured position is the first role of the workflow. The dry run
+    has to say that rather than report a prefix of length zero."""
+    root = tmp_path / "E1"
+    _write_c10_cell(root, [_c10_bucket("q%d" % i, {}) for i in range(5)])
+
+    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "context",
+                               "--dry-run"]) == 0
+    out = capsys.readouterr()
+    assert "# with a prefix: 0" in out.out
+    assert "5 bucket(s) contribute nothing: restart.role_outputs_prefix is empty" in out.err
+
+
+def test_prefix_tokens_names_the_field_the_rendered_scope_would_need(
+        tmp_path: Path, capsys: Any) -> None:
+    root = tmp_path / "E1"
+    _write_c10_cell(root, [_c10_bucket("q0", {"reader": "R"})])
+
+    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "rendered",
+                               "--rendered_field", "restart.rendered_prompt",
+                               "--dry-run"]) == 0
+    assert "no restart.rendered_prompt on this bucket" in capsys.readouterr().err
+
+    # with the field present it is read, dotted path and all
+    _write_c10_cell(root, [_c10_bucket("q0", {}, rendered_prompt="a prompt")])
+    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "rendered",
+                               "--rendered_field", "restart.rendered_prompt",
+                               "--dry-run"]) == 0
+    assert "# with a prefix: 1" in capsys.readouterr().out
+
+
+def test_prefix_tokens_joins_the_context_the_way_the_renderer_does() -> None:
+    """The prefix under the `context` scope is the string
+    `c3.mas.prompt_render.build_render_context` puts in `{context}`, not a
+    second convention that happens to look like it."""
+    from c3.mas.prompt_render import build_render_context
+
+    outputs = {"planner": "P", "reader": "R"}
+    bucket = _c10_bucket("q0", outputs)
+    text, why = prefix_tokens.prefix_text(bucket, "context")
+    assert why == ""
+    rendered = build_render_context(question="What is 2 + 2?", role_outputs=outputs,
+                                    topo_so_far=["reader", "planner", "solver"])
+    assert text == rendered["context"] == "R\n\nP"
+
+    with_question, _ = prefix_tokens.prefix_text(bucket, "question_and_context")
+    assert with_question == "What is 2 + 2?\n\nR\n\nP"
+
+
+def test_prefix_tokens_refuses_the_appendix_tree_under_the_default_prefix(
+        tmp_path: Path, capsys: Any) -> None:
+    root = tmp_path / "E1_math500all"
+    _write_c10_cell(root, [_c10_bucket("q0", {"reader": "R"})])
+    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "context",
+                               "--dry-run"]) == 2
+    assert "--key_prefix E1app" in capsys.readouterr().err
+
+
+def test_prefix_tokens_refuses_a_real_run_without_the_pieces_it_needs(
+        tmp_path: Path, capsys: Any) -> None:
+    root = tmp_path / "E1"
+    _write_c10_cell(root, [_c10_bucket("q0", {"reader": "R"})])
+    assert prefix_tokens.main(["--results", str(root), "--prefix_scope", "context"]) == 2
+    err = capsys.readouterr().err
+    for flag in ("--tokenizer", "--manifest", "--out"):
+        assert flag in err
+
+
+def test_prefix_tokens_reports_both_medians() -> None:
+    assert prefix_tokens.medians([]) == (None, None)
+    assert prefix_tokens.medians([7]) == (7, 7.0)
+    low, linear = prefix_tokens.medians([10, 20, 30, 40])
+    assert low == 20 and linear == pytest.approx(25.0)
+    assert isinstance(low, int)

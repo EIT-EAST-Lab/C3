@@ -16,10 +16,10 @@ p-value string of manifest_skeleton.py (`format_p`), reading the manifest
 (`load_manifest`), the path shape of a summary `source` (`source_path`) and the
 commit stamp (`git_sha`).
 
-One caution about names: `aggregate_e1.source_path` is a different function
-with a different job (it joins a results root with the sub-path of a cell and
-keeps the root exactly as the caller spelled it). The two were never the same
-function, so they are not merged here.
+One caution about names: `aggregate_e1.source_path` has a different signature
+(it joins a results root with the sub-path of a cell). It shapes the joined path
+by calling the one here, so both families write the same `source` shape; the
+signatures differ, which is why the two are not one function.
 
 Refusals are mechanical and never fatal (contract revision 2, ruling B9): a key
 the manifest does not define, or a key whose unit is "verdict", is dropped with
@@ -46,6 +46,7 @@ __all__ = [
     "source_path",
     "git_sha",
     "key_refusal",
+    "RESERVED_TOP_LEVEL",
     "build_summary",
     "write_summary",
 ]
@@ -151,6 +152,10 @@ def key_refusal(key: str, manifest: Mapping[str, Mapping[str, Any]]) -> Optional
     return None
 
 
+#: Top-level names of the document that `extra` may not overwrite.
+RESERVED_TOP_LEVEL = ("experiment", "generated_by", "keys")
+
+
 def build_summary(
     experiment: str,
     script: str,
@@ -158,6 +163,7 @@ def build_summary(
     manifest: Mapping[str, Mapping[str, Any]],
     *,
     stream=None,
+    extra: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Assemble the summary document of results contract section 3.4.
 
@@ -166,8 +172,19 @@ def build_summary(
     and keys whose unit is "verdict" are refused: dropped from the document with
     one line on stderr (see `key_refusal`). The entries are written in sorted
     key order, and an empty note is omitted.
+
+    `extra` adds top-level fields just after `experiment`, which is how the E1
+    aggregation records which result tree it read and which key prefix it wrote
+    (`results_root`, `key_prefix`). The three names of the contract shape are
+    reserved: passing one of them raises rather than silently rewriting the
+    document the contract fixes.
     """
     out = stream if stream is not None else sys.stderr
+    if extra:
+        clash = [name for name in extra if name in RESERVED_TOP_LEVEL]
+        if clash:
+            raise ValueError("extra may not set the reserved top-level name(s): %s"
+                             % ", ".join(sorted(clash)))
     out_keys: Dict[str, Any] = {}
     for key in sorted(keys):
         why = key_refusal(key, manifest)
@@ -186,15 +203,16 @@ def build_summary(
             item["note"] = note
         out_keys[key] = item
 
-    return {
-        "experiment": experiment,
-        "generated_by": {
-            "script": script,
-            "git_sha": git_sha(),
-            "when": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        },
-        "keys": out_keys,
+    doc: Dict[str, Any] = {"experiment": experiment}
+    for name in (extra or {}):
+        doc[name] = (extra or {})[name]
+    doc["generated_by"] = {
+        "script": script,
+        "git_sha": git_sha(),
+        "when": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    doc["keys"] = out_keys
+    return doc
 
 
 def write_summary(
@@ -205,9 +223,10 @@ def write_summary(
     manifest: Mapping[str, Mapping[str, Any]],
     *,
     stream=None,
+    extra: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the summary document and write it as UTF-8 JSON with LF endings."""
-    doc = build_summary(experiment, script, keys, manifest, stream=stream)
+    doc = build_summary(experiment, script, keys, manifest, stream=stream, extra=extra)
     parent = os.path.dirname(os.path.abspath(out_path))
     if parent:
         os.makedirs(parent, exist_ok=True)
