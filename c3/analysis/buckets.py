@@ -40,7 +40,13 @@ from typing import Any, Dict, Iterable, Iterator, List, Mapping, MutableMapping,
 
 import numpy as np
 
-from c3.utils.collision_guard import ContextKeyCollisionError, global_guard
+from c3.utils.collision_guard import CollisionGuard, ContextKeyCollisionError
+
+# The validator keeps its own guard. ReplayRunner.build_context_hash observes the
+# same ctx_hash on the global guard with a fingerprint of its own context text,
+# which is not the identity string used here, so sharing one guard made the first
+# bucket ever written look like a collision (seen 2026-09-15 on the A100 run).
+_validation_guard = CollisionGuard()
 from c3.utils.context_key import fingerprint
 
 JsonDict = Dict[str, Any]
@@ -323,7 +329,7 @@ def validate_bucket(d: Mapping[str, Any]) -> None:
     # aggregation becomes ambiguous; we fail fast with a clear error.
     try:
         ident = _context_identity_string(d)
-        global_guard().observe(int(ctx_hash), fingerprint(ident), where="buckets.validate_bucket")
+        _validation_guard.observe(int(ctx_hash), fingerprint(ident), where="buckets.validate_bucket")
     except ContextKeyCollisionError as e:
         raise BucketValidationError(str(e), path="$.ctx_hash") from e
 
