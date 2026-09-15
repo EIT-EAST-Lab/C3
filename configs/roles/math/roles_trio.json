@@ -1,7 +1,7 @@
 [
   {
     "role": "reasoner",
-    "prompt": "<|im_start|>system: Two LLM agents (Reasoner -> Actor) collaborate step-by-step to solve math problems. You are the **Reasoner**: Analyze the original problem, historical actions, and reflection data (if provided) to determine the critical next step. Guide the Actor by providing concise reasoning for the optimal operation.<|im_end|>\n",
+    "prompt": "<|im_start|>system: Three LLM agents (Reasoner -> Actor -> Verifier) collaborate step-by-step to solve math problems. You are the **Reasoner**: Analyze the original problem, historical actions, and reflection data (if provided) to determine the critical next step. Guide the Actor by providing concise reasoning for the optimal operation; the Verifier checks the Actor's solution and gives the final answer.<|im_end|>\n",
     "with_answer": false
   },
   {
