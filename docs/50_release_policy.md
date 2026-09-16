@@ -61,3 +61,30 @@ Before publishing or packaging the repository:
 3. Run `bash scripts/90_audit/release_gate.sh` on a CPU machine.
 4. Verify that documentation still matches the release policy and the expected local generation workflow.
 5. Add the release entry to `CHANGELOG.md`.
+
+## Renames and import shims
+
+A rename that breaks a documented import path is a break for whoever wrote that
+path, so the repository treats shims as a promise with a deadline rather than a
+courtesy that lingers.
+
+1. **A shim is created only for a path a reader could have written.** Anything
+   that was never in the README, in `docs/`, or in a released example is renamed
+   outright. Internal call sites are updated in the same commit.
+2. **A shim names the release that removes it, on the day it is created.** The
+   CHANGELOG entry that introduces the rename says which release drops the old
+   path. A shim whose entry says only "a future release" has no deadline, and
+   the five shims introduced in 0.2.0 show what that costs: they were still in
+   the tree four releases later, so a reader could not tell which of the two
+   spellings was the real one.
+3. **The removal ships the whole table.** The release that drops a shim carries
+   the complete old path to new path mapping in its CHANGELOG entry, so a reader
+   who pinned the old version can migrate by reading one section.
+4. **A removal is enforced by a test, not by memory.**
+   `tests/contract/test_release_surface.py` walks every withdrawn path and fails
+   if one still resolves to a module of this repository, and walks every
+   replacement and fails if one does not.
+5. **The version number does not carry this signal.** Version numbers here move
+   by one patch step at a time, so a release that removes shims looks like any
+   other from its number alone. The CHANGELOG entry says so in its first line
+   instead.

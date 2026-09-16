@@ -1,6 +1,8 @@
 <div align="center">
-  <img src="figs/C3-Logo.png" alt="C3 Logo" width="420">
-  <p><strong>Contextual Counterfactual Credit Assignment</strong></p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="figs/c3-logo-dark.svg">
+    <img src="figs/c3-logo-light.svg" alt="C3, Contextual Counterfactual Credit assignment" width="360">
+  </picture>
   <p>
     <a href="https://eit-east-lab.github.io/C3/"><img src="https://img.shields.io/badge/Project-Page-B24A2F" alt="Project Page"></a>
     <a href="https://arxiv.org/abs/2603.06859"><img src="https://img.shields.io/badge/arXiv-2603.06859-B31B1B" alt="arXiv 2603.06859"></a>
@@ -28,11 +30,11 @@ Reference implementation for the paper **Contextual Counterfactual Credit Assign
 
 Paper status: now available on arXiv as [2603.06859](https://arxiv.org/abs/2603.06859). The companion project page is available at [eit-east-lab.github.io/C3](https://eit-east-lab.github.io/C3/), and the official PDF is available [here](https://arxiv.org/pdf/2603.06859).
 
-Repository version 0.2.3. See [CHANGELOG.md](CHANGELOG.md) for what changed and why.
+Repository version 0.2.4. See [CHANGELOG.md](CHANGELOG.md) for what changed and why.
 
 ## TL;DR
 
-Terminal-only feedback in multi-agent LLM collaboration diffuses credit across an entire trajectory. **C3** freezes transcript-derived context and estimates local causal credit with fixed-context replay plus a leave-one-out baseline, outperforming MAPPO and MAGRPO while improving fidelity, variance, and inter-agent influence under matched budgets.
+Train a team of LLM agents from a single reward at the end and you have to decide what each message was worth. The usual answer is to guess it with a learned critic, because in most environments a decision point cannot be revisited. Agents that talk through a shared context are not most environments: the transcript is the whole state, so you can reset the run to any message, swap it, and play the rest out. **C3** does that. It samples alternatives at a decision point, replays each one to the final reward, and compares them against a leave-one-out baseline. No learned parameters, no fitted value function, and the counterfactual is executed rather than predicted.
 
 <p align="center">
   <a href="#core-mechanism">Mechanism</a> |
@@ -59,7 +61,22 @@ Terminal-only feedback in multi-agent LLM collaboration diffuses credit across a
   <img src="figs/fig_learning_dynamics_4b.png" alt="Learning dynamics comparison across methods" width="48%">
 </div>
 
-**Main paper results**: Sample-efficiency and performance trajectories against baseline methods (e.g., MAPPO, MAGRPO). C3 reaches superior performance given matched training token budgets.
+Three-agent workflow, Qwen3-4B, five independent training seeds per method, matched rollout budget.
+Each cell is the mean over seeds with its standard deviation; higher is better.
+
+| Method | MATH500 | AIME 2025 | CMATH | GSM8K | Avg. | MBPP+ | MBPP-test |
+|---|---|---|---|---|---|---|---|
+| MAPPO | 75.8 ± 0.7 | 6.7 ± 1.4 | 95.8 ± 0.3 | 93.4 ± 0.3 | 88.3 ± 0.3 | 6.4 ± 0.5 | 5.6 ± 0.4 |
+| MAGRPO | 62.1 ± 1.3 | 7.3 ± 2.5 | 79.6 ± 0.8 | 92.9 ± 0.3 | 78.2 ± 0.5 | 6.6 ± 0.4 | 5.7 ± 0.4 |
+| **C3** | **78.6 ± 0.5** | **7.8 ± 2.5** | **95.9 ± 0.2** | **93.5 ± 0.3** | **89.3 ± 0.4** | **6.9 ± 0.4** | **5.9 ± 0.4** |
+
+On the two-agent workflow C3 reaches 82.8 ± 0.6 on MATH500 against 74.6 ± 1.5 for CORY.
+
+These are the numbers of the arXiv paper. To reproduce them from this repository, run the training
+matrix with [scripts/40_train/paper_train.sh](scripts/40_train/paper_train.sh) and the evaluation
+sweep with [scripts/50_eval/paper_main_results.sh](scripts/50_eval/paper_main_results.sh); the
+hyperparameters come from [c3/utils/paper_train_contract.py](c3/utils/paper_train_contract.py),
+which is the paper's Table 3 in executable form.
 
 ## Repository Purpose
 
@@ -252,7 +269,24 @@ Prepared datasets are generated locally from strictly pinned upstream sources. T
 bash scripts/10_data/prepare_all.sh --out_dir data
 ```
 
-The authoritative source of truth for all data derivations is [configs/data_manifest.yaml](configs/data_manifest.yaml). See [Data Sources](docs/30_data_sources.md) and [Third-Party Notices](THIRD_PARTY_NOTICES.md) for provenance details.
+Every dataset is pinned by upstream revision and by the SHA256 of each file it produces, both
+recorded in [configs/data_manifest.yaml](configs/data_manifest.yaml). Running with `--strict 1`
+checks every file against those hashes, so a set of files either matches the ones the paper trained
+on byte for byte or the run fails:
+
+```bash
+bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
+```
+
+Two checks run alongside it. `scripts/10_data/check_overlap.py` fails the preparation if any
+evaluation question appears in any training file, and the loaders refuse a split that the pinned
+revision does not carry instead of silently falling back to another one. Both exist because the
+manifest shipped before 0.2.0 had a mirror of MATH that merged the train and test splits, and a
+CMATH revision with no test split at all; the 0.2.0 entry in [CHANGELOG.md](CHANGELOG.md) records
+what changed and who it affected.
+
+See [Data Sources](docs/30_data_sources.md) and [Third-Party Notices](THIRD_PARTY_NOTICES.md) for
+provenance details.
 
 ## Model Preparation
 
@@ -414,6 +448,22 @@ These gating scripts verify:
 Both scripts run on a CPU machine with the CPU tier installed. The same two
 stages run in CI on every push and pull request; see
 [.github/workflows/ci-cpu.yml](.github/workflows/ci-cpu.yml).
+
+## What is verified, and on what
+
+Every push runs the CPU tier on Python 3.11: install from `requirements/cpu.lock.txt`, a dependency
+consistency check, the full unit suite, both fixture smoke tests, the prose scan, and the
+pre-release audit. That is what the badges above report.
+
+Two things are worth naming because a reader cannot see them from a green badge.
+
+- **The credit mechanism is checked without a GPU.** `tests/mechanism/` builds the paper's rollout
+  tree by hand and compares the leave-one-out advantages against values computed on paper, so the
+  arithmetic at the centre of the method can be confirmed on a laptop in seconds.
+- **The GPU tier is installed and imported, not trained end to end, in CI.** No hosted runner has
+  the hardware. `requirements/gpu.lock.txt` records exactly which checks were run against it and
+  which were not, and `requirements/gpu-paper.lock.txt` pins the environment that produced the
+  published numbers.
 
 ## Governance
 

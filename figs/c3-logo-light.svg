@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 84" width="340" height="84" role="img" aria-label="C3, Contextual Counterfactual Credit assignment">
+  <title>C3</title>
+  <desc>Three agent nodes joined by an arc that reads as the letter C, beside the name.</desc>
+  <g transform="translate(2,2)">
+    <path d="M55 19 A26 26 0 1 0 55 61" fill="none" stroke="#1F2328" stroke-width="9"/>
+    <circle cx="55" cy="19" r="7.5" fill="#1F6FEB"/>
+    <circle cx="14" cy="40" r="7.5" fill="#1F6FEB"/>
+    <circle cx="55" cy="61" r="7.5" fill="#1F6FEB"/>
+  </g>
+  <text x="96" y="46" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="42" font-weight="600" fill="#1F2328">C3</text>
+  <text x="97" y="68" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" fill="#59636E">Contextual Counterfactual Credit assignment</text>
+</svg>

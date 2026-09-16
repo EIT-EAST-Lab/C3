@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80" role="img" aria-label="C3">
+  <title>C3</title>
+  <desc>Three agent nodes joined by an arc that reads as the letter C.</desc>
+  <path d="M55 19 A26 26 0 1 0 55 61" fill="none" stroke="currentColor" stroke-width="9"/>
+  <circle cx="55" cy="19" r="7.5" fill="#1F6FEB"/>
+  <circle cx="14" cy="40" r="7.5" fill="#1F6FEB"/>
+  <circle cx="55" cy="61" r="7.5" fill="#1F6FEB"/>
+</svg>

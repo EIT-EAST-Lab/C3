@@ -5,7 +5,11 @@ on:
     branches: [main]
     paths:
       - "project-page/**"
-      - "figs/C3-Logo.png"
+      - "figs/c3-logo-light.svg"
+      - "figs/c3-logo-dark.svg"
+      - "figs/c3-mark.svg"
+      - "figs/c3-social.png"
+      - "figs/c3-mark-512.png"
       - "figs/fig1_overview.png"
       - "figs/fig_learning_dynamics_4b.png"
       - "figs/fig_pareto_tokens_4b.png"
@@ -42,7 +46,8 @@ jobs:
           cp project-page/script.js _site/script.js
           cp -r project-page/assets _site/
           mkdir -p _site/assets/figs
-          cp figs/C3-Logo.png _site/assets/figs/C3-Logo.png
+          cp figs/c3-logo-light.svg figs/c3-logo-dark.svg figs/c3-mark.svg _site/assets/figs/
+          cp figs/c3-social.png figs/c3-mark-512.png _site/assets/figs/
           cp figs/fig1_overview.png _site/assets/figs/fig1_overview.png
           cp figs/fig_learning_dynamics_4b.png _site/assets/figs/fig_learning_dynamics_4b.png
           cp figs/fig_pareto_tokens_4b.png _site/assets/figs/fig_pareto_tokens_4b.png

@@ -5,6 +5,61 @@ All notable changes to this repository are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-09-16
+
+**This release removes import paths.** Five aliases kept since 0.2.0 are gone,
+and four subpackages are renamed. The full mapping is below; nothing else about
+the installed package changed. `tests/contract/test_release_surface.py` now
+fails if any withdrawn path still resolves, so the old spellings cannot come
+back by accident.
+
+### Changed
+
+- Every `c3` subpackage is now named for what it holds. `c3.algorithms` became
+  `c3.baselines`, because it holds the comparison methods and not this paper's
+  own; `c3.mas` became `c3.protocol`; `c3.tools` became `c3.reporting`, and the
+  environment probe that shared it moved to `c3.utils.env_smoke`;
+  `c3.integration` became `c3.task`, whose two modules are now `c3.task.config`
+  and `c3.task.datasets`; and `c3.credit.counterfactual` flattened into
+  `c3.credit`. One file under it was named for the one thing it does not do, so
+  its role graph builder is now `c3.credit.role_dag` and its critic input
+  formatter is `c3.credit.q_prompt`.
+
+  | Old import path | New import path |
+  |---|---|
+  | `c3.algorithms.*` | `c3.baselines.*` |
+  | `c3.mas.*` | `c3.protocol.*` |
+  | `c3.tools.main_results` | `c3.reporting.main_results` |
+  | `c3.tools.analysis_results` | `c3.reporting.analysis_results` |
+  | `c3.tools.plot_paper_figures` | `c3.reporting.plot_paper_figures` |
+  | `c3.tools.env_smoke` | `c3.utils.env_smoke` |
+  | `c3.integration.marl_specs` | `c3.task.config` |
+  | `c3.integration.task_datasets` | `c3.task.datasets` |
+  | `c3.credit.counterfactual.baselines` | `c3.credit.role_dag` and `c3.credit.q_prompt` |
+  | `c3.credit.counterfactual.*` (the rest) | `c3.credit.*` |
+
+- The test suite says what kind of test each file is: `tests/mechanism/` for the
+  credit-assignment arithmetic, `tests/contract/` for the release surface and
+  the data contracts, `tests/unit/` for everything else. `pytest -q tests` is
+  unchanged.
+
+### Removed
+
+- The five import aliases introduced in 0.2.0 (`c3.algorithms.c3`,
+  `c3.analysis.c3_analysis`, `c3.credit.c3`, `c3.text_sanitize`,
+  `c3.tools.c3_env_smoke`). `docs/50_release_policy.md` now states when a shim
+  is created, which release removes it, and which test enforces that.
+
+### Added
+
+- The E1 aggregation reads a noise measurement out of every sweep cell without a
+  second run: the even and the odd replays of one group are two independent
+  estimates of the same advantage vector, so their disagreement measures the
+  noise and the derived law predicts it at the half's own budget. One estimator
+  serves both readings, called with two continuation seeds or with two halves.
+  The summary carries the ratio per cell, its median, and its rank correlation
+  with the branching factor.
+
 ## [0.2.3] - 2026-09-15
 
 ### Fixed

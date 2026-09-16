@@ -25,8 +25,8 @@ keywords:
   - large language models
   - counterfactual evaluation
   - RLHF infrastructure
-version: 0.2.3
-date-released: "2026-09-15"
+version: 0.2.4
+date-released: "2026-09-16"
 preferred-citation:
   type: article
   title: "Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration"
