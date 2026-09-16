@@ -10,7 +10,7 @@ This document is a quick navigation guide to the repository. It is intentionally
 - `requirements/`: lock files for the CPU tier, the GPU tier, and the paper environment
 - `scripts/`: entrypoints, numbered in the order a new user runs them
 - `docs/`: documentation, numbered in reading order
-- `tests/`: unit tests, release-surface contract tests, the CPU mechanism test, and tiny fixtures
+- `tests/`: `mechanism/` for the credit-assignment arithmetic, `contract/` for the release surface and the data contracts, `unit/` for everything else, plus `fixtures/`
 
 ## The numbered stages
 

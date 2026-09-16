@@ -1,4 +1,4 @@
-"""Contract tests for the cross bucket batched replay path.
+"""Tests for the cross bucket batched replay path.
 
 What is pinned here.
 

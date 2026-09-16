@@ -1,4 +1,4 @@
-"""Contract tests for the start-accuracy probe and the candidate benchmark builders.
+"""Tests for the start-accuracy probe and the candidate benchmark builders.
 
 Three things are pinned here, and none of them needs a GPU, a model or the
 `datasets` package.

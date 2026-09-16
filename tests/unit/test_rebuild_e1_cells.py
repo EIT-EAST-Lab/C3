@@ -1,4 +1,4 @@
-"""Contract tests for the E1 cell driver and for the bucket meta injection.
+"""Tests for the E1 cell driver and for the bucket meta injection.
 
 Two things are pinned here.
 

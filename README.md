@@ -88,7 +88,7 @@ Corresponding local directories (`data/`, `artifacts/`, `ckpt/`, `runs/`, `wandb
 - [requirements/](requirements/): Lock files for the CPU tier, the current GPU tier, and the paper environment.
 - [scripts/](scripts/): Entrypoints, numbered in the order a new user runs them.
 - [docs/](docs/): Documentation, numbered in reading order.
-- [tests/](tests/): Unit tests, release-surface contract tests, the CPU mechanism test, and tiny fixtures.
+- [tests/](tests/): [mechanism/](tests/mechanism) for the credit-assignment arithmetic, [contract/](tests/contract) for the release surface and the data contracts, [unit/](tests/unit) for everything else, and [fixtures/](tests/fixtures) for tiny inputs.
 - [project-page/](project-page/): Static companion site for the paper, deployed via GitHub Pages.
 
 The `scripts/` numbers are the workflow:

@@ -1,4 +1,4 @@
-"""Contract tests for the generation-time context scope.
+"""Tests for the generation-time context scope.
 
 Appendix 04 says the two Solvers of the branching workflow "work from the task
 text and the plan in parallel, neither seeing the other". That sentence is a

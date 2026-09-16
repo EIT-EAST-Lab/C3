@@ -1,4 +1,4 @@
-"""Contract tests for the task configurations added for the rebuild study: the
+"""Tests for the task configurations added for the rebuild study: the
 five deeper workflows, plus the two-agent copy the depth study reads.
 
 The depth study measures one decision point per workflow, so the wiring of each

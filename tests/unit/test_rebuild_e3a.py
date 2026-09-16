@@ -1,4 +1,4 @@
-"""Contract tests for the E3a null action injection.
+"""Tests for the E3a null action injection.
 
 What is pinned here.
 
