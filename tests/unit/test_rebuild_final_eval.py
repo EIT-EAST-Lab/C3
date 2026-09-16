@@ -1,4 +1,4 @@
-"""Contract tests for the evaluation of record and the task file it reads.
+"""Tests for the evaluation of record and the task file it reads.
 
 Three things are pinned here, and none of them needs a GPU, a model or the
 `datasets` package.
@@ -29,7 +29,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import pytest
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_DIR = REPO_ROOT / "scripts" / "70_rebuild"
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))

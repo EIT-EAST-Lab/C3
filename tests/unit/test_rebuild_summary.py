@@ -1,4 +1,4 @@
-# tests/test_rebuild_summary.py
+# tests/unit/test_rebuild_summary.py
 """One summary.json implementation for the whole rebuild package.
 
 The maintainers' decision of 2026-09-15 merged the two writers this package used to have:
@@ -8,7 +8,7 @@ two paths agree on the top-level shape and on the three conventions that used to
 differ (git sha null, timestamp ending in Z, empty note left out), and that both
 refuse an unknown key and a verdict key without stopping.
 
-    python -m pytest tests/test_rebuild_summary.py -q
+    python -m pytest tests/unit/test_rebuild_summary.py -q
 """
 
 from __future__ import annotations

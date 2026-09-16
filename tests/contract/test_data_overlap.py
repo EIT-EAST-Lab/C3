@@ -29,7 +29,7 @@ import pytest
 import yaml
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = REPO_ROOT / 'tests' / 'fixtures' / 'data'
 FIXTURE_MANIFEST = FIXTURES / 'overlap_manifest.yaml'
 CHECK_OVERLAP = REPO_ROOT / 'scripts' / '10_data' / 'check_overlap.py'

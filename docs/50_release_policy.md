@@ -50,7 +50,7 @@ The one intended exception is tiny synthetic fixture data kept under `tests/fixt
   environment and never hard-coded; see `docs/31_network_mirrors.md`.
 - Release hygiene is enforced by `scripts/90_audit/pre_release.sh`,
   `scripts/90_audit/no_data_check.py`, `scripts/90_audit/scan_prose.py`, and
-  `tests/test_release_surface.py`.
+  `tests/contract/test_release_surface.py`.
 
 ## Maintainer checklist
 

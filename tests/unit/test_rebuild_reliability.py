@@ -1,4 +1,4 @@
-# tests/test_rebuild_reliability.py
+# tests/unit/test_rebuild_reliability.py
 """
 Unit tests for the rebuild-experiment reliability family:
 c3.analysis.rebuild.{splithalf, duplicates, noise_law, aggregate_e1,
@@ -27,7 +27,7 @@ from c3.analysis.rebuild import duplicates as dup
 from c3.analysis.rebuild import noise_law as nl
 from c3.analysis.rebuild import splithalf as sh
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 # -------------------------

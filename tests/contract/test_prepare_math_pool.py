@@ -1,4 +1,4 @@
-# tests/test_prepare_math_pool.py
+# tests/contract/test_prepare_math_pool.py
 """The MATH test artifact and the informative-question pool built out of it.
 
 Two configuration files used to name data files no script could produce:
@@ -15,7 +15,7 @@ way; they call one function, and its rule is pinned here.
 Nothing here downloads anything, and the whole file runs in the light local
 environment:
 
-    python -m pytest tests/test_prepare_math_pool.py -q
+    python -m pytest tests/contract/test_prepare_math_pool.py -q
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ import yaml
 from c3.analysis.rebuild.pool_ids import ID_HASH_PREFIX_CHARS, row_id
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / 'configs' / 'data_manifest.yaml'
 SHIPPED_ID_LIST = REPO_ROOT / 'configs' / 'data' / 'pool_informative_ids.json'
 

@@ -6,7 +6,7 @@ from c3.task.config import load_task
 from c3.task.datasets import load_task_datasets
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_load_task_exposes_dataset_specs_from_environment() -> None:

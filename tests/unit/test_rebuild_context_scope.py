@@ -29,7 +29,7 @@ from c3.protocol.prompt_render import ancestors_in_topo_order, build_render_cont
 from c3.protocol.role_graph import RoleGraph
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # The five workflows whose wiring is a chain: for them ancestors == topological prefix.
 CHAIN_WORKFLOWS = {

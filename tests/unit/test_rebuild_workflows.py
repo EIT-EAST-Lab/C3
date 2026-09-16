@@ -8,8 +8,8 @@ tests pin both, plus the context assembly of the one workflow whose wiring is
 not a chain.
 
 They use only the dependency-light loaders (`c3.task.config`,
-`c3.protocol.role_graph`, `c3.credit.counterfactual_baseline`), so they run
-without the training stack.
+`c3.protocol.role_graph`, `c3.credit.role_dag`, `c3.credit.q_prompt`), so they
+run without the training stack.
 """
 
 from __future__ import annotations
@@ -22,17 +22,14 @@ from typing import Dict, List
 import pytest
 import yaml
 
-from c3.credit.counterfactual_baseline import (
-    _collect_ancestors,
-    build_dependency_from_roles,
-    format_for_q,
-)
+from c3.credit.q_prompt import format_for_q
+from c3.credit.role_dag import _collect_ancestors, build_dependency_from_roles
 from c3.task.config import load_task
 from c3.protocol.prompt_render import build_render_context
 from c3.protocol.role_graph import RoleGraph
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # workflow -> (task yaml, roles json, expected topological order)
 WORKFLOWS = {
@@ -109,7 +106,7 @@ MAIN_TABLE_SUITES = ["MATH500", "Minerva-Math", "AMC23", "AIME24", "AIME25"]
 
 # Every math task file whose evaluation suites have to resolve to a prepared
 # artifact. The probe task and the final-evaluation task have their own equivalent
-# checks in tests/test_rebuild_eval_probe.py and tests/test_rebuild_final_eval.py.
+# checks in tests/unit/test_rebuild_eval_probe.py and tests/unit/test_rebuild_final_eval.py.
 MATH_TASK_YAMLS = (
     "configs/tasks/math.yaml",
     "configs/tasks/math_screen.yaml",

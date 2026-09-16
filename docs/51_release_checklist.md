@@ -20,7 +20,7 @@ bash scripts/90_audit/release_gate.sh
 This gate currently runs:
 
 1. `python -m pip check`
-2. `pytest -q tests`, including `tests/test_release_surface.py`
+2. `pytest -q tests`, including `tests/contract/test_release_surface.py`
 3. fixture-based math smoke, with the CPU-tier import checks
 4. fixture-based code smoke
 5. dummy figure generation for the plotting path
@@ -33,11 +33,11 @@ Step 6 is skipped when `data/` is absent, which is the state of a clean checkout
 so a gate run that never prepared the datasets is a seven-step gate: prepare the
 datasets first if you want the full one.
 
-Run `tests/test_release_surface.py` on its own when you only want the release
+Run `tests/contract/test_release_surface.py` on its own when you only want the release
 surface contracts:
 
 ```bash
-pytest -q tests/test_release_surface.py
+pytest -q tests/contract/test_release_surface.py
 ```
 
 ## Extended paper-facing checks
@@ -80,7 +80,7 @@ HF_BASE='Qwen/Qwen2.5-3B-Instruct' RUN_SFT_EVAL=1 bash scripts/90_audit/release_
 - `docs/00_getting_started.md` matches actual installation and smoke commands.
 - `docs/10_code_map.md` and `docs/20_implementation_audit.md` still match the primary implementation path.
 - `docs/30_data_sources.md` and `configs/data_manifest.yaml` remain consistent.
-- Every relative documentation link resolves. `tests/test_release_surface.py`
+- Every relative documentation link resolves. `tests/contract/test_release_surface.py`
   checks this, so a moved file cannot slip through.
 
 ## Governance and metadata

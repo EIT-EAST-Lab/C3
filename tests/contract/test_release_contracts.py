@@ -18,7 +18,7 @@ from c3.utils.paper_train_contract import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _load_module(rel_path: str, module_name: str):

@@ -37,7 +37,7 @@ Trainer --> Analysis["c3/analysis/* + c3/reporting/analysis_results.py"]
 | Task loading | `c3/task/config.py` | Canonical loader for task and role configs | `TaskSpec` must expose environment, role graph, and dataset specs in a stable shape |
 | Dataset loading | `c3/task/datasets.py` | Converts task configs into HF datasets | Local dataset paths must resolve independent of cwd; eval suite names must remain stable |
 | Multi-agent execution | `c3/protocol/role_graph.py`, `c3/protocol/prompt_render.py`, `c3/protocol/rollout_generator.py` | Builds topo order, renders prompts, materializes MAS rollouts | Topology must remain acyclic; prompt rendering must be deterministic; rollout metadata feeds downstream credit/reward |
-| C3 credit path | `openrlhf/trainer/ppo_utils/experience_maker.py`, `c3/credit/provider.py`, `c3/credit/materialize.py`, `c3/credit/counterfactual_baseline.py` | Computes per-node credit and broadcasts token-level advantages | This is the real C3 path used by training |
+| C3 credit path | `openrlhf/trainer/ppo_utils/experience_maker.py`, `c3/credit/provider.py`, `c3/credit/materialize.py`, `c3/credit/role_dag.py`, `c3/credit/q_prompt.py` | Computes per-node credit and broadcasts token-level advantages | This is the real C3 path used by training |
 | MAPPO baseline | `c3/baselines/mappo.py` | Step-level GAE baseline | Consumes step-ordered episode tensors and returns scalar advantages/returns |
 | MAGRPO baseline | `c3/baselines/magrpo.py` | Group-based baseline | Computes group-centered advantages, then broadcasts them over action tokens |
 | C3 fallback | `c3/baselines/group_baseline.py` | Compatibility and fallback path only | Not the paper’s primary C3 implementation |

@@ -20,7 +20,7 @@ import pytest
 import yaml
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 QUICKSTART_SCRIPTS = (
     "scripts/10_data/prepare_all.sh",
@@ -322,4 +322,99 @@ def test_every_intra_repository_import_resolves_to_a_tracked_file() -> None:
     assert not unresolved, (
         "These imports name a module of this repository that git does not "
         "track, so a fresh clone cannot import them:\n" + "\n".join(sorted(set(unresolved)))
+    )
+
+
+# ---------------------------------------------------------------------------
+# Withdrawn import paths
+#
+# A rename leaves two ways to fail. The first is a new path nothing ships,
+# which the test above catches. The second is an old path that outlives its
+# retirement: a shim nobody removed, or a file the rename copied instead of
+# moving. Then the old spelling keeps importing and quietly means something
+# else, which is worse than an import error.
+#
+# Both rounds of renaming are listed, old spelling on the left. Release 0.2.0
+# renamed five modules and kept an alias behind each one; v0.2.4 removed those
+# five and renamed four packages more, this time with no alias at all. Every
+# path below must be gone.
+# ---------------------------------------------------------------------------
+
+WITHDRAWN_IMPORT_PATHS: Tuple[Tuple[str, str], ...] = (
+    # Retired in release 0.2.0, removed in v0.2.4.
+    ("c3.algorithms.c3", "c3.baselines.group_baseline"),
+    ("c3.analysis.c3_analysis", "c3.analysis.analysis"),
+    ("c3.credit.c3", "c3.credit"),
+    ("c3.text_sanitize", "c3.utils.text_sanitize"),
+    ("c3.tools.c3_env_smoke", "c3.utils.env_smoke"),
+    # Renamed in v0.2.4, with no alias.
+    ("c3.integration", "c3.task"),
+    ("c3.integration.marl_specs", "c3.task.config"),
+    ("c3.integration.task_datasets", "c3.task.datasets"),
+    ("c3.mas", "c3.protocol"),
+    ("c3.mas.prompt_render", "c3.protocol.prompt_render"),
+    ("c3.mas.role_graph", "c3.protocol.role_graph"),
+    ("c3.mas.rollout_generator", "c3.protocol.rollout_generator"),
+    ("c3.tools", "c3.reporting"),
+    ("c3.tools.env_smoke", "c3.utils.env_smoke"),
+    ("c3.tools.main_results", "c3.reporting.main_results"),
+    ("c3.tools.analysis_results", "c3.reporting.analysis_results"),
+    ("c3.tools.plot_paper_figures", "c3.reporting.plot_paper_figures"),
+    ("c3.algorithms", "c3.baselines"),
+    ("c3.algorithms.mappo", "c3.baselines.mappo"),
+    ("c3.algorithms.magrpo", "c3.baselines.magrpo"),
+    ("c3.algorithms.group_baseline", "c3.baselines.group_baseline"),
+    ("c3.algorithms.registry", "c3.baselines.registry"),
+    ("c3.algorithms.utils", "c3.baselines.utils"),
+    ("c3.credit.counterfactual", "c3.credit"),
+    ("c3.credit.counterfactual.baselines", "c3.credit.role_dag and c3.credit.q_prompt"),
+    ("c3.credit.counterfactual.materialize", "c3.credit.materialize"),
+    ("c3.credit.counterfactual.prompts", "c3.credit.prompts"),
+    ("c3.credit.counterfactual.provider", "c3.credit.provider"),
+    ("c3.credit.counterfactual.registry", "c3.credit.registry"),
+    ("c3.credit.counterfactual.scoring", "c3.credit.scoring"),
+    ("c3.credit.counterfactual.types", "c3.credit.types"),
+)
+
+
+def test_no_withdrawn_import_path_is_still_a_module_of_this_repository() -> None:
+    """Every retired spelling is gone, not merely unused.
+
+    The resolver is the same one the test above uses, so "gone" means exactly
+    what "resolves" means there: no tracked file, no tracked package, no
+    tracked directory of that name.
+    """
+    tracked = _tracked_files()
+    directories = _tracked_directories(tracked)
+
+    surviving = [
+        f"{old} (renamed to {new})"
+        for old, new in WITHDRAWN_IMPORT_PATHS
+        if _resolves_to_tracked_module(old, tracked, directories)
+    ]
+
+    assert not surviving, (
+        "These import paths were retired but git still tracks a module of that "
+        "name, so the old spelling keeps working:\n" + "\n".join(surviving)
+    )
+
+
+def test_every_replacement_of_a_withdrawn_path_is_a_module_of_this_repository() -> None:
+    """The right-hand column is not decoration: it is the migration table.
+
+    A retirement list whose replacements do not exist sends a reader of the
+    CHANGELOG to a path that is not there.
+    """
+    tracked = _tracked_files()
+    directories = _tracked_directories(tracked)
+
+    missing: List[str] = []
+    for old, new in WITHDRAWN_IMPORT_PATHS:
+        for name in new.split(" and "):
+            if not _resolves_to_tracked_module(name, tracked, directories):
+                missing.append(f"{old} -> {name}")
+
+    assert not missing, (
+        "These replacement paths are not tracked, so the migration table points "
+        "at nothing:\n" + "\n".join(sorted(set(missing)))
     )

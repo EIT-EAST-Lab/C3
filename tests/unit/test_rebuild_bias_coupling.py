@@ -1,10 +1,10 @@
-# tests/test_rebuild_bias_coupling.py
+# tests/unit/test_rebuild_bias_coupling.py
 """The influence estimator, the E3a bias map and the E5 coupling.
 
 Every fixture is synthetic and hand computable; nothing here reads real data.
 Run with the light local environment:
 
-    python -m pytest tests/test_rebuild_bias_coupling.py -q
+    python -m pytest tests/unit/test_rebuild_bias_coupling.py -q
 """
 
 from __future__ import annotations

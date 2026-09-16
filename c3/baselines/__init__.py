@@ -1,12 +1,11 @@
-"""C3 algorithm graft (MARL advantage/return calculators).
+"""The comparison baselines: MARL advantage and return calculators.
 
-Phase 5a scope:
-  - Add algorithm modules + a registry (no OpenRLHF core wiring yet).
-  - Keep imports light: this package should be safe to import without
-    initializing distributed / ray / vLLM.
+These are the methods the paper compares against, not the paper's own credit
+assignment, which lives in `c3.credit`. `openrlhf/trainer/ppo_utils/
+experience_maker.py` picks one of them by the name the registry resolves.
 
-Phase 5b will integrate these calculators into:
-  openrlhf/trainer/ppo_utils/experience_maker.py
+Keep imports light: this package must be safe to import without initializing
+distributed, ray or vLLM.
 """
 
 __all__ = [

@@ -929,7 +929,7 @@ class PPOTrainer(BasePPOTrainer):
         marl_alg0 = self._marl_alg()
         if self._is_c3_mas and marl_alg0 == "c3":
             from c3.task.config import load_task
-            from c3.credit.counterfactual_baseline import build_dependency_from_roles
+            from c3.credit.role_dag import build_dependency_from_roles
 
             task_spec = load_task(self.args.c3_task)
             self._c3_roles = [r.name for r in task_spec.roles]

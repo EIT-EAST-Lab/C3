@@ -20,7 +20,7 @@ Use this checklist when changing protocol, data loading, credit assignment, eval
 - The paper-facing C3 path remains centered on `openrlhf/trainer/ppo_utils/experience_maker.py` plus `c3/credit/*`.
 - `c3/baselines/group_baseline.py` remains documented as a fallback path, not the primary implementation.
 - Changes to `marl_algorithm=auto` behavior are intentional and documented.
-- `pytest -q tests/test_credit_mechanism.py` passes (LOO and full-mean advantages match the hand-derived values on the paper's fanout).
+- `pytest -q tests/mechanism/test_credit_mechanism.py` passes (LOO and full-mean advantages match the hand-derived values on the paper's fanout).
 
 ## Evaluation and aggregation contracts
 
@@ -38,7 +38,7 @@ Use this checklist when changing protocol, data loading, credit assignment, eval
 
 - `pytest -q tests` passes.
 - Fixture-based smoke passes for both math and code tasks.
-- `pytest -q tests/test_release_surface.py` passes.
+- `pytest -q tests/contract/test_release_surface.py` passes.
 - `bash scripts/90_audit/pre_release.sh` passes.
 - `bash scripts/90_audit/release_gate.sh` passes on a CPU machine.
 

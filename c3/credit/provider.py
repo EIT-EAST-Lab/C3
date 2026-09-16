@@ -33,7 +33,8 @@ import torch
 
 from c3.task.config import RoleSpec
 
-from .counterfactual_baseline import build_dependency_from_roles, format_for_q
+from .q_prompt import format_for_q
+from .role_dag import build_dependency_from_roles
 from .scoring import score_texts_batched
 
 

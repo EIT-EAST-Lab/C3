@@ -11,7 +11,7 @@ outputs:
     split: train
     revision: PIN-ME
     license: not a real dataset
-    notes: Fixture manifest for tests/test_data_overlap.py. It is shaped like
+    notes: Fixture manifest for tests/contract/test_data_overlap.py. It is shaped like
       configs/data_manifest.yaml, including a nested list and an unpinned sha256,
       so the gate is tested against the real manifest layout. The files it points
       at are written by the test.

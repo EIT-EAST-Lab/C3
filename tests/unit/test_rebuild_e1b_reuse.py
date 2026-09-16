@@ -1,4 +1,4 @@
-"""Contract tests for reusing the alternatives of an earlier run (WP-R17).
+"""Tests for reusing the alternatives of an earlier run (WP-R17).
 
 What is pinned here.
 
@@ -30,7 +30,7 @@ how a source path is written down.
 
 Everything runs on fake policies, so no model, no GPU and no torch are needed.
 
-    python -m pytest tests/test_rebuild_e1b_reuse.py -q
+    python -m pytest tests/unit/test_rebuild_e1b_reuse.py -q
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from c3.analysis import analysis as analysis_cli  # noqa: E402
 from c3.analysis import replay as replay_mod  # noqa: E402

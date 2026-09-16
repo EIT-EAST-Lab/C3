@@ -745,7 +745,7 @@ class QCriticModelActor(BaseModelActor):
 
     def _build_views_and_targets(self, batch_data: List[dict], roles: List[str], layers, cfg: Dict[str, Any]):
         """Build (texts, targets) for Round B: prefix-only views (one per role)."""
-        from c3.credit.counterfactual_baseline import extract_question, format_for_q
+        from c3.credit.q_prompt import extract_question, format_for_q
         from c3.credit.provider import prepend_preamble
 
         prefix_scope = _Q_PREFIX_SCOPE

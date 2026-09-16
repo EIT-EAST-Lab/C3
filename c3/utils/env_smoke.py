@@ -127,15 +127,9 @@ def _load_task_obj(task_path: str) -> Any:
     task_spec = _load_task_yaml(task_path)
 
     load_task_candidates = [
-        # ✅ repo-actual loaders (prefer these)
+        # The canonical loader, then the package that re-exports it lazily.
         ("c3.task.config", "load_task"),
-        # (optional) other forks/branches
         ("c3.task", "load_task"),
-        ("c3.tasks", "load_task"),
-        ("c3.envs.task", "load_task"),
-        ("c3.envs.tasks", "load_task"),
-        ("openrlhf.tasks", "load_task"),
-        ("openrlhf.envs.tasks", "load_task"),
     ]
 
     try:
@@ -430,18 +424,6 @@ def _build_evaluator(task_obj: Any, task_spec_for_eval: Any) -> Any:
     ev = getattr(task_obj, "evaluator", None)
     if ev is not None:
         return ev
-
-    candidates = [
-        ("c3.envs.evaluator", "build_evaluator"),
-        ("c3.evaluator", "build_evaluator"),
-        ("openrlhf.envs.evaluator", "build_evaluator"),
-        ("openrlhf.evaluator", "build_evaluator"),
-    ]
-    try:
-        build_evaluator = _import_first(candidates)
-        return _call_compat(build_evaluator, task=task_obj, task_spec=task_spec_for_eval, cfg=task_spec_for_eval)
-    except Exception:
-        pass
 
     try:
         OpenEval = _import_first([("c3.analysis.replay", "_OpenRLHFEvaluator")])

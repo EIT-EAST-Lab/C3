@@ -1,4 +1,4 @@
-# tests/test_bucket_guard.py
+# tests/unit/test_bucket_guard.py
 """The context-key collision guard of the bucket validator.
 
 Background (the maintainers' decision of 2026-09-15): on the first real E1 run the very
@@ -14,7 +14,7 @@ decision asked for, plus the check that a real collision is still refused.
 The runner's context string is rebuilt here rather than imported, so the test
 stays inside the light analysis environment.
 
-    python -m pytest tests/test_bucket_guard.py -q
+    python -m pytest tests/unit/test_bucket_guard.py -q
 """
 
 from __future__ import annotations

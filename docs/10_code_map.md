@@ -167,23 +167,23 @@ unless the row says otherwise. The role graph column is read off the role file's
 
 | Test file | What it pins |
 |---|---|
-| [tests/test_bucket_guard.py](../tests/test_bucket_guard.py) | The context-key collision guard of the bucket validator |
-| [tests/test_chat_template_thinking.py](../tests/test_chat_template_thinking.py) | Thinking stays off on hybrid-thinking chat templates |
-| [tests/test_data_overlap.py](../tests/test_data_overlap.py) | The data contamination gate and the split rules it depends on |
-| [tests/test_prepare_code_subtract.py](../tests/test_prepare_code_subtract.py) | MBPP-train is written minus the problems that also occur in MBPP-test |
-| [tests/test_prepare_math_gate.py](../tests/test_prepare_math_gate.py) | The data-prep write door refuses rows without an answer, and CMATH's `golden` column is read |
-| [tests/test_prepare_math_pool.py](../tests/test_prepare_math_pool.py) | The MATH test-split builder, the row-id rule, the id list and the pool builder |
-| [tests/test_rebuild_bias_coupling.py](../tests/test_rebuild_bias_coupling.py) | The influence estimator, the E3a bias map and the E5 coupling |
-| [tests/test_rebuild_context_scope.py](../tests/test_rebuild_context_scope.py) | The generation-time context scope |
-| [tests/test_rebuild_e1_cells.py](../tests/test_rebuild_e1_cells.py) | The E1 cell driver and the bucket meta injection |
-| [tests/test_rebuild_e3a.py](../tests/test_rebuild_e3a.py) | The E3a null action injection |
-| [tests/test_rebuild_eval_probe.py](../tests/test_rebuild_eval_probe.py) | The start-accuracy probe and the candidate benchmark builders |
-| [tests/test_rebuild_final_eval.py](../tests/test_rebuild_final_eval.py) | The evaluation of record: grouping by sample count, the generated per-group task file, avg@k, the boxed rate and the AIME merge |
-| [tests/test_rebuild_reliability.py](../tests/test_rebuild_reliability.py) | The rebuild-experiment reliability family: `c3.analysis.rebuild.{splithalf, duplicates, noise_law, aggregate_e1, aggregate_e1b, aggregate_e1c_temp}` |
-| [tests/test_rebuild_replay_batched.py](../tests/test_rebuild_replay_batched.py) | The cross bucket batched replay path |
-| [tests/test_rebuild_summary.py](../tests/test_rebuild_summary.py) | One `summary.json` implementation for the whole rebuild package |
-| [tests/test_rebuild_workflows.py](../tests/test_rebuild_workflows.py) | The task configurations added for the rebuild study: the five deeper workflows plus the two-agent copy |
-| [tests/test_task_datasets_align.py](../tests/test_task_datasets_align.py) | Schema alignment before concatenating evaluation suites or training sources |
+| [tests/unit/test_bucket_guard.py](../tests/unit/test_bucket_guard.py) | The context-key collision guard of the bucket validator |
+| [tests/unit/test_chat_template_thinking.py](../tests/unit/test_chat_template_thinking.py) | Thinking stays off on hybrid-thinking chat templates |
+| [tests/contract/test_data_overlap.py](../tests/contract/test_data_overlap.py) | The data contamination gate and the split rules it depends on |
+| [tests/contract/test_prepare_code_subtract.py](../tests/contract/test_prepare_code_subtract.py) | MBPP-train is written minus the problems that also occur in MBPP-test |
+| [tests/contract/test_prepare_math_gate.py](../tests/contract/test_prepare_math_gate.py) | The data-prep write door refuses rows without an answer, and CMATH's `golden` column is read |
+| [tests/contract/test_prepare_math_pool.py](../tests/contract/test_prepare_math_pool.py) | The MATH test-split builder, the row-id rule, the id list and the pool builder |
+| [tests/unit/test_rebuild_bias_coupling.py](../tests/unit/test_rebuild_bias_coupling.py) | The influence estimator, the E3a bias map and the E5 coupling |
+| [tests/unit/test_rebuild_context_scope.py](../tests/unit/test_rebuild_context_scope.py) | The generation-time context scope |
+| [tests/unit/test_rebuild_e1_cells.py](../tests/unit/test_rebuild_e1_cells.py) | The E1 cell driver and the bucket meta injection |
+| [tests/unit/test_rebuild_e3a.py](../tests/unit/test_rebuild_e3a.py) | The E3a null action injection |
+| [tests/unit/test_rebuild_eval_probe.py](../tests/unit/test_rebuild_eval_probe.py) | The start-accuracy probe and the candidate benchmark builders |
+| [tests/unit/test_rebuild_final_eval.py](../tests/unit/test_rebuild_final_eval.py) | The evaluation of record: grouping by sample count, the generated per-group task file, avg@k, the boxed rate and the AIME merge |
+| [tests/unit/test_rebuild_reliability.py](../tests/unit/test_rebuild_reliability.py) | The rebuild-experiment reliability family: `c3.analysis.rebuild.{splithalf, duplicates, noise_law, aggregate_e1, aggregate_e1b, aggregate_e1c_temp}` |
+| [tests/unit/test_rebuild_replay_batched.py](../tests/unit/test_rebuild_replay_batched.py) | The cross bucket batched replay path |
+| [tests/unit/test_rebuild_summary.py](../tests/unit/test_rebuild_summary.py) | One `summary.json` implementation for the whole rebuild package |
+| [tests/unit/test_rebuild_workflows.py](../tests/unit/test_rebuild_workflows.py) | The task configurations added for the rebuild study: the five deeper workflows plus the two-agent copy |
+| [tests/unit/test_task_datasets_align.py](../tests/unit/test_task_datasets_align.py) | Schema alignment before concatenating evaluation suites or training sources |
 
 The fixtures these use are [tests/fixtures/data/](../tests/fixtures/data):
 `overlap_manifest.yaml`, `overlap_train.jsonl`, `overlap_eval_clean.jsonl` and

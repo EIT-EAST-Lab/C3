@@ -42,7 +42,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from c3.analysis import analysis as analysis_cli  # noqa: E402
 from c3.analysis import replay as replay_mod  # noqa: E402
