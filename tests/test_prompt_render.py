@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from c3.mas.prompt_render import build_render_context, render_role_prompt
+from c3.protocol.prompt_render import build_render_context, render_role_prompt
 
 
 def test_prompt_render_inserts_question_context_and_role_outputs() -> None:

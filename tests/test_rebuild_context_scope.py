@@ -10,8 +10,8 @@ the topological prefix. For the five chain workflows the two are identical, so
 those rows are untouched; only the branching row changes, and it changes into
 what the paper already says.
 
-These tests use the dependency-light loaders plus `c3.mas.prompt_render`,
-`c3.mas.rollout_generator` (import only, no torch call path) and
+These tests use the dependency-light loaders plus `c3.protocol.prompt_render`,
+`c3.protocol.rollout_generator` (import only, no torch call path) and
 `c3.analysis.replay`'s prompt renderer with `tokenizer=None`, so they run
 without the training stack.
 """
@@ -24,9 +24,9 @@ from typing import Dict, List, Sequence, Tuple
 
 import pytest
 
-from c3.integration.marl_specs import load_task
-from c3.mas.prompt_render import ancestors_in_topo_order, build_render_context
-from c3.mas.role_graph import RoleGraph
+from c3.task.config import load_task
+from c3.protocol.prompt_render import ancestors_in_topo_order, build_render_context
+from c3.protocol.role_graph import RoleGraph
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -253,7 +253,7 @@ CONTEXT_BUILDERS = {"build_render_context", "_build_render_context"}
 
 # file -> how many context-building calls it is expected to contain
 CALL_SITE_FILES = {
-    "c3/mas/rollout_generator.py": 3,
+    "c3/protocol/rollout_generator.py": 3,
     "c3/analysis/replay.py": 1,
 }
 

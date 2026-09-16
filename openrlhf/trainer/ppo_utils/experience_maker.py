@@ -198,7 +198,7 @@ def _parse_roles_topo(rt: Any) -> Optional[List[str]]:
 
 def _canon_marl(name: Any) -> str:
     try:
-        from c3.algorithms.registry import canonical_name
+        from c3.baselines.registry import canonical_name
 
         return canonical_name(name)
     except Exception:
@@ -1138,9 +1138,9 @@ class RemoteExperienceMaker(ABC):
     # -------------------------------------------------------------------------
     @torch.no_grad()
     def _compute_marl_advantages_and_returns(self, experiences: List[Experience]) -> List[Experience]:
-        from c3.algorithms.magrpo import compute_magrpo
-        from c3.algorithms.mappo import compute_mappo_step_gae
-        from c3.algorithms.utils import group_mean_std
+        from c3.baselines.magrpo import compute_magrpo
+        from c3.baselines.mappo import compute_mappo_step_gae
+        from c3.baselines.utils import group_mean_std
 
         args = self.args
         marl_alg = _canon_marl(getattr(args, "marl_algorithm", "auto"))
@@ -1664,10 +1664,10 @@ class RemoteExperienceMaker(ABC):
 
         q_group = getattr(self, "q_critic_model_group", None)
 
-        from c3.credit.counterfactual.materialize import materialize_c3_tree_groups
-        from c3.credit.counterfactual.registry import build_credit_cfg_from_args, build_credit_provider
-        from c3.integration.marl_specs import load_task
-        from c3.algorithms.utils import group_mean_std
+        from c3.credit.materialize import materialize_c3_tree_groups
+        from c3.credit.registry import build_credit_cfg_from_args, build_credit_provider
+        from c3.task.config import load_task
+        from c3.baselines.utils import group_mean_std
 
         task_path = getattr(args, "c3_task", None)
         task_spec = getattr(self, "_c3_task_spec_cache", None)

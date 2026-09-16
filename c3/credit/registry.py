@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from c3.integration.marl_specs import RoleSpec
+from c3.task.config import RoleSpec
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -120,7 +120,7 @@ def build_credit_provider(
             "Remove regenerate/per-role wiring from the caller."
         )
 
-    from c3.credit.counterfactual.provider import C3CreditProvider
+    from c3.credit.provider import C3CreditProvider
 
     return C3CreditProvider(
         args=args,

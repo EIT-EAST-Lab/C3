@@ -4,7 +4,7 @@
 # Each run corresponds to:
 #   - a method (SFT / MAPPO / MAGRPO / C3)
 #   - a task (math / code)
-#   - a seed (0..4)  [required by c3.tools.main_results]
+#   - a seed (0..4)  [required by c3.reporting.main_results]
 #   - a source:
 #       - hf_base: a HuggingFace model id (SFT baseline)
 #       - train_run_dir: a local run directory produced by scripts/40_train/paper_train.sh

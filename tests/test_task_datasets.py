@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from c3.integration.marl_specs import load_task
-from c3.integration.task_datasets import load_task_datasets
+from c3.task.config import load_task
+from c3.task.datasets import load_task_datasets
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

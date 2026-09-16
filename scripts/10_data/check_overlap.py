@@ -45,7 +45,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 
 # Same order as QUESTION_KEY_CANDIDATES in scripts/10_data/prepare_math.py and
-# _PROMPT_KEY_CANDIDATES in c3/integration/task_datasets.py: "the question" must
+# _PROMPT_KEY_CANDIDATES in c3/task/datasets.py: "the question" must
 # mean the same string in the gate and in what the trainer feeds the model.
 QUESTION_KEY_CANDIDATES: Tuple[str, ...] = ("input", "question", "problem", "prompt", "text")
 

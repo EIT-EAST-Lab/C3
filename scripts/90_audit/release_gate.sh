@@ -80,7 +80,7 @@ bash scripts/30_smoke/smoke.sh \
   --skip_import_checks 1
 
 echo "[release_gate] 5/8 dummy mechanism figure"
-"${PYTHON_BIN}" -m c3.tools.plot_paper_figures mechanism \
+"${PYTHON_BIN}" -m c3.reporting.plot_paper_figures mechanism \
   --out_dir "${OUT_DIR}/fig2_dummy" \
   --use_dummy \
   --fmt png

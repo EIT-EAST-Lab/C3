@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-c3.credit.counterfactual.provider
+c3.credit.provider
 
 Rule-B C3 credit provider.
 
@@ -31,9 +31,9 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import torch
 
-from c3.integration.marl_specs import RoleSpec
+from c3.task.config import RoleSpec
 
-from .baselines import build_dependency_from_roles, format_for_q
+from .counterfactual_baseline import build_dependency_from_roles, format_for_q
 from .scoring import score_texts_batched
 
 

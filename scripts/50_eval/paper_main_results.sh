@@ -439,7 +439,7 @@ _do_sweep() {
   done <<< "$tsv"
 
   echo "[main_results] Aggregating tables to: $out_dir" >&2
-  "$PYTHON_BIN" -m c3.tools.main_results aggregate \
+  "$PYTHON_BIN" -m c3.reporting.main_results aggregate \
     --registry "$REGISTRY" \
     --ckpt_root "$CKPT_ROOT" \
     --out_dir "$out_dir" \

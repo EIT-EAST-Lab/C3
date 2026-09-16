@@ -382,7 +382,7 @@ preparation run writes them, so no extra flag is needed; see
 
 ## Implementation Note
 
-The paper's credit assignment lives in [c3/credit/counterfactual/](c3/credit/counterfactual/) and [openrlhf/trainer/ppo_utils/experience_maker.py](openrlhf/trainer/ppo_utils/experience_maker.py); see the [Implementation Audit](docs/20_implementation_audit.md) for the full paper-to-code mapping.
+The paper's credit assignment lives in [c3/credit/](c3/credit/) and [openrlhf/trainer/ppo_utils/experience_maker.py](openrlhf/trainer/ppo_utils/experience_maker.py); see the [Implementation Audit](docs/20_implementation_audit.md) for the full paper-to-code mapping.
 
 ## Audit and Release Gate
 

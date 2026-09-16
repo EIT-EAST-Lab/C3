@@ -48,7 +48,7 @@ from c3.analysis import analysis as analysis_cli  # noqa: E402
 from c3.analysis import replay as replay_mod  # noqa: E402
 from c3.analysis import replay_batched as batched_mod  # noqa: E402
 from c3.analysis.buckets import read_buckets_jsonl, write_buckets_jsonl  # noqa: E402
-from c3.mas.prompt_render import build_render_context  # noqa: E402
+from c3.protocol.prompt_render import build_render_context  # noqa: E402
 
 
 # Output of `build-buckets` on the fixture below, taken with the code that had
@@ -755,7 +755,7 @@ def test_the_real_renderer_cannot_tell_an_empty_message_from_a_deleted_one() -> 
 
 def test_the_same_holds_on_the_configuration_e3a_will_run() -> None:
     """The check above, on the real three agent task rather than a stand-in."""
-    from c3.integration.marl_specs import load_task, topo_sort_roles  # noqa: PLC0415
+    from c3.task.config import load_task, topo_sort_roles  # noqa: PLC0415
 
     spec = load_task(str(REPO_ROOT / "configs" / "tasks" / "math_a3.yaml"))
     roles = [r.name for r in topo_sort_roles(spec.roles)]

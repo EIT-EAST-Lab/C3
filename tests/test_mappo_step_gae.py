@@ -4,7 +4,7 @@ import pytest
 
 torch = pytest.importorskip("torch", reason="MAPPO step-GAE runtime tests require torch.")
 import torch
-from c3.algorithms.mappo import compute_mappo_step_gae
+from c3.baselines.mappo import compute_mappo_step_gae
 
 
 def test_compute_mappo_step_gae_supports_k8_multi_episode_batches() -> None:

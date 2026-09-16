@@ -13,7 +13,7 @@ import pytest
 
 datasets = pytest.importorskip("datasets")
 
-from c3.integration.task_datasets import (  # noqa: E402
+from c3.task.datasets import (  # noqa: E402
     REQUIRED_COLUMNS,
     _interleave_train_datasets,
     align_dataset_schemas,

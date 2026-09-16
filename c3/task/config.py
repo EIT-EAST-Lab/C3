@@ -8,7 +8,7 @@ This module is the ONLY loader for task/roles assets in the "flattened" repo lay
       tasks/
       roles/
     c3/
-      integration/marl_specs.py   <-- (this file)
+      task/config.py              <-- (this file)
 
 Design goals:
   - File-centric: tasks and roles are normal files under repo_root/configs/.
@@ -51,8 +51,8 @@ def _discover_repo_root(start: Path) -> Path:
             # If configs/tasks exists, it's still a very strong signal.
             return p
 
-    # Fallback: assume layout repo_root/c3/integration/marl_specs.py
-    # __file__ parents: integration -> c3 -> repo_root
+    # Fallback: assume layout repo_root/c3/task/config.py
+    # __file__ parents: task -> c3 -> repo_root
     try:
         return start.parents[2]
     except IndexError:

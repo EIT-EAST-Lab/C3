@@ -4,7 +4,7 @@
 Important (M3):
 - The *real* C3 credit assignment (counterfactual with centralized Q-critic)
   is computed upstream in `openrlhf/trainer/ppo_utils/experience_maker.py`
-  via `c3.credit.counterfactual.*` (C3CreditProvider + materialize/routing).
+  via `c3.credit.*` (C3CreditProvider + materialize/routing).
 
 Why keep this module?
 - ExperienceMaker / registry may still call a token-level calculator by name.

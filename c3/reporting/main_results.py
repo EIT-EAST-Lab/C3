@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# c3/tools/main_results.py
+# c3/reporting/main_results.py
 #
 # Aggregate "main results" from eval artifacts produced by examples/c3 sweep.
 #

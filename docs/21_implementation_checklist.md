@@ -17,8 +17,8 @@ Use this checklist when changing protocol, data loading, credit assignment, eval
 
 ## Algorithm and credit contracts
 
-- The paper-facing C3 path remains centered on `openrlhf/trainer/ppo_utils/experience_maker.py` plus `c3/credit/counterfactual/*`.
-- `c3/algorithms/group_baseline.py` remains documented as a fallback path, not the primary implementation.
+- The paper-facing C3 path remains centered on `openrlhf/trainer/ppo_utils/experience_maker.py` plus `c3/credit/*`.
+- `c3/baselines/group_baseline.py` remains documented as a fallback path, not the primary implementation.
 - Changes to `marl_algorithm=auto` behavior are intentional and documented.
 - `pytest -q tests/test_credit_mechanism.py` passes (LOO and full-mean advantages match the hand-derived values on the paper's fanout).
 
@@ -32,7 +32,7 @@ Use this checklist when changing protocol, data loading, credit assignment, eval
   - math appendix, reported apart from the main table: `GSM8K-test`, `CMATH-test`
   - the reported `AIME` column is `AIME24` and `AIME25` merged, the same entry
     `scripts/70_rebuild/final_eval.py` writes
-- Analysis bucket metadata remains compatible with `c3/analysis/metrics.py` and `c3/tools/analysis_results.py`.
+- Analysis bucket metadata remains compatible with `c3/analysis/metrics.py` and `c3/reporting/analysis_results.py`.
 
 ## Tests and release gate
 

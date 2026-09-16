@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
-from c3.integration.marl_specs import RoleSpec
+from c3.task.config import RoleSpec
 
 
 @dataclass(frozen=True)

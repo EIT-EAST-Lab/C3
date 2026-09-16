@@ -7,9 +7,9 @@ measured position, and the dependency edges fix what that role reads. These
 tests pin both, plus the context assembly of the one workflow whose wiring is
 not a chain.
 
-They use only the dependency-light loaders (`c3.integration.marl_specs`,
-`c3.mas.role_graph`, `c3.credit.counterfactual.baselines`), so they run without
-the training stack.
+They use only the dependency-light loaders (`c3.task.config`,
+`c3.protocol.role_graph`, `c3.credit.counterfactual_baseline`), so they run
+without the training stack.
 """
 
 from __future__ import annotations
@@ -22,14 +22,14 @@ from typing import Dict, List
 import pytest
 import yaml
 
-from c3.credit.counterfactual.baselines import (
+from c3.credit.counterfactual_baseline import (
     _collect_ancestors,
     build_dependency_from_roles,
     format_for_q,
 )
-from c3.integration.marl_specs import load_task
-from c3.mas.prompt_render import build_render_context
-from c3.mas.role_graph import RoleGraph
+from c3.task.config import load_task
+from c3.protocol.prompt_render import build_render_context
+from c3.protocol.role_graph import RoleGraph
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -357,13 +357,13 @@ def test_the_q_critic_view_is_the_context_scope_left_on_the_topological_prefix()
 def test_generation_time_context_hides_the_sibling_solver() -> None:
     """The generation path assembles context from the ancestors of the role.
 
-    `c3.mas.prompt_render.build_render_context` is called by both the rollout
+    `c3.protocol.prompt_render.build_render_context` is called by both the rollout
     generator and the replay prompt renderer with
     `topo_so_far = ancestors_in_topo_order(role, topo, depends_on)`, so
     SolverB's rendered context carries the plan and not SolverA's attempt. That
     is what appendix 04 claims the branching workflow does.
     """
-    from c3.mas.prompt_render import ancestors_in_topo_order
+    from c3.protocol.prompt_render import ancestors_in_topo_order
 
     parents, _layers, topo = _dependency("branch")
     actions = _branch_actions()

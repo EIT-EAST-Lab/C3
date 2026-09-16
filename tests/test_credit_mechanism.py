@@ -4,7 +4,7 @@ The module needs torch, and is skipped without it, so an environment that has
 not installed the CPU tier reports a skip instead of a collection error.
 
 It builds a rollout tree by hand, annotated exactly the way
-`c3/mas/rollout_generator.py` annotates a real one, and checks the advantages
+`c3/protocol/rollout_generator.py` annotates a real one, and checks the advantages
 that `C3CreditProvider.compute` produces against values derived independently
 with plain Python arithmetic. No GPU, no model, no data files.
 """
@@ -19,9 +19,9 @@ import pytest
 
 torch = pytest.importorskip("torch", reason="the credit mechanism is defined over torch tensors")
 
-from c3.credit.counterfactual.materialize import materialize_c3_tree_groups  # noqa: E402
-from c3.credit.counterfactual.provider import C3CreditProvider  # noqa: E402
-from c3.integration.marl_specs import RoleSpec  # noqa: E402
+from c3.credit.materialize import materialize_c3_tree_groups  # noqa: E402
+from c3.credit.provider import C3CreditProvider  # noqa: E402
+from c3.task.config import RoleSpec  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ def build_tree_rows(
 ) -> List[Dict[str, Any]]:
     """One row per node, in the order the generator emits them.
 
-    Mirrors c3/mas/rollout_generator.py: node ids are handed out layer by layer
+    Mirrors c3/protocol/rollout_generator.py: node ids are handed out layer by layer
     starting at 0 with the root state at -1, leaf_start and leaf_size come from
     the prefix encoding, an internal node's reward is the mean of its leaf
     subtree, and adv_group_id encodes (question_id, role_id, parent_id).

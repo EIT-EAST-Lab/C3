@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from c3.tools import main_results
-from c3.tools.main_results import main as main_results_main
+from c3.reporting import main_results
+from c3.reporting.main_results import main as main_results_main
 
 
 def _write_jsonl(path: Path, obj: dict) -> None:

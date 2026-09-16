@@ -703,7 +703,7 @@ def summarize_group(group: EvalGroup) -> Dict[str, Any]:
         block["problems"].append(
             f"the run covered {len(observed)} of the {len(group.suites)} suites of this group; missing {missing}. "
             "The trainer concatenates the suites into one evaluation set after aligning their columns "
-            "(c3.integration.task_datasets.concatenate_datasets_aligned); a suite that still produced no "
+            "(c3.task.datasets.concatenate_datasets_aligned); a suite that still produced no "
             "rows points at the trainer log for this run."
         )
     for name, values in sorted(block["suites"].items()):

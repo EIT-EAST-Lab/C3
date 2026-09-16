@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from c3.integration.marl_specs import RoleSpec
-from c3.mas.role_graph import RoleGraph
+from c3.task.config import RoleSpec
+from c3.protocol.role_graph import RoleGraph
 
 
 def test_role_graph_topo_order_for_chain() -> None:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# c3/tools/analysis_results.py
+# c3/reporting/analysis_results.py
 #
 # Aggregate C3 analysis artifacts produced by:
 #   examples/c3/analysis/run_credit_influence.sh

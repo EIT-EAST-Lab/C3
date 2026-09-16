@@ -8,7 +8,7 @@ so the prompt composer passes the switch whenever the template has it and nothin
 
 from __future__ import annotations
 
-from c3.mas.rollout_generator import _compose_full_prompt_chat, chat_template_kwargs
+from c3.protocol.rollout_generator import _compose_full_prompt_chat, chat_template_kwargs
 
 QWEN3_HYBRID_TEMPLATE = "{% if enable_thinking is defined and enable_thinking is false %}<think>\n\n</think>\n\n{% endif %}"
 QWEN_INSTRUCT_TEMPLATE = "{% for message in messages %}<|im_start|>{{ message.role }}\n{{ message.content }}<|im_end|>\n{% endfor %}"

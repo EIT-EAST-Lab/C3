@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""c3.credit.counterfactual.scoring
+"""c3.credit.scoring
 
 Scoring utilities used by Rule-B C3.
 

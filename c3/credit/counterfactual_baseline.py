@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""c3.credit.counterfactual.baselines
+"""c3.credit.counterfactual_baseline
 
 C3 formatting & dependency helpers.
 
@@ -15,7 +15,7 @@ import re
 from collections import deque
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from c3.integration.marl_specs import RoleSpec
+from c3.task.config import RoleSpec
 
 # Capture content after "Question:" (case-insensitive, dot matches newline).
 _Q_BLOCK = re.compile(r"(?is)question\s*:\s*(.+)")

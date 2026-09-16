@@ -22,4 +22,4 @@ c3/envs/math/backends/marft/parse_utils_qwen.py:选项
 c3/envs/math/backends/marft/normalize.py:。；
 
 # Transcript tail split marker: an "Answer" label may carry a fullwidth colon.
-c3/credit/counterfactual/baselines.py:Answer[:：]
+c3/credit/counterfactual_baseline.py:Answer[:：]

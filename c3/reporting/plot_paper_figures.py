@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# c3/tools/plot_paper_figures.py
+# c3/reporting/plot_paper_figures.py
 #
 # Single-column, paper-ready *compact row* bar plots for C3/C3 analysis.
 #

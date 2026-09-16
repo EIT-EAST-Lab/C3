@@ -20,7 +20,7 @@ Primary goals of this log:
 ## A) High-level behavioral differences (what actually changes)
 
 ### 1) C3 task/config integration
-Upstream is extended to accept C3 task/role configs (via `c3.integration.marl_specs` and `configs/tasks/*.yaml`)
+Upstream is extended to accept C3 task/role configs (via `c3.task.config` and `configs/tasks/*.yaml`)
 and to propagate task metadata into training/eval.
 
 **Primary touchpoint:**  

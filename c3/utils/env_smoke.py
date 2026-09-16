@@ -1,4 +1,4 @@
-# c3/tools/env_smoke.py
+# c3/utils/env_smoke.py
 """
 C3 env smoke test.
 
@@ -7,7 +7,7 @@ Goal:
   are all functioning end-to-end without crashing.
 
 Usage:
-  PYTHONPATH=. python -m c3.tools.env_smoke --task path/to/task.yaml --limit 1
+  PYTHONPATH=. python -m c3.utils.env_smoke --task path/to/task.yaml --limit 1
 """
 
 from __future__ import annotations
@@ -122,13 +122,13 @@ def _load_task_obj(task_path: str) -> Any:
 
     NOTE:
       In this repo, canonical loaders include:
-        - c3.integration.marl_specs: load_task(task_path: str)
+        - c3.task.config: load_task(task_path: str)
     """
     task_spec = _load_task_yaml(task_path)
 
     load_task_candidates = [
         # ✅ repo-actual loaders (prefer these)
-        ("c3.integration.marl_specs", "load_task"),
+        ("c3.task.config", "load_task"),
         # (optional) other forks/branches
         ("c3.task", "load_task"),
         ("c3.tasks", "load_task"),
@@ -196,10 +196,10 @@ def _iter_instances(task_obj: Any, *, task_yaml_path: str, limit: int, seed: int
     # Pattern 0 (preferred in this repo): build datasets from TaskSpec via load_task_datasets()
     if not isinstance(task_obj, dict):
         try:
-            load_task_datasets = _import_first([("c3.integration.task_datasets", "load_task_datasets")])
+            load_task_datasets = _import_first([("c3.task.datasets", "load_task_datasets")])
             task_spec_for_ds = task_obj
 
-            # c3.integration.marl_specs.TaskSpec keeps dataset specs in
+            # c3.task.config.TaskSpec keeps dataset specs in
             # task_spec.environment.{train_datasets,eval_suites}, while
             # load_task_datasets expects top-level attributes. Bridge that shape.
             env = getattr(task_obj, "environment", None)
@@ -324,10 +324,7 @@ def _get_task_hint(task_obj: Any, task_spec: Dict[str, Any]) -> str:
 
 def _resolve_prompt_render_module() -> Any:
     candidates = [
-        ("c3.prompt_render", None),
-        ("c3.prompts.prompt_render", None),
-        ("c3.mas.prompt_render", None),
-        ("c3.mas.prompt_renderer", None),
+        ("c3.protocol.prompt_render", None),
     ]
     return _import_first(candidates)
 

@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 import ray
 from ray.util.placement_group import placement_group
 
-from c3.integration.marl_specs import load_task
+from c3.task.config import load_task
 from openrlhf.trainer.ray import create_vllm_engines
 from openrlhf.trainer.ray.launcher import RayActorGroup, ReferenceModelActor, RewardModelActor
 from openrlhf.trainer.ray.ppo_actor import PolicyModelActor
@@ -273,7 +273,7 @@ def validate_args(args, ctx: Dict[str, object]) -> None:
             role_cnt = 1
             if policy_mode == "per_role":
                 try:
-                    from c3.mas.role_graph import RoleGraph
+                    from c3.protocol.role_graph import RoleGraph
 
                     task_spec = ctx.get("task_spec") or load_task(args.c3_task)
                     role_cnt = len(RoleGraph(task_spec.roles).topo_order())
@@ -396,7 +396,7 @@ def compute_execution_plan(args, ctx: Dict[str, object]) -> ExecutionPlan:
     role_count: int = 1
 
     if policy_mode == "per_role":
-        from c3.mas.role_graph import RoleGraph
+        from c3.protocol.role_graph import RoleGraph
 
         task_spec = ctx.get("task_spec") or load_task(args.c3_task)
         role_names = RoleGraph(task_spec.roles).topo_order()

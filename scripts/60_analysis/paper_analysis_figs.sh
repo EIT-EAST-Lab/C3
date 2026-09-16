@@ -62,8 +62,8 @@ PYTHON_BIN="python"
 RESUME=1
 
 ANALYSIS_MOD="${ANALYSIS_MOD:-c3.analysis.analysis}"
-ANALYSIS_RESULTS_MOD="${ANALYSIS_RESULTS_MOD:-c3.tools.analysis_results}"
-PLOT_MOD="${PLOT_MOD:-c3.tools.plot_paper_figures}"
+ANALYSIS_RESULTS_MOD="${ANALYSIS_RESULTS_MOD:-c3.reporting.analysis_results}"
+PLOT_MOD="${PLOT_MOD:-c3.reporting.plot_paper_figures}"
 
 SUITE="math"
 TASK_YAML=""

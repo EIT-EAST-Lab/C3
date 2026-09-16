@@ -563,10 +563,10 @@ class ReplayRunner:
 
         from transformers import AutoTokenizer
 
-        from c3.integration.marl_specs import load_task
+        from c3.task.config import load_task
         from c3.envs.registry import get_env_reward_fn
-        from c3.integration.marl_specs import topo_sort_roles
-        from c3.integration.task_datasets import load_task_datasets
+        from c3.task.config import topo_sort_roles
+        from c3.task.datasets import load_task_datasets
 
         task_yaml = _resolve_task_yaml(task)
         task_spec = load_task(task_yaml)
@@ -988,8 +988,8 @@ class _OpenRLHFPromptRenderer:
         self.task_spec = task_spec
         self.tokenizer = tokenizer
 
-        from c3.mas.prompt_render import build_render_context, render_role_prompt
-        from c3.mas.rollout_generator import _compose_full_prompt_chat
+        from c3.protocol.prompt_render import build_render_context, render_role_prompt
+        from c3.protocol.rollout_generator import _compose_full_prompt_chat
 
         self._build_render_context = build_render_context
         self._render_role_prompt = render_role_prompt
@@ -1021,7 +1021,7 @@ class _OpenRLHFPromptRenderer:
         # Context scope is ancestors only, matching the generation path: a role reads
         # what it depends on, so the two branching solvers never see each other. The
         # wiring comes from the task spec; roles_topo carries names only.
-        from c3.mas.prompt_render import ancestors_in_topo_order
+        from c3.protocol.prompt_render import ancestors_in_topo_order
 
         by_lower = {r.lower(): r for r in roles_topo_names}
         depends_on = {

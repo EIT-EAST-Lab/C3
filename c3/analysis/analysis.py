@@ -64,7 +64,7 @@ def _eprint(*args: Any) -> None:
 
 
 def _die(msg: str, *, code: int = 2) -> NoReturn:
-    _eprint(f"[c3_analysis] ERROR: {msg}")
+    _eprint(f"[analysis] ERROR: {msg}")
     raise SystemExit(code)
 
 
@@ -468,7 +468,7 @@ def _load_mappo_v_critic_callable(
         _die(f"transformers/torch are required to load MAPPO critic: {e}")
 
     try:
-        from c3.mas.rollout_generator import _compose_mappo_state_text  # type: ignore
+        from c3.protocol.rollout_generator import _compose_mappo_state_text  # type: ignore
     except Exception as e:
         _die(f"Cannot import _compose_mappo_state_text (needed for critic state_text): {e}")
 
@@ -759,7 +759,7 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
     # method is paper-metadata; keep it always defined to avoid downstream None surprises.
     if not getattr(args, "method", None):
         args.method = "unknown"
-        _eprint("[c3_analysis][warn] --method missing; defaulting to 'unknown'.")
+        _eprint("[analysis][warn] --method missing; defaulting to 'unknown'.")
 
     replay_mod, buckets_mod, _metrics_mod = _import_analysis_modules()
 
@@ -890,7 +890,7 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
             )
 
         _eprint(
-            f"[c3_analysis] Reusing alternatives from {reuse.source} ({len(reuse)} decision points); "
+            f"[analysis] Reusing alternatives from {reuse.source} ({len(reuse)} decision points); "
             f"only the replays are redrawn, under seed={args.seed}."
         )
 
@@ -1046,14 +1046,14 @@ def _cmd_build_buckets(args: argparse.Namespace) -> None:
             )
 
         _eprint(
-            f"[c3_analysis] Wrote buckets: {out_jsonl} "
+            f"[analysis] Wrote buckets: {out_jsonl} "
             f"(method={args.method}, target_role={args.target_role}, limit={num_instances}, "
             f"candidates={num_candidates}, completions={num_completions}, "
             f"include_real_as_j0={include_real_as_j0}, num_extra_v_samples={num_extra_v_samples})"
         )
         if forced_actions is not None:
             _eprint(
-                f"[c3_analysis] Null arm at j=0 (null_form={null_form}, {len(forced_actions[0])} chars); "
+                f"[analysis] Null arm at j=0 (null_form={null_form}, {len(forced_actions[0])} chars); "
                 f"{total_candidates} alternatives per bucket = {num_candidates} sampled + 1 injected."
             )
 
@@ -1160,7 +1160,7 @@ def _cmd_credit(args: argparse.Namespace) -> None:
 
     if args.out:
         _write_json(Path(args.out), out)
-        _eprint(f"[c3_analysis] Wrote credit metrics: {args.out}")
+        _eprint(f"[analysis] Wrote credit metrics: {args.out}")
     else:
         out2 = _sanitize_for_json(out)
         print(json.dumps(out2, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False))
@@ -1347,7 +1347,7 @@ def _cmd_credit(args: argparse.Namespace) -> None:
                     fh.write(json.dumps(_sanitize_for_json(row), ensure_ascii=False) + "\n")
                     n_rows += 1
 
-        _eprint(f"[c3_analysis] Wrote credit details JSONL: {args.out_details} (rows={n_rows})")
+        _eprint(f"[analysis] Wrote credit details JSONL: {args.out_details} (rows={n_rows})")
 
 
 # -----------------------------------------------------------------------------
@@ -1401,7 +1401,7 @@ def _cmd_influence(args: argparse.Namespace) -> None:
 
     if args.out:
         _write_json(Path(args.out), out)
-        _eprint(f"[c3_analysis] Wrote influence metrics: {args.out}")
+        _eprint(f"[analysis] Wrote influence metrics: {args.out}")
     else:
         out2 = _sanitize_for_json(out)
         print(json.dumps(out2, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False))
@@ -1448,7 +1448,7 @@ def _cmd_latex(args: argparse.Namespace) -> None:
 
     if args.out:
         _write_text(Path(args.out), row + "\n")
-        _eprint(f"[c3_analysis] Wrote LaTeX row: {args.out}")
+        _eprint(f"[analysis] Wrote LaTeX row: {args.out}")
     else:
         print(row)
 

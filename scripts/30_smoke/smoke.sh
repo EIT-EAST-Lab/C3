@@ -38,7 +38,7 @@ Environment knobs:
   PYTHON          Python executable (default: python)
   TRAIN_MOD       Training entry module to import-check (default: openrlhf.cli.train_ppo_ray)
   ANALYSIS_MOD    Analysis entry module to import-check (default: c3.analysis.analysis)
-  SMOKE_MOD       Env smoke module (default: c3.tools.env_smoke)
+  SMOKE_MOD       Env smoke module (default: c3.utils.env_smoke)
   SMOKE_HF_BASE   Default HF base model for --eval_sft (optional)
 USAGE
 }
@@ -46,7 +46,7 @@ USAGE
 PYTHON_BIN="${PYTHON:-python}"
 TRAIN_MOD="${TRAIN_MOD:-openrlhf.cli.train_ppo_ray}"
 ANALYSIS_MOD="${ANALYSIS_MOD:-c3.analysis.analysis}"
-SMOKE_MOD="${SMOKE_MOD:-c3.tools.env_smoke}"
+SMOKE_MOD="${SMOKE_MOD:-c3.utils.env_smoke}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"

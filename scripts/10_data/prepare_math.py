@@ -577,7 +577,7 @@ def _canon_math_row(
 
 # Prepared rows carry the problem statement under `input`; the raw upstream
 # rows use the names below. Same order as _PROMPT_KEY_CANDIDATES in
-# c3/integration/task_datasets.py, so "the question" means the same string here,
+# c3/task/datasets.py, so "the question" means the same string here,
 # in the overlap gate and in what the trainer feeds the model.
 QUESTION_KEY_CANDIDATES: Tuple[str, ...] = ("input", "question", "problem", "prompt", "text")
 

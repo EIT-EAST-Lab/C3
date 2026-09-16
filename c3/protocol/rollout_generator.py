@@ -25,9 +25,9 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from c3.integration.marl_specs import RoleSpec, TaskSpec, load_task
-from c3.mas.prompt_render import ancestors_in_topo_order, build_render_context, render_role_prompt
-from c3.mas.role_graph import RoleGraph
+from c3.task.config import RoleSpec, TaskSpec, load_task
+from c3.protocol.prompt_render import ancestors_in_topo_order, build_render_context, render_role_prompt
+from c3.protocol.role_graph import RoleGraph
 from c3.utils.budget_ledger import append_ledger, make_budget_record
 from c3.utils.collision_guard import CollisionGuard
 from c3.utils.context_key import fingerprint, hash63

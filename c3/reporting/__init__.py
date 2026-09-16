@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-c3.tools
+c3.reporting
 
-Paper/analysis tooling namespace for C3.
+The CLIs that turn run artifacts into the tables and figures of the paper.
 
 This package exists primarily to:
-1) Provide a stable `c3.tools.*` import path (used by examples/c3 scripts).
-2) Define a minimal, explicit public surface for analysis CLIs.
+1) Provide a stable `c3.reporting.*` import path (used by the paper scripts).
+2) Define a minimal, explicit public surface for those CLIs.
 
 Design:
 - Keep this file tiny and dependency-free (fast import, no side effects).
@@ -17,7 +17,6 @@ from __future__ import annotations
 
 # Public modules (kept minimal on purpose).
 __all__ = [
-    "env_smoke",
     "main_results",
     "analysis_results",
     "plot_paper_figures",

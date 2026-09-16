@@ -32,11 +32,11 @@ This document is a quick navigation guide to the repository. It is intentionally
 
 1. [configs/tasks/math.yaml](../configs/tasks/math.yaml)
 2. [configs/tasks/code.yaml](../configs/tasks/code.yaml)
-3. [c3/integration/marl_specs.py](../c3/integration/marl_specs.py)
-4. [c3/integration/task_datasets.py](../c3/integration/task_datasets.py)
-5. [c3/mas/rollout_generator.py](../c3/mas/rollout_generator.py)
+3. [c3/task/config.py](../c3/task/config.py)
+4. [c3/task/datasets.py](../c3/task/datasets.py)
+5. [c3/protocol/rollout_generator.py](../c3/protocol/rollout_generator.py)
 6. [openrlhf/trainer/ppo_utils/experience_maker.py](../openrlhf/trainer/ppo_utils/experience_maker.py)
-7. [c3/credit/counterfactual/](../c3/credit/counterfactual)
+7. [c3/credit/](../c3/credit)
 
 ### I want to run the repository
 
@@ -59,16 +59,16 @@ This document is a quick navigation guide to the repository. It is intentionally
 
 ### I want to understand the baselines
 
-- MAPPO baseline: [c3/algorithms/mappo.py](../c3/algorithms/mappo.py)
-- MAGRPO baseline: [c3/algorithms/magrpo.py](../c3/algorithms/magrpo.py)
-- group-baseline fallback registered as "c3": [c3/algorithms/group_baseline.py](../c3/algorithms/group_baseline.py)
-- algorithm naming and normalization: [c3/algorithms/registry.py](../c3/algorithms/registry.py)
+- MAPPO baseline: [c3/baselines/mappo.py](../c3/baselines/mappo.py)
+- MAGRPO baseline: [c3/baselines/magrpo.py](../c3/baselines/magrpo.py)
+- group-baseline fallback registered as "c3": [c3/baselines/group_baseline.py](../c3/baselines/group_baseline.py)
+- algorithm naming and normalization: [c3/baselines/registry.py](../c3/baselines/registry.py)
 
 ### I want to understand evaluation and paper tables
 
-- main-results aggregation: [c3/tools/main_results.py](../c3/tools/main_results.py)
-- analysis aggregation: [c3/tools/analysis_results.py](../c3/tools/analysis_results.py)
-- plotting: [c3/tools/plot_paper_figures.py](../c3/tools/plot_paper_figures.py)
+- main-results aggregation: [c3/reporting/main_results.py](../c3/reporting/main_results.py)
+- analysis aggregation: [c3/reporting/analysis_results.py](../c3/reporting/analysis_results.py)
+- plotting: [c3/reporting/plot_paper_figures.py](../c3/reporting/plot_paper_figures.py)
 - analysis CLI: [c3/analysis/analysis.py](../c3/analysis/analysis.py)
 
 ## Core path vs fallback path
@@ -77,11 +77,11 @@ This document is a quick navigation guide to the repository. It is intentionally
 
 ```mermaid
 flowchart TD
-Tasks["configs/tasks/*.yaml"] --> Loader["c3/integration/marl_specs.py"]
-Loader --> Data["c3/integration/task_datasets.py"]
-Loader --> MAS["c3/mas/rollout_generator.py"]
+Tasks["configs/tasks/*.yaml"] --> Loader["c3/task/config.py"]
+Loader --> Data["c3/task/datasets.py"]
+Loader --> MAS["c3/protocol/rollout_generator.py"]
 MAS --> Experience["openrlhf/trainer/ppo_utils/experience_maker.py"]
-Experience --> Credit["c3/credit/counterfactual/*"]
+Experience --> Credit["c3/credit/*"]
 Credit --> PPO["openrlhf/trainer/ppo_trainer.py"]
 ```
 
@@ -90,16 +90,15 @@ Credit --> PPO["openrlhf/trainer/ppo_trainer.py"]
 The paper-facing C3 implementation is the node-level credit path:
 
 - [openrlhf/trainer/ppo_utils/experience_maker.py](../openrlhf/trainer/ppo_utils/experience_maker.py)
-- [c3/credit/counterfactual/provider.py](../c3/credit/counterfactual/provider.py)
-- [c3/credit/counterfactual/materialize.py](../c3/credit/counterfactual/materialize.py)
+- [c3/credit/provider.py](../c3/credit/provider.py)
+- [c3/credit/materialize.py](../c3/credit/materialize.py)
 
-[c3/algorithms/group_baseline.py](../c3/algorithms/group_baseline.py) is the
+[c3/baselines/group_baseline.py](../c3/baselines/group_baseline.py) is the
 token-level calculator that the algorithm registry resolves for the name `"c3"`.
 It computes MAGRPO-style group-baseline advantages and exists so that training
 stays runnable when the counterfactual credit path is unavailable, for example
-when K is 1 or the critic scorer is missing. It is not the paper's method. Until
-release 0.2.0 that module was called `c3/algorithms/c3.py`, which is exactly the
-confusion the rename removes.
+when K is 1 or the critic scorer is missing. It is not the paper's method. It
+has been renamed twice to say so, and the CHANGELOG records both renames.
 
 ## Rebuild study: reliability and ablation
 

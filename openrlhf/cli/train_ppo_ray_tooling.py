@@ -31,7 +31,7 @@ from typing import Dict, List, Optional, Tuple
 
 import ray
 
-from c3.integration.marl_specs import load_task
+from c3.task.config import load_task
 
 # --vllm_num_engines=-1 means "auto" (resolved in normalize_args()).
 _VLLM_AUTO_ENGINES_SENTINEL = -1
@@ -40,7 +40,7 @@ _VLLM_AUTO_ENGINES_SENTINEL = -1
 _DEFAULT_MAPPO_STATE_MAX_LEN = 2560
 
 # Canonical MAS rollout generator (string compare only; no import needed).
-_MAS_ROLLOUT_GENERATOR_CLS = "c3.mas.rollout_generator.MASRolloutGenerator"
+_MAS_ROLLOUT_GENERATOR_CLS = "c3.protocol.rollout_generator.MASRolloutGenerator"
 
 # Ray: keep the memory monitor from killing RLHF workers too aggressively.
 _RAY_MEMORY_USAGE_THRESHOLD_DEFAULT = "0.99"
@@ -710,7 +710,7 @@ def _infer_per_role_role_count(args, ctx: Dict[str, object]) -> int:
     if getattr(args, "policy_sharing_mode", "shared") != "per_role":
         return 1
     try:
-        from c3.mas.role_graph import RoleGraph
+        from c3.protocol.role_graph import RoleGraph
 
         task_spec = ctx.get("task_spec") or load_task(args.c3_task)
         return len(RoleGraph(task_spec.roles).topo_order())
@@ -808,7 +808,7 @@ def _detect_env_reward(args, task_spec) -> None:
 def _normalize_marl(args) -> None:
     """Resolve marl_algorithm + algorithm-specific knobs."""
     try:
-        from c3.algorithms.registry import canonical_name
+        from c3.baselines.registry import canonical_name
 
         args.marl_algorithm = canonical_name(getattr(args, "marl_algorithm", "auto"))
     except Exception:
@@ -850,7 +850,7 @@ def _normalize_c3_task_meta(args, task_spec) -> None:
     if task_spec is None:
         return
     try:
-        from c3.mas.role_graph import RoleGraph
+        from c3.protocol.role_graph import RoleGraph
 
         roles_topo = list(RoleGraph(task_spec.roles).topo_order())
     except Exception as e:

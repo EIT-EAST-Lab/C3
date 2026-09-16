@@ -94,7 +94,7 @@ KEY_TAIL = "c10.median_prefix_tokens"
 #: How several role outputs are joined when one replay records more than one.
 #: No bucket on disk does (`next_actions[k]` is a string), and the bucket schema
 #: guard refuses anything else, so this is a convention for a shape the writer
-#: cannot currently produce. It is the join `c3.mas.prompt_render` uses.
+#: cannot currently produce. It is the join `c3.protocol.prompt_render` uses.
 TEXT_JOIN = "\n\n"
 
 

@@ -1,9 +1,9 @@
-"""Multi-agent system (MAS) utilities for C3.
+"""The multi-agent protocol: the role graph, the prompt renderer, the rollouts.
 
 Keep this package import-light.
 
-Running `python -m c3.mas.rollout_generator` imports
-`c3.mas` first. If we eagerly import rollout_generator here,
+Running `python -m c3.protocol.rollout_generator` imports
+`c3.protocol` first. If we eagerly import rollout_generator here,
 Python will emit a RuntimeWarning about the module being already imported.
 """
 

@@ -749,8 +749,8 @@ class BasePPOTrainer(PPOTrainerPluginsMixin, ABC):
         task_eval_dict = None
 
         if use_task_train or use_task_eval:
-            from c3.integration.marl_specs import load_task
-            from c3.integration.task_datasets import load_task_datasets
+            from c3.task.config import load_task
+            from c3.task.datasets import load_task_datasets
 
             task_spec = load_task(args.c3_task)
 
@@ -817,7 +817,7 @@ class BasePPOTrainer(PPOTrainerPluginsMixin, ABC):
                     # which HF concatenate_datasets refuses; align the schemas first. There is
                     # no fallback to a subset of the suites: a suite that silently vanished
                     # would turn into a wrong benchmark number, so a failure here raises.
-                    from c3.integration.task_datasets import concatenate_datasets_aligned
+                    from c3.task.datasets import concatenate_datasets_aligned
 
                     eval_data, alignment = concatenate_datasets_aligned(task_eval_dict)
                     if strategy.is_rank_0():
@@ -928,8 +928,8 @@ class PPOTrainer(BasePPOTrainer):
 
         marl_alg0 = self._marl_alg()
         if self._is_c3_mas and marl_alg0 == "c3":
-            from c3.integration.marl_specs import load_task
-            from c3.credit.counterfactual.baselines import build_dependency_from_roles
+            from c3.task.config import load_task
+            from c3.credit.counterfactual_baseline import build_dependency_from_roles
 
             task_spec = load_task(self.args.c3_task)
             self._c3_roles = [r.name for r in task_spec.roles]
@@ -1841,7 +1841,7 @@ class PPOTrainer(BasePPOTrainer):
         # Fail-fast: C3 requires traj_role_outputs; if missing, pruning likely dropped it.
         self._c3_failfast_missing_traj_maps(experiences_all, where="trainer._train_q_critic_if_needed/pre_materialize")
 
-        from c3.credit.counterfactual.materialize import materialize_c3_batch_data
+        from c3.credit.materialize import materialize_c3_batch_data
 
         batch_data, _, _ = materialize_c3_batch_data(
             experiences_all,
