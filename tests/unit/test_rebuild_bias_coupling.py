@@ -465,7 +465,7 @@ def test_bias_map_keys_match_the_hand_computation(e3a_report):
     # 4 x 0, 4 x 0.75, 4 x 0.25 against zero: t = 3.5456 on 11 degrees of freedom.
     # p is 0.0046, which the middle tier of the p-value convention prints as
     # "< 0.01" (the maintainers' decision; two decimals would read as "p equals zero").
-    assert value["E3a.bias.p"] == "$<\\!0.01$"
+    assert value["E3a.bias.p"] == "< 0.01"
     assert report["bias"]["p"] == pytest.approx(0.0045872026, abs=1e-9)
 
     assert value["E3a.strata.high_infl_diff.n"] == 4
@@ -478,7 +478,7 @@ def test_bias_map_keys_match_the_hand_computation(e3a_report):
     # with ties inside both samples, so scipy takes the tie-corrected normal
     # approximation with continuity correction: z = (16 - 8 - 0.5) / 3.02372.
     assert report["strata"]["mw_p"] == pytest.approx(0.0131238068, abs=1e-9)
-    assert value["E3a.strata.mw_p"] == "$= 0.01$"
+    assert value["E3a.strata.mw_p"] == "= 0.01"
 
     assert value["E3a.top_stratum.share_of_points_pct"] == pytest.approx(100.0 / 3.0, abs=1e-12)
     assert value["E3a.top_stratum.share_of_bias_pct"] == pytest.approx(75.0, abs=1e-12)
@@ -488,8 +488,8 @@ def test_bias_map_keys_match_the_hand_computation(e3a_report):
     assert value["E3a.concentration_factor"] == pytest.approx(6.0, abs=1e-12)
     assert value["E3a.influence.mean_nats"] == pytest.approx(
         (8.0 / 12.0) * (LN3 + 2.0 / 24.0), abs=1e-12)
-    assert value["E3a.cutoffs.max_mw_p"] == "$= 0.01$"
-    assert value["E3a.null_forms.paired_p"] == "$= 1.00$"
+    assert value["E3a.cutoffs.max_mw_p"] == "= 0.01"
+    assert value["E3a.null_forms.paired_p"] == "= 1.00"
     assert set(value) == set(E3A_KEYS)
     # red-team R1 has no key of its own, so it must be readable in the note
     assert "R1 null arm return: mean 0.1667" in keys["E3a.bias.mean"]["note"]
@@ -734,9 +734,9 @@ def test_identical_arms_show_no_significant_difference_anywhere():
         assert report[name]["wilcoxon_p"] == 1.0
         assert report[name]["ci_lo"] == 0.0 and report[name]["ci_hi"] == 0.0
     keys = cp.e5_key_values(report)
-    assert keys["E5.rel.diff_p"]["value"] == "$= 1.00$"
-    assert keys["E5.influence.p"]["value"] == "$= 1.00$"
-    assert keys["E5.correction.p"]["value"] == "$= 1.00$"
+    assert keys["E5.rel.diff_p"]["value"] == "= 1.00"
+    assert keys["E5.influence.p"]["value"] == "= 1.00"
+    assert keys["E5.correction.p"]["value"] == "= 1.00"
     assert set(keys) == set(E5_KEYS)
 
 
@@ -773,17 +773,31 @@ def test_correction_is_undefined_without_a_wrong_upstream_alternative():
 def test_format_p_branches():
     """The three tiers of the maintainers' decision (analysis plan revision 13),
     with both boundaries: 0.001 belongs to the middle tier and 0.01 to the last."""
-    assert inf.format_p(0.0) == "$<\\!0.001$"
-    assert inf.format_p(0.0005) == "$<\\!0.001$"
-    assert inf.format_p(0.0009999) == "$<\\!0.001$"
-    assert inf.format_p(0.001) == "$<\\!0.01$"
-    assert inf.format_p(0.0046) == "$<\\!0.01$"
-    assert inf.format_p(0.009999) == "$<\\!0.01$"
-    assert inf.format_p(0.01) == "$= 0.01$"
-    assert inf.format_p(0.3) == "$= 0.30$"
-    assert inf.format_p(1.0) == "$= 1.00$"
+    assert inf.format_p(0.0) == "< 0.001"
+    assert inf.format_p(0.0005) == "< 0.001"
+    assert inf.format_p(0.0009999) == "< 0.001"
+    assert inf.format_p(0.001) == "< 0.01"
+    assert inf.format_p(0.0046) == "< 0.01"
+    assert inf.format_p(0.009999) == "< 0.01"
+    assert inf.format_p(0.01) == "= 0.01"
+    assert inf.format_p(0.3) == "= 0.30"
+    assert inf.format_p(1.0) == "= 1.00"
     assert inf.format_p(float("nan")) is None
     assert inf.format_p(None) is None
+
+
+def test_a_p_value_string_carries_no_latex_control_character():
+    """The value goes through the paper's macro generator, which refuses them.
+
+    `10_paper/04_rebuild/_tools/gen_results_macros.py` escapes a dollar sign and
+    rejects a backslash or a brace, so the math fragment this used to produce
+    stopped the generator the first time a real p value reached it. Typography
+    is the .tex file's job.
+    """
+    for value in (0.0, 0.0005, 0.001, 0.0099, 0.01, 0.3, 1.0):
+        text = inf.format_p(value)
+        assert text is not None
+        assert not set(text) & set("\\{}$"), text
 
 
 def test_build_summary_refuses_unknown_and_verdict_keys(tmp_path, capsys):
@@ -942,7 +956,7 @@ def test_aggregate_e5_cli(tmp_path):
     assert doc["keys"]["E5.correction.n_upstream_wrong.sft"]["value"] == 20
     assert doc["keys"]["E5.correction.n_upstream_wrong.c3"]["value"] == 10
     assert doc["keys"]["E5.influence.diff"]["value"] < 0
-    assert doc["keys"]["E5.influence.p"]["value"] == "$<\\!0.001$"
+    assert doc["keys"]["E5.influence.p"]["value"] == "< 0.001"
     assert doc["keys"]["E5.rel.sft"]["source"] == [
         "20_data/results/E5/sft/buckets.jsonl", "20_data/results/E5/c3_s0/buckets.jsonl"]
 

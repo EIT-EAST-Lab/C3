@@ -13,7 +13,8 @@ conventions that used to differ between them (the maintainers' decision of
 - an empty note is left out of the entry instead of written as "".
 
 The other package-level value conventions live here for the same reason: the
-p-value string of manifest_skeleton.py (`format_p`), reading the manifest
+p-value string (`format_p`, plain text: the paper's macro generator refuses a
+LaTeX control character in a value), reading the manifest
 (`load_manifest`), the path shape of a summary `source` (`source_path`) and the
 commit stamp (`git_sha`).
 
@@ -61,11 +62,19 @@ __all__ = [
 def format_p(p: Optional[float]) -> Optional[str]:
     """The manifest's p-value string, or None when the p value is undefined.
 
-    Three tiers (analysis plan revision 13, 2026-09-15): below 0.001 the
-    string is ``$<\\!0.001$``; from 0.001 up to but not including 0.01 it is
-    ``$<\\!0.01$``; otherwise it is two decimals, ``$= 0.30$``. The middle tier
-    exists because ``$= 0.00$`` reads as "p equals zero". The fragment carries
-    no letter p: the manifest's own text supplies it.
+    Three tiers (analysis plan revision 13, 2026-09-15): below 0.001 the string
+    is ``< 0.001``; from 0.001 up to but not including 0.01 it is ``< 0.01``;
+    otherwise it is two decimals, ``= 0.30``. The middle tier exists because
+    ``= 0.00`` reads as "p equals zero". The fragment carries no letter p: the
+    manifest's own text supplies it.
+
+    Plain text, and that is a rule rather than a style: the value travels into
+    the paper through `10_paper/04_rebuild/_tools/gen_results_macros.py`, whose
+    `tex_escape` refuses a backslash or a brace and escapes a dollar sign, so a
+    math fragment such as ``$<\\!0.001$`` stops the generator the first time a
+    real p value reaches it. Typography belongs to the .tex, which writes
+    ``$p$ \\res{...}``, and a manifest value must contain no LaTeX control
+    character. Under T1 the plain ``<`` renders as itself.
 
     None means "not computable"; the caller then leaves the key out of
     summary.json rather than writing null.
@@ -79,10 +88,10 @@ def format_p(p: Optional[float]) -> Optional[str]:
     if not math.isfinite(value):
         return None
     if value < 0.001:
-        return "$<\\!0.001$"
+        return "< 0.001"
     if value < 0.01:
-        return "$<\\!0.01$"
-    return "$= %.2f$" % value
+        return "< 0.01"
+    return "= %.2f" % value
 
 
 def load_manifest(path: str) -> Dict[str, Dict[str, Any]]:
