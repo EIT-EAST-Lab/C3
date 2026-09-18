@@ -185,6 +185,7 @@ that leaves ten files out is worse than no map.
 | [tests/mechanism/test_mappo_step_gae.py](../tests/mechanism/test_mappo_step_gae.py) | The MAPPO step-level GAE over multi-episode batches, and the step ids it refuses |
 | [tests/unit/test_bucket_guard.py](../tests/unit/test_bucket_guard.py) | The context-key collision guard of the bucket validator |
 | [tests/unit/test_chat_template_thinking.py](../tests/unit/test_chat_template_thinking.py) | Thinking stays off on hybrid-thinking chat templates |
+| [tests/unit/test_code_executor_limits.py](../tests/unit/test_code_executor_limits.py) | The sandbox resource limits land on the worker child and on no other process |
 | [tests/unit/test_prompt_render.py](../tests/unit/test_prompt_render.py) | The role prompt renderer, including an unmatched brace left as it stands |
 | [tests/unit/test_rebuild_bias_coupling.py](../tests/unit/test_rebuild_bias_coupling.py) | The influence estimator, the E3a bias map and the E5 coupling |
 | [tests/unit/test_rebuild_context_scope.py](../tests/unit/test_rebuild_context_scope.py) | The generation-time context scope |

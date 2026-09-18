@@ -595,7 +595,17 @@ def _exec_all(
 
 
 def _apply_rlimits(timeout_s: int, *, mem_mb: Optional[int], cpu_s: Optional[int]) -> None:
-    """Best-effort resource limits (Linux-only; silently no-op elsewhere)."""
+    """Best-effort resource limits for the worker child (Linux-only; no-op elsewhere)."""
+    # setrlimit applies to the calling process, and these limits are meant for the child
+    # that runs one untrusted sample: a CPU budget and a 4 GB address space are right
+    # there and wrong anywhere else. Called from a main process they cap that process
+    # instead, which on 2026-09-19 is how a test that reached _exec_all directly gave the
+    # pytest process a 4 GB address space and ended the Linux CI run with an
+    # INTERNALERROR inside pathlib rather than with a failing test. A main process gets
+    # no limits; the worker, which multiprocessing gives a parent, gets them as before.
+    if mp.parent_process() is None:
+        return
+
     try:
         import resource  # type: ignore
 

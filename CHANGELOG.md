@@ -87,6 +87,17 @@ back by accident.
   MBPP-test and 54 from MBPP+, so 374 upstream rows become 317 and the `sha256`
   pin moves with them.
 
+- The sandbox resource limits landed on whatever process asked for them. `setrlimit`
+  applies to the caller, and `c3/envs/code/executor.py:_apply_rlimits` is written for
+  the child that runs one untrusted sample, where a CPU budget and a 4 GB address
+  space are the point. A caller in a main process capped itself instead: that is how
+  a test reaching `_exec_all` directly gave the pytest process a 4 GB address space
+  and ended a Linux CI run with an INTERNALERROR inside pathlib rather than with a
+  failing test, while the same commit passed on Windows, where `import resource`
+  fails and the whole function is a silent no-op. It now returns without doing
+  anything when `multiprocessing.parent_process()` is `None`, so the worker keeps its
+  limits and nothing else acquires any.
+
 - `data/MATH/train.jsonl` still shared one problem with `data/MATH/test_full.jsonl`,
   which the overlap gate reported as a `MATH-train x MATH-test` failure, and held
   one problem twice. `EleutherAI/hendrycks_math` at the pinned revision ships the
