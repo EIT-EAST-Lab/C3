@@ -72,8 +72,18 @@ bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
 - MBPP+ provenance is not properly pinned / matched, or
 - an artifact that declares `expected_rows` has a different number of rows while its
   `sha256` pin is still empty, or
+- a prepared row carries no problem statement, or an evaluation row carries no tests
+  (the write door, which every artifact of both preparation scripts passes through,
+  whether it is written now or was written by an earlier run and is being verified), or
 - a problem in an evaluation file also occurs in a training file (the overlap gate
   below).
+
+A `sha256` pin says that a file is the one we produced. It cannot say that the file is
+usable, and the MBPP+ artifact of 2026-09-07 was 378 rows of nothing that matched its
+pin on every run. That is what the write door is for, and why it is not optional.
+
+MBPP+ is not prepared in this release. Pass `--prepare_mbpp_plus 0`; see the MBPP+
+section below.
 
 ### 3) Maintainers: when outputs legitimately change
 
@@ -181,9 +191,9 @@ The following list is the **current release target set**, and matches the manife
 - `data/APPS/test.jsonl`      (manifest name: `APPS`)
 - `data/MBPP/train.jsonl`     (manifest name: `MBPP-train`)
 - `data/MBPP/test.jsonl`      (manifest name: `MBPP-test`)
-- `data/MBPP_PLUS/test.jsonl` (manifest name: `MBPP+`)
+- `data/MBPP_PLUS/test.jsonl` (manifest name: `MBPP+`, not prepared in this release)
 
-> Note: HumanEval and APPS are prepared only when you pass `--prepare_humaneval 1` and `--prepare_apps 1` to `scripts/10_data/prepare_all.sh`. Both default to `0`, so the default run prepares MBPP and MBPP+ only.
+> Note: HumanEval and APPS are prepared only when you pass `--prepare_humaneval 1` and `--prepare_apps 1` to `scripts/10_data/prepare_all.sh`. Both default to `0`. MBPP+ is not prepared at all since 0.2.4, so the default run needs `--prepare_mbpp_plus 0` and prepares MBPP only.
 
 > Note: `MBPP_PLUS` (underscore) is intentional and is the only canonical directory name in this release.
 
@@ -203,14 +213,45 @@ For the authoritative values (including exact commits and SHA256), always consul
 - Revision: pinned commit SHA (see manifest)
 - Output: `data/MATH/train.jsonl`
 - Rows keep `level`, `subject` (upstream calls that column `type`) and `solution`.
-- Prepared rows: 7,498. The seven subject train splits are the 7,500 problem MATH
-  train split; the prepared file is that union after two reductions, the
-  deduplication rule below and the answer gate of `prepare_math.py`, which drops
-  and counts a row whose solution ends in an empty `\boxed{}` because such a row
-  has no answer to score against.
+- Prepared rows: 7,496. The seven subject train splits are the 7,500 problem MATH
+  train split, and the prepared file is that union after four reductions:
+
+| Reduction | Rows it drops at the pinned revision | Left |
+|---|---|---|
+| Deduplication by `unique_id`, or by the input, answer and solution triple | 0 | 7,500 |
+| The answer gate: a solution ending in an empty `\boxed{}` has no answer to score against | 2 | 7,498 |
+| Repeated problem statement, first occurrence kept | 1 | 7,497 |
+| Problem statement that also occurs in the test split | 1 | 7,496 |
 
 This is the canonical MATH training split: upstream stores one config per subject,
 so the train split of the benchmark is the union of the seven subject train splits.
+
+The last two reductions are the ones added in 0.2.4, and they key on the normalized
+problem statement, which is the key `check_overlap.py` compares, so the preparation
+and the gate cannot disagree about what a shared problem is. They are the rule
+`CMATH-train` and `MBPP-train` already follow. What they drop here is small and
+specific:
+
+- The equilateral triangle problem whose answer is 315 is in both splits, filed as
+  Level 5 Geometry in `geometry/train` and as Level 3 Precalculus in
+  `precalculus/test`. The statement is identical and every other column differs,
+  which is why a check on ids or metadata would not see it.
+- `algebra/train` holds the Level 5 problem that ends in `What is $x+y$?` twice, with
+  two different solution texts, which is why the deduplication above it does not see
+  it either.
+
+Without these two reductions the overlap gate fails on `MATH-train x MATH-test`, which
+is how both were found.
+
+The subtraction is not a manifest field and cannot be switched off, because there is
+no configuration of this repository in which a MATH training artifact should keep a
+test problem. It builds the test side with the builder that writes `MATH-test`, so
+what it subtracts is exactly what `MATH-test` is prepared as.
+
+Under the paper's one month older training set the number to compare against is 7,500,
+the canonical MATH train split: the public repository has dropped the two rows with no
+extractable answer since 0.2.0, and drops the repeat and the shared problem from 0.2.4
+on.
 
 The manifest pins this artifact by `sha256`, not by `expected_rows`, so the count
 above is documentation and the `sha256` pin is the gate.
@@ -365,8 +406,78 @@ pin is the gate.
 - Manifest entry name: `MBPP+`
 - Output: `data/MBPP_PLUS/test.jsonl`
 - Manifest provenance tag (pinned): `evalplus@0.3.1`
+- Manifest `sha256`: none
+- **Status since 0.2.4: not prepared.** `prepare_code.py` refuses to write this
+  artifact and exits non-zero. Prepare the rest of the code data with
+  `--prepare_mbpp_plus 0`, and delete any `data/MBPP_PLUS/test.jsonl` an earlier
+  release left behind, so the overlap gate reports it as not prepared instead of
+  reading it.
 
-Strict-mode behavior:
+#### Why it is not prepared
+
+The row builder that shipped through v0.2.3 read `text`, `code`, `test_list` and
+`test_setup_code` out of an EvalPlus task. An EvalPlus 0.3.1 task has none of those
+keys, so all 378 prepared rows came out with a value in `task_id` and `source` and
+nothing anywhere else, and the `sha256` pin matched that empty file byte for byte on
+every strict run. The keys a task really has, and what each one holds at
+`evalplus@0.3.1`, are:
+
+| EvalPlus key | Content |
+|---|---|
+| `task_id` | the sanitized MBPP id with a prefix, `Mbpp/100` |
+| `prompt` | the problem statement wrapped in a docstring, with the first MBPP assertion appended inside it |
+| `assertion` | the three original MBPP assert statements as one string |
+| `canonical_solution` | the reference implementation |
+| `contract` | the input validation asserts EvalPlus uses when it generates inputs |
+| `entry_point` | the name of the function the tests call |
+| `base_input` | the original MBPP inputs, 1,174 over the 378 tasks |
+| `plus_input` | the inputs EvalPlus adds, 39,841 over the 378 tasks |
+| `atol` | the float tolerance, `0` for all but 13 tasks and `1e-4` for those |
+
+`base_input` and `plus_input` are argument lists, not assertions, and they carry no
+expected output: EvalPlus computes what the canonical solution returns for each input
+(`evalplus.evaluate.get_groundtruth`, which caches the result under the MD5 of the
+dataset file) and compares in memory.
+
+Two questions have to be answered before a correct row can be written, and each of
+them changes what a number measured on this file means. Both are open.
+
+**1. The tests.** MBPP+ is the base inputs plus the plus inputs, 108.5 per task on
+average. The evaluator this repository ships (`c3/envs/code/executor.py`) runs
+`test_list` one assert statement at a time and scores the fraction that pass, or runs
+`test` as one script and scores 0 or 1, and it refuses a task whose `test_list` text
+exceeds `C3_CODE_MAX_ASSERT_CHARS`, 4,000 characters by default. Writing one
+`assert <entry_point>(<input>) == <expected>` per input comes to 5.5 MB over 376 tasks
+and 1.3 GB over all 378, because two tasks return enormous values (`Mbpp/255` alone
+serializes to 1.29 GB), and 352 of the 378 tasks exceed the 4,000 character cap. The
+comparison is also not `==` everywhere: 10 tasks need a special oracle (7 compare as
+sets, 3 only check that the output is not `None`), 2 more accept a second oracle
+value, and the tolerant comparison EvalPlus uses is `numpy.allclose`, while the
+sandbox whitelists the standard library only.
+
+**2. The problem statement.** The EvalPlus `prompt` is a docstring, so writing it into
+the row as the statement leaves `check_overlap.py` comparing a docstring against a
+sentence: none of the 378 then matches anything, and the gate reports a clean file
+whatever the file holds. Taking the sentence out of the docstring instead, or reading
+it from `evalplus.data.mbpp.get_mbpp()`, makes the gate work again and immediately
+reports real contamination, because MBPP+ is drawn from the sanitized MBPP and 108 of
+its 378 task ids are MBPP train-split ids. Measured against the prepared `MBPP-train`,
+42 statements match when the sentence comes from `get_mbpp()` and 54 when it is taken
+out of the docstring. Whichever source is chosen, `MBPP-train` then has to be written
+minus those problems too, exactly as it already is minus the `MBPP-test` ones.
+`get_mbpp()` also downloads from a `master` URL rather than from a pinned revision,
+which the strict path does not otherwise allow.
+
+Numbers above are from EvalPlus 0.3.1, MbppPlus v0.2.0 (MD5
+`92743def42b30b354a30898e4fa33fb0`). Three further properties of that release are
+worth knowing before either question is answered: 374 of the 378 canonical solutions
+run under the sandbox import whitelist and 4 do not (3 need `cmath`, 1 needs `sys`,
+both reachable through `C3_CODE_EXTRA_IMPORTS`); the reference alone needs more than
+15 seconds on one task, which is the default `code_timeout`; and the `-NoExtreme`
+variant of the release does not help, because what is extreme is the returned value
+and not the input.
+
+Strict-mode behavior of the provenance tag, unchanged:
 
 - If manifest says `evalplus@<VERSION>`:
   - EvalPlus must be importable.
@@ -374,6 +485,9 @@ Strict-mode behavior:
 - If (in a future release) manifest says `fallback_mbpp@<HF_COMMIT_SHA>`:
   - EvalPlus path is disabled; deterministic fallback is forced.
   - The fallback pin must be self-consistent with the MBPP HF revision pin.
+  - Note that this path writes the MBPP test problems with the three original MBPP
+    assertions under the MBPP+ name. That is MBPP, not MBPP+, so a number measured on
+    it may not be reported as an MBPP+ number.
 
 ### Candidate evaluation benchmarks (start-accuracy probe)
 
@@ -453,6 +567,19 @@ by `configs/tasks/math_eval_probe.yaml`.
 - **`[FAIL] MBPP+: EvalPlus version mismatch / not importable`**
   - Manifest pins `evalplus@...` but environment does not match.
   - Fix: install the pinned EvalPlus version, or intentionally repin to `fallback_mbpp@...` in a clean environment.
+
+- **`[FAIL] <name>: row N has an empty problem statement`** or
+  **`[FAIL] <name>: row N has no tests`**
+  - The write door refused the artifact, and nothing was written.
+  - Typical cause: the upstream columns are not the ones the row builder reads, which
+    is how the empty MBPP+ file and the answerless CMATH files were produced.
+  - Fix the field mapping or repin the revision. Never work around this one by
+    removing the check: an evaluation suite whose rows have no statement scores
+    nothing and reports it as a result.
+
+- **`[FAIL] MBPP+: refusing to write an artifact from EvalPlus <version>`**
+  - Expected in this release. See the MBPP+ section above, and prepare the rest with
+    `--prepare_mbpp_plus 0`.
 
 ---
 

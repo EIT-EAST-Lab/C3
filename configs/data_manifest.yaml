@@ -2,7 +2,7 @@ outputs:
 - name: MATH-train
   type: math
   output_path: data/MATH/train.jsonl
-  sha256: 05160800f5623cee1e3c1d3c22717c73b04d781efe64d74fb532b88b620b21d8
+  sha256: 556c8c82ae1b2a549a1776b49e5f594f980da08f514aefac2acb7fd2e236b0da
   source:
     kind: huggingface
     id: EleutherAI/hendrycks_math
@@ -21,10 +21,14 @@ outputs:
       so the train split of the benchmark is the union of the seven subject train
       splits listed above. They are read in that order and concatenated, then deduplicated
       by unique_id when present and otherwise by the triple of input, answer and solution.
-      Each row keeps level, subject (upstream calls it type) and solution. This replaces
-      the mirror qwedsacf/competition_math, whose only split was named train but held
-      12500 rows, the MATH train and test sets together, and therefore contained every
-      MATH500 problem.
+      Each row keeps level, subject (upstream calls it type) and solution. Two further
+      reductions run after that union, both keyed on the normalized problem statement,
+      which is the key scripts/10_data/check_overlap.py compares. A repeated statement is
+      dropped (this revision ships one problem twice inside the train split) and so is
+      every problem that also occurs in the test split (this revision ships one of those
+      too). 7496 rows result. This replaces the mirror qwedsacf/competition_math, whose only split was named
+      train but held 12500 rows, the MATH train and test sets together, and therefore
+      contained every MATH500 problem.
 - name: MATH-test
   type: math
   output_path: data/MATH/test_full.jsonl
@@ -192,15 +196,19 @@ outputs:
 - name: MBPP+
   type: code
   output_path: data/MBPP_PLUS/test.jsonl
-  sha256: 5da2852e2611c2fd4373433024d6a7edaaeb5d1e08a9b88b4feae91acfc06c24
+  sha256: null
   source:
     kind: evalplus
     id: mbpp_plus
     license: check EvalPlus
     revision: evalplus@0.3.1
-    notes: MBPP+ evaluation artifact, built from the MBPP test problems with the EvalPlus
-      test suites, so it holds no training problems either. Strictly reproducible
-      fallback path pinned to the MBPP HF commit above.
+    notes: MBPP+ evaluation artifact. The pin was cleared because the file it pinned
+      was the empty one, 378 rows in which only task_id and source carried a value,
+      written by a row builder that read MBPP column names out of an EvalPlus task
+      (issue 2). The builder now refuses to write this artifact at all until the two
+      open questions in the MBPP+ section of docs/30_data_sources.md are answered,
+      so pass --prepare_mbpp_plus 0 to prepare the rest of the code data. Repin from
+      a clean run once a row builder exists.
 - name: Minerva-Math
   type: math
   output_path: data/MINERVA_MATH/test.jsonl

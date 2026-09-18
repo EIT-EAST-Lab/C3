@@ -43,6 +43,36 @@ back by accident.
   the data contracts, `tests/unit/` for everything else. `pytest -q tests` is
   unchanged.
 
+### Fixed
+
+- `data/MBPP_PLUS/test.jsonl` was 378 empty rows, and the manifest pinned the
+  `sha256` of exactly that file, so `--strict 1` waved it through and the MBPP+
+  evaluation suite scored nothing on every run. The row builder read the MBPP
+  column names `text`, `code`, `test_list` and `test_setup_code` out of an
+  EvalPlus 0.3.1 task, which carries `prompt`, `canonical_solution`, `assertion`,
+  `contract`, `entry_point`, `atol`, `base_input`, `plus_input` and `task_id`.
+  Reported as issue 2, with the diagnosis. The builder is removed rather than
+  half repaired and the pin is cleared: MBPP+ is not prepared in this release,
+  because writing a correct row needs two decisions that change what a number on
+  this benchmark means, and the MBPP+ section of `docs/30_data_sources.md` now
+  states both with the measurements behind them. Prepare the rest of the code
+  data with `--prepare_mbpp_plus 0`. The same commit removes `--mbpp_plus_seed`
+  and `--mbpp_plus_max_tests`, which sampled a test list that was never read, and
+  with them the `int("Mbpp/100")` that failed and left every row of the file
+  sharing one sampling seed; an EvalPlus task id that does not parse is now a
+  failure rather than a silent `0`.
+
+- `data/MATH/train.jsonl` still shared one problem with `data/MATH/test_full.jsonl`,
+  which the overlap gate reported as a `MATH-train x MATH-test` failure, and held
+  one problem twice. `EleutherAI/hendrycks_math` at the pinned revision ships the
+  equilateral triangle problem whose answer is 315 as Level 5 Geometry in the train
+  split and as Level 3 Precalculus in the test split, and ships one Level 5 algebra
+  problem twice with two different solution texts. `MATH-train` is now written minus
+  the repeated statements and minus every problem that also occurs in the test split,
+  which is the rule `CMATH-train` and `MBPP-train` already follow, keyed on the
+  normalized problem statement that the gate itself compares. 7,498 rows become
+  7,496 and the `sha256` pin moves with them. Reported as issue 2.
+
 ### Removed
 
 - The five import aliases introduced in 0.2.0 (`c3.algorithms.c3`,
@@ -51,6 +81,16 @@ back by accident.
   is created, which release removes it, and which test enforces that.
 
 ### Added
+
+- A write door in both data preparation scripts. A prepared row now has to carry a
+  problem statement under one of the keys `c3/task/datasets.py` reads, and an
+  evaluation row has to carry tests the evaluator can run; the first row that does
+  not stops the run, and no file is written. The check also runs against an artifact
+  that is being verified rather than written, which is the state the empty MBPP+ file
+  was in on every rerun after the first. A `sha256` pin says that a file is the one we
+  produced, never that it is usable, and this is the difference that let 378 empty
+  rows pass as a benchmark.
+
 
 - The E1 aggregation reads a noise measurement out of every sweep cell without a
   second run: the even and the odd replays of one group are two independent

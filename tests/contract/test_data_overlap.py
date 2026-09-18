@@ -478,6 +478,9 @@ def test_math_train_builder_concatenates_every_config_and_deduplicates(monkeypat
     }
 
     def _rows(src: Dict[str, Any], *, logical_name: str):
+        # The builder reads the test split too, to subtract it; this upstream has none.
+        if src['split'] != 'train':
+            return iter([])
         return iter(per_config[src['config']])
 
     monkeypatch.setattr(preparer, '_iter_hf_rows', _rows)
@@ -505,6 +508,8 @@ def test_math_train_builder_concatenates_every_config_and_deduplicates(monkeypat
 
 def test_math_train_builder_prefers_an_explicit_subject_column(monkeypatch) -> None:
     def _rows(src: Dict[str, Any], *, logical_name: str):
+        if src['split'] != 'train':
+            return iter([])
         return iter([{'problem': 'p', 'subject': 'Given', 'type': 'Ignored', 'solution': '\\boxed{3}'}])
 
     monkeypatch.setattr(preparer, '_iter_hf_rows', _rows)
@@ -514,6 +519,8 @@ def test_math_train_builder_prefers_an_explicit_subject_column(monkeypatch) -> N
 
 def test_math_train_builder_keeps_an_integer_level_an_integer(monkeypatch) -> None:
     def _rows(src: Dict[str, Any], *, logical_name: str):
+        if src['split'] != 'train':
+            return iter([])
         return iter([{'problem': 'p', 'level': 3, 'type': 'Algebra', 'solution': '\\boxed{3}'}])
 
     monkeypatch.setattr(preparer, '_iter_hf_rows', _rows)
@@ -618,12 +625,25 @@ def test_the_artifacts_that_did_not_change_keep_their_pins() -> None:
         'APPS': 'ac6966973a0bd7bb274836fc34782df80e56dd93',
         'MBPP-train': '4bb6404fdc6cacfda99d4ac4205087b89d32030c',
         'MBPP-test': '4bb6404fdc6cacfda99d4ac4205087b89d32030c',
-        'MBPP+': 'evalplus@0.3.1',
     }
     for name, revision in unchanged.items():
         item = _entry(name)
         assert item['source']['revision'] == revision, name
         assert isinstance(item['sha256'], str) and len(item['sha256']) == 64, name
+
+
+def test_mbpp_plus_keeps_its_provenance_tag_and_carries_no_hash() -> None:
+    """The MBPP+ hash was the empty file's, so the entry now carries none.
+
+    The 378 rows it covered held a value in task_id and source and in nothing else,
+    because the row builder read MBPP column names out of an EvalPlus task. The hash
+    matched that file byte for byte on every strict run, which is exactly how the empty
+    artifact kept passing, so it is cleared until a row builder exists that can write a
+    usable one.
+    """
+    item = _entry('MBPP+')
+    assert item['source']['revision'] == 'evalplus@0.3.1'
+    assert item['sha256'] is None
 
 
 def test_every_manifest_entry_carries_notes() -> None:

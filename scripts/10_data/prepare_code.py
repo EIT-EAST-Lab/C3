@@ -13,12 +13,22 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import random
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 import yaml
+
+# The write door below asks whether a row carries a problem statement at all, and it
+# has to ask with the same key table the trainer reads. That table lives in
+# c3/task/datasets.py and is imported rather than copied, which needs the repository
+# root on sys.path: the same bootstrap scripts/10_data/prepare_math.py uses.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from c3.task.datasets import _PROMPT_KEY_CANDIDATES as PROMPT_KEY_CANDIDATES  # noqa: E402
 
 try:
     from datasets import load_dataset  # type: ignore
@@ -118,12 +128,107 @@ def _dump_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     n = 0
-    with tmp.open("w", encoding="utf-8", newline="\n") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
-            n += 1
-    tmp.replace(path)
+    try:
+        with tmp.open("w", encoding="utf-8", newline="\n") as f:
+            for r in rows:
+                f.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
+                n += 1
+        tmp.replace(path)
+    except BaseException:
+        # The row gate raises SystemExit from inside this loop. Whatever was written
+        # so far is a fragment of a refused artifact, so it leaves nothing behind.
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except Exception:
+            pass
+        raise
     return n
+
+
+# -----------------------------
+# The write door
+# -----------------------------
+
+# What the CodeEnv evaluator reads as the test payload of one row. The first three
+# are the keys c3/envs/code/executor.py:_assemble_tests reads (test_list is executed
+# one assert at a time, test is a whole script and runs only when test_list is
+# empty); APPS carries its cases in input_output instead and no other artifact does.
+TEST_KEY_CANDIDATES: Dict[str, Tuple[str, ...]] = {
+    "HumanEval": ("test",),
+    "APPS": ("input_output",),
+    "MBPP-train": ("test_list", "challenge_test_list", "test"),
+    "MBPP-test": ("test_list", "challenge_test_list", "test"),
+    "MBPP+": ("test_list", "challenge_test_list", "test"),
+}
+
+
+def _is_filled(value: Any) -> bool:
+    """True when a row field carries something a consumer can use."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, dict, set)):
+        return len(value) > 0
+    return True
+
+
+def _require_complete_rows(
+    name: str,
+    rows: Iterable[Dict[str, Any]],
+    *,
+    test_keys: Tuple[str, ...],
+) -> Iterator[Dict[str, Any]]:
+    """
+    Refuse to write a row with no problem statement, or with no tests to score it by.
+
+    A sha256 pin says "this file is the one we produced", never "this file is usable".
+    The MBPP+ artifact of 2026-09-07 was 378 rows in which only task_id and source
+    carried a value, because the row builder read MBPP column names from a source that
+    uses EvalPlus ones, and the pin matched that empty file byte for byte on every run.
+    The check below is the one door every artifact of this script goes through, so an
+    empty artifact fails at preparation instead of becoming an evaluation that silently
+    scores nothing.
+    """
+    for i, row in enumerate(rows):
+        if not any(_is_filled(row.get(key)) for key in PROMPT_KEY_CANDIDATES):
+            raise SystemExit(
+                f"[FAIL] {name}: row {i} has an empty problem statement; none of "
+                f"{list(PROMPT_KEY_CANDIDATES)} carries one (row keys: {sorted(row.keys())})."
+            )
+        if test_keys and not any(_is_filled(row.get(key)) for key in test_keys):
+            raise SystemExit(
+                f"[FAIL] {name}: row {i} has no tests; none of {list(test_keys)} carries any "
+                f"(row keys: {sorted(row.keys())}). A row the evaluator cannot score is not a row."
+            )
+        yield row
+
+
+def _write_checked(name: str, out_path: Path, rows: Iterable[Dict[str, Any]]) -> int:
+    """Every write of this script goes through the row gate."""
+    return _dump_jsonl(out_path, _require_complete_rows(name, rows, test_keys=TEST_KEY_CANDIDATES.get(name, ())))
+
+
+def _check_rows_complete_on_disk(name: str, out_path: Path) -> None:
+    """The same gate for an artifact that is verified instead of written."""
+    test_keys = TEST_KEY_CANDIDATES.get(name, ())
+    with out_path.open("r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            if not any(_is_filled(row.get(key)) for key in PROMPT_KEY_CANDIDATES):
+                raise SystemExit(
+                    f"[FAIL] {name}: {out_path} row {i} has an empty problem statement; regenerate it "
+                    "with --overwrite 1."
+                )
+            if test_keys and not any(_is_filled(row.get(key)) for key in test_keys):
+                raise SystemExit(
+                    f"[FAIL] {name}: {out_path} row {i} has no tests; regenerate it with --overwrite 1."
+                )
+    print(f"[OK] {name}: every row carries a problem statement and tests.")
 
 
 def _verify_or_record(
@@ -401,47 +506,89 @@ def _subtract_test_problems(name: str, rows: Iterable[Dict[str, Any]], test_keys
     print(f"[INFO] {name}: dropped {dropped} row(s) whose problem also occurs in MBPP-test")
 
 
-def _canon_mbpp_plus_row(x: Dict[str, Any], source: str, seed: int, max_tests: int) -> Dict[str, Any]:
-    tests: List[str] = list(x.get("test_list") or [])
-    if max_tests > 0 and len(tests) > max_tests:
-        task_id = x.get("task_id", 0)
-        try:
-            task_i = int(task_id)
-        except Exception:
-            task_i = 0
-        rng = random.Random(seed + task_i)
-        idx = list(range(len(tests)))
-        rng.shuffle(idx)
-        idx = sorted(idx[:max_tests])
-        tests = [tests[i] for i in idx]
+# -----------------------------
+# MBPP+ (EvalPlus)
+# -----------------------------
 
-    return {
-        "task_id": x.get("task_id"),
-        "text": x.get("text"),
-        "code": x.get("code"),
-        "test_list": tests,
-        "test_setup_code": x.get("test_setup_code"),
-        "source": source,
-    }
+_MBPP_PLUS_TASK_ID_RE = re.compile(r"^(?:mbpp/)?([0-9]+)$")
 
 
-def _try_load_evalplus_mbpp_plus() -> Optional[List[Dict[str, Any]]]:
+def mbpp_plus_task_id(raw: Any) -> int:
+    """
+    The integer task id of one EvalPlus MBPP+ task.
+
+    EvalPlus 0.3.1 keys its tasks `Mbpp/100`, so `int()` on that key raises, and both
+    call sites used to swallow it: one kept the string, the other substituted 0, which
+    gave every row of the file the same sampling seed. An id this function cannot read
+    is a failure and never a default, because a silent 0 is a wrong number wearing the
+    shape of a right one.
+    """
+    text = str(raw).strip().lower()
+    match = _MBPP_PLUS_TASK_ID_RE.match(text)
+    if match is None:
+        raise SystemExit(
+            f"[FAIL] MBPP+: cannot read an integer task id from {raw!r}. EvalPlus 0.3.1 keys "
+            "its tasks 'Mbpp/<n>'; a different key shape needs this parser extended, not a default."
+        )
+    return int(match.group(1))
+
+
+def _evalplus_mbpp_plus_tasks() -> Optional[List[Dict[str, Any]]]:
+    """
+    Every EvalPlus MBPP+ task, ordered by integer task id, or None when EvalPlus cannot load.
+
+    The keys of one task in EvalPlus 0.3.1 are prompt, canonical_solution, assertion,
+    contract, entry_point, atol, base_input, plus_input and task_id. None of them is an
+    MBPP column name, which is the whole of the bug this function's caller now refuses
+    to reproduce.
+    """
     try:
         from evalplus.data import get_mbpp_plus  # type: ignore
 
         tasks = get_mbpp_plus()
-        rows: List[Dict[str, Any]] = []
-        for k, v in tasks.items():
-            row = dict(v)
-            try:
-                row["task_id"] = int(k)
-            except Exception:
-                row["task_id"] = k
-            rows.append(row)
-        rows.sort(key=lambda r: r.get("task_id"))
-        return rows
     except Exception:
         return None
+
+    rows: List[Dict[str, Any]] = []
+    for key, task in tasks.items():
+        row = dict(task)
+        row["task_id"] = mbpp_plus_task_id(key)
+        rows.append(row)
+    rows.sort(key=lambda r: int(r["task_id"]))
+    return rows
+
+
+def _refuse_mbpp_plus(tasks: List[Dict[str, Any]], evalplus_version: str) -> None:
+    """
+    Stop rather than write a file that says MBPP+ and holds something else.
+
+    The builder that shipped through v0.2.3 read MBPP column names out of an EvalPlus
+    task and produced 378 rows in which only task_id and source carried a value. It is
+    gone rather than half repaired: two questions have to be answered before a correct
+    row can be written, and each of them changes what a number measured on this file
+    means. They are written out in docs/30_data_sources.md together with the counts
+    behind them.
+    """
+    n_base = sum(len(t.get("base_input") or []) for t in tasks)
+    n_plus = sum(len(t.get("plus_input") or []) for t in tasks)
+    raise SystemExit(
+        "\n".join(
+            [
+                f"[FAIL] MBPP+: refusing to write an artifact from EvalPlus {evalplus_version}.",
+                f"  The {len(tasks)} tasks carry {n_base} base inputs and {n_plus} plus inputs, and two",
+                "  questions about how they become a row of data/MBPP_PLUS/test.jsonl are open:",
+                "    1. the tests. An MBPP+ test is an input plus what the canonical solution returns",
+                "       for it, while the CodeEnv evaluator runs assert statements and caps the assert",
+                "       text of one task at C3_CODE_MAX_ASSERT_CHARS, 4000 characters by default.",
+                "    2. the problem statement. The EvalPlus prompt is the statement wrapped in a",
+                "       docstring with one assertion appended, so writing it as is leaves the",
+                "       contamination gate comparing a docstring against a sentence, which matches",
+                "       nothing by construction and reports a clean file whatever it holds.",
+                "  See the MBPP+ section of docs/30_data_sources.md. Until both are answered, prepare",
+                "  the rest of the code data with --prepare_mbpp_plus 0.",
+            ]
+        )
+    )
 
 
 # -----------------------------
@@ -464,8 +611,8 @@ def main() -> None:
     ap.add_argument("--prepare_mbpp", type=int, default=1, choices=[0, 1])
     ap.add_argument("--prepare_mbpp_plus", type=int, default=1, choices=[0, 1])
 
-    ap.add_argument("--mbpp_plus_seed", type=int, default=1234)
-    ap.add_argument("--mbpp_plus_max_tests", type=int, default=20)
+    # --mbpp_plus_seed and --mbpp_plus_max_tests are gone with the row builder they
+    # belonged to: they sampled a subset of an MBPP+ test list that was never read.
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
@@ -504,6 +651,11 @@ def main() -> None:
                 print(f"[WARN] {name}: {out_path} is empty (0 bytes); regenerating.")
                 return False
             sha = _sha256(out_path)
+            if strict:
+                # A file that is skipped is still a file the evaluation will read, so it
+                # faces the same gate a written one does. The empty MBPP+ artifact was
+                # skipped and verified on every rerun after the first.
+                _check_rows_complete_on_disk(name, out_path)
             _verify_or_record(
                 name,
                 spec.get("sha256"),
@@ -576,7 +728,7 @@ def main() -> None:
         if not _handle_existing("HumanEval", spec, out_path):
             src_str = f"{src['id']}:{src.get('split', 'test')}@{src.get('revision')}"
             rows = (_canon_humaneval_row(x, src_str) for x in _load_hf_rows(src, "HumanEval"))
-            n = _dump_jsonl(out_path, rows)
+            n = _write_checked("HumanEval", out_path, rows)
             sha = _sha256(out_path)
             _verify_or_record(
                 "HumanEval", spec.get("sha256"), sha,
@@ -596,7 +748,7 @@ def main() -> None:
         if not _handle_existing("APPS", spec, out_path):
             src_str = f"{src['id']}:{src.get('split', 'test')}@{src.get('revision')}"
             rows = (_canon_apps_row(x, src_str) for x in _load_hf_rows(src, "APPS"))
-            n = _dump_jsonl(out_path, rows)
+            n = _write_checked("APPS", out_path, rows)
             sha = _sha256(out_path)
             _verify_or_record(
                 "APPS", spec.get("sha256"), sha,
@@ -635,7 +787,7 @@ def main() -> None:
                 if "MBPP-test" in idx and not test_keys:
                     raise SystemExit("[FAIL] MBPP-train: the MBPP-test problems are not available for subtraction.")
                 rows = _subtract_test_problems(name, rows, test_keys)
-            n = _dump_jsonl(out_path, rows)
+            n = _write_checked(name, out_path, rows)
             sha = _sha256(out_path)
             _verify_or_record(
                 name, spec.get("sha256"), sha,
@@ -662,31 +814,23 @@ def main() -> None:
             force_evalplus = bool(strict and expected_rev_str.startswith("evalplus@"))
 
             rows: Optional[List[Dict[str, Any]]] = None
-            used_evalplus = False
 
             if not force_fallback:
-                tasks = _try_load_evalplus_mbpp_plus()
+                tasks = _evalplus_mbpp_plus_tasks()
                 if tasks is not None:
                     v = _get_evalplus_version()
                     if not v and strict:
                         raise SystemExit(
                             "[FAIL] MBPP+: could not determine EvalPlus version in strict mode."
                         )
-                    v = v or "unknown"
-                    src_str = f"evalplus:mbpp_plus@{v}"
-                    rows = [
-                        _canon_mbpp_plus_row(
-                            x,
-                            source=src_str,
-                            seed=args.mbpp_plus_seed,
-                            max_tests=args.mbpp_plus_max_tests,
-                        )
-                        for x in tasks
-                    ]
-                    computed_src_revision_by_name["MBPP+"] = f"evalplus@{v}"
-                    used_evalplus = True
+                    # Loading works; turning a task into a row does not. This never falls
+                    # through to the MBPP fallback below, because writing the MBPP test
+                    # problems under the MBPP+ name is the misnaming, not a recovery.
+                    _refuse_mbpp_plus(tasks, v or "unknown")
 
-            if force_evalplus and not used_evalplus:
+            # Reaching this line means EvalPlus did not load, because the refusal above
+            # is the only other way out of that branch.
+            if force_evalplus:
                 raise SystemExit(
                     "[FAIL] MBPP+: manifest pins EvalPlus, but EvalPlus MBPP+ could not be loaded.\n"
                     "  EvalPlus downloads MBPP+ from a GitHub release.\n"
@@ -720,7 +864,7 @@ def main() -> None:
                 if base_rev:
                     computed_src_revision_by_name["MBPP+"] = f"fallback_mbpp@{base_rev}"
 
-            n = _dump_jsonl(plus_out, rows)
+            n = _write_checked("MBPP+", plus_out, rows)
             sha = _sha256(plus_out)
             _verify_or_record(
                 "MBPP+", plus_spec.get("sha256"), sha,

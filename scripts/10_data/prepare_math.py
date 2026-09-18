@@ -26,6 +26,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from c3.analysis.rebuild.pool_ids import row_id  # noqa: E402
 
+# The write door asks whether a row carries a problem statement at all. It asks with
+# the key table the trainer reads, imported rather than copied, so the two cannot
+# drift apart. scripts/10_data/prepare_code.py imports the same table.
+from c3.task.datasets import _PROMPT_KEY_CANDIDATES as PROMPT_KEY_CANDIDATES  # noqa: E402
+
 # The download stack is optional at import time. The pure helpers in this file
 # (normalize_question, subtract_by_question, _pick_repo_files, _source_configs)
 # carry the split and deduplication rules, so they must stay importable and
@@ -194,6 +199,11 @@ def _has_sha_pin(expected_sha: Any) -> bool:
     return expected_sha is not None and bool(str(expected_sha).strip())
 
 
+def _has_problem_statement(row: Dict[str, Any]) -> bool:
+    """True when one of the keys a consumer reads as the problem statement is filled."""
+    return any(str(row.get(key, "") or "").strip() for key in PROMPT_KEY_CANDIDATES)
+
+
 def _require_complete_rows(name: str, rows: Iterable[Dict[str, Any]]) -> Iterable[Dict[str, Any]]:
     """
     Refuse to write a row without a problem text or without an answer.
@@ -201,11 +211,17 @@ def _require_complete_rows(name: str, rows: Iterable[Dict[str, Any]]) -> Iterabl
     The CMATH artifacts of 2026-09-15 were written with every answer empty (the upstream column
     is `golden`, a name the row builder did not know) and still passed the row-count and sha
     checks. An empty label is a wrong number waiting to happen, so it fails at the one door
-    every artifact goes through, not in a warning.
+    every artifact goes through, not in a warning. The MBPP+ artifact of 2026-09-07 was the
+    same mistake on the other side, a whole file of rows with no problem statement, which is
+    why the statement is checked against the same key table the trainer reads and not against
+    the single name this builder happens to write.
     """
     for i, r in enumerate(rows):
-        if not str(r.get("input", "") or "").strip():
-            raise SystemExit(f"[FAIL] {name}: row {i} has an empty input (problem text).")
+        if not _has_problem_statement(r):
+            raise SystemExit(
+                f"[FAIL] {name}: row {i} has an empty input (problem text); none of "
+                f"{list(PROMPT_KEY_CANDIDATES)} carries one."
+            )
         if not str(r.get("answer", "") or "").strip():
             raise SystemExit(
                 f"[FAIL] {name}: row {i} has an empty answer; the source columns are probably misnamed "
@@ -222,7 +238,7 @@ def _check_rows_complete_on_disk(name: str, out_path: Path) -> None:
             if not line:
                 continue
             r = json.loads(line)
-            if not str(r.get("input", "") or "").strip() or not str(r.get("answer", "") or "").strip():
+            if not _has_problem_statement(r) or not str(r.get("answer", "") or "").strip():
                 raise SystemExit(f"[FAIL] {name}: {out_path} row {i} has an empty input or answer; regenerate it.")
     print(f"[OK] {name}: every row carries an input and an answer.")
 
@@ -688,9 +704,80 @@ def _prepare_math_subject_union(spec: Dict[str, Any], *, name: str) -> Iterable[
         print(f"[INFO] {name}: dropped {dropped_without_answer} row(s) whose solution has no extractable answer")
 
 
+def _ascii(text: Any) -> str:
+    """A log line that survives any console encoding."""
+    return str(text).encode("ascii", "backslashreplace").decode("ascii")
+
+
+def _statement_preview(row: Dict[str, Any], width: int = 80) -> str:
+    """The head of one problem statement with its answer, for a log line about a dropped row."""
+    text = normalize_question(row.get("input"))
+    if len(text) > width:
+        text = text[: width - 3] + "..."
+    return _ascii(f"{text} | answer: {row.get('answer')}")
+
+
+def _dedupe_by_question(name: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    `rows` with the second and later copy of a repeated problem statement removed.
+
+    The deduplication inside `_prepare_math_subject_union` keys on `unique_id` when the
+    row has one, so a problem upstream ships twice under two ids survives it. This pass
+    keys on the normalized statement, which is the key the overlap gate compares, and it
+    keeps the first occurrence.
+    """
+    seen: set[str] = set()
+    kept: List[Dict[str, Any]] = []
+    repeats: List[Dict[str, Any]] = []
+    for row in rows:
+        key = question_key(row, ("input",))
+        if key and key in seen:
+            repeats.append(row)
+            continue
+        if key:
+            seen.add(key)
+        kept.append(row)
+
+    for row in repeats:
+        print(f"[INFO] {name}: repeated statement dropped: {_statement_preview(row)}")
+    print(f"[INFO] {name}: {len(rows)} rows minus {len(repeats)} repeated statement(s) -> {len(kept)} rows")
+    return kept
+
+
 def _prepare_math_train(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
-    """Canonical MATH train split, the union of the seven subject train splits."""
-    return _prepare_math_subject_union(spec, name="MATH-train")
+    """
+    Canonical MATH train split: the union of the seven subject train splits, with the
+    repeated statements removed and minus every problem that also occurs in the test split.
+
+    `EleutherAI/hendrycks_math` at the pinned revision ships one problem in both the train
+    and the test split, and one problem twice inside the train split, so the union as
+    shipped is neither internally distinct nor disjoint from `MATH-test`, and the overlap
+    gate fails on it. The rule is the one `CMATH-train` and `MBPP-train` already follow:
+    subtract by normalized problem statement, the same key the gate compares, so the
+    preparation and the gate cannot disagree about what a shared problem is.
+
+    The subtraction is unconditional rather than a manifest field, because there is no
+    configuration of this repository in which a MATH training artifact should keep a test
+    problem. It builds the test side with this same builder, so what it subtracts is
+    exactly what `MATH-test` is prepared as, answer gate included.
+    """
+    rows = _dedupe_by_question("MATH-train", list(_prepare_math_subject_union(spec, name="MATH-train")))
+
+    test_spec = dict(spec)
+    test_spec["source"] = _source_for_split(spec["source"], "test")
+    test_rows = list(_prepare_math_subject_union(test_spec, name="MATH-test (read for the subtraction)"))
+
+    drop_keys = {k for k in (question_key(r, ("input",)) for r in test_rows) if k}
+    for row in rows:
+        if question_key(row, ("input",)) in drop_keys:
+            print(f"[INFO] MATH-train: also in MATH-test, dropped: {_statement_preview(row)}")
+
+    kept = subtract_by_question(rows, test_rows, ("input",))
+    print(
+        f"[INFO] MATH-train: {len(rows)} rows minus {len(rows) - len(kept)} shared with "
+        f"the {len(test_rows)} row test split -> {len(kept)} rows"
+    )
+    return kept
 
 
 def _prepare_math_test(spec: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
