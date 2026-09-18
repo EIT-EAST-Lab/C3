@@ -569,11 +569,16 @@ def _evalplus_mbpp_plus_tasks() -> Optional[List[Dict[str, Any]]]:
 
 
 # The wall clock one MBPP+ task is given, carried on the row and read by
-# c3/envs/code/reward.py. It is what EvalPlus allows a task
-# (EVALPLUS_TIMEOUT_PER_TASK, 60 seconds); this benchmark needs it because the
-# reference solution of one of its problems runs for close to 30 seconds by itself,
-# and the evaluator's default of 15 would score that problem 0 for every candidate.
-MBPP_PLUS_TIMEOUT_S = 60
+# c3/envs/code/reward.py. EvalPlus allows a task 60 seconds
+# (EVALPLUS_TIMEOUT_PER_TASK) and spends them on the candidate alone, because it
+# computes the expected values once, up front. These tests are differential: every
+# input is run twice, once by the reference and once by the candidate, so the same
+# work needs twice the budget. Mbpp/599 is what sets the number: its reference alone
+# runs for about 30 seconds, both sides together measured 57.6 seconds, and the
+# evaluator turns this value into an RLIMIT_CPU of timeout + 1 in the child, so 60
+# would have left that problem three seconds of headroom and scored it 0 for every
+# candidate on any machine slower than the one it was measured on.
+MBPP_PLUS_TIMEOUT_S = 120
 
 # The default of C3_CODE_MAX_ASSERT_CHARS in c3/envs/code/executor.py, which refuses a
 # task whose test_list text is longer. The generated tests are one short call each, so

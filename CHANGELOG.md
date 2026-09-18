@@ -66,8 +66,11 @@ back by accident.
   name, which raises `NameError` until a candidate has run, and the evaluator
   then runs the whole block after the candidate instead. `cmath` is on the
   sandbox import whitelist for the three complex-number problems, and the row
-  asks for the 60 seconds EvalPlus allows one task, which one problem needs
-  because its reference alone runs for about 30 seconds. `Mbpp/596` needs `sys`,
+  asks for 120 seconds, which is twice the 60 EvalPlus allows one task because
+  every input here runs twice, once by the reference and once by the candidate.
+  One problem needs that: its reference alone runs for about 30 seconds and both
+  sides together measured 57.6, against an `RLIMIT_CPU` of timeout plus one.
+  `Mbpp/596` needs `sys`,
   which is not on that whitelist, so it scores 0 for every candidate; that is
   stated in `docs/30_data_sources.md` rather than worked around.
 

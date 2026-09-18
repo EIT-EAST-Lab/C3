@@ -198,7 +198,7 @@ outputs:
 - name: MBPP+
   type: code
   output_path: data/MBPP_PLUS/test.jsonl
-  sha256: 5c3deb4a3412bfde322336989f046b06e50b9d328a932ce215382dbb067e737b
+  sha256: e6d0661c1317a3cfec35b5e9dad9d012b3fc26f2ad55c1184a6177107db5cfd3
   source:
     kind: evalplus
     id: mbpp_plus

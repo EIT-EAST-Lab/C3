@@ -483,11 +483,17 @@ replacing `re` or `math` either.
 Three consequences of judging against a live reference rather than against stored values:
 
 - Every input is run twice, once by the reference and once by the candidate, so a task
-  costs about twice what EvalPlus spends on it. The row therefore carries
-  `timeout_s: 60`, the per-task ceiling EvalPlus itself uses
-  (`EVALPLUS_TIMEOUT_PER_TASK`), and `c3/envs/code/reward.py` takes the larger of that
-  and whatever the task file asks for. `Mbpp/599` is the one that needs it: its reference
-  alone runs for about 30 seconds.
+  costs about twice what EvalPlus spends on it. EvalPlus allows a task 60 seconds
+  (`EVALPLUS_TIMEOUT_PER_TASK`) and spends them on the candidate alone, because it
+  computes the expected values once, up front; the row therefore carries
+  `timeout_s: 120`, which is that ceiling doubled for the second pass.
+  `c3/envs/code/reward.py` takes the larger of the row's claim and whatever the task file
+  asks for, and bounds the row's own claim by `C3_CODE_MAX_TIMEOUT_S`, also 120.
+  `Mbpp/599` is the problem that sets the number: its reference alone runs for about 30
+  seconds and both sides together measured 57.6, while the evaluator turns the timeout
+  into an `RLIMIT_CPU` of timeout plus one in the child. At 60 that problem would have
+  had three seconds of headroom and would have scored 0 for every candidate on any
+  machine slower than the one it was measured on.
 - `cmath` is on the sandbox import whitelist since 0.2.4. Three MBPP+ problems are about
   complex numbers, and neither their reference nor any correct answer to them can run
   without it.
@@ -496,6 +502,16 @@ Three consequences of judging against a live reference rather than against store
   including for the reference solution itself. A number measured on this file is
   therefore measured on 378 problems of which one is unreachable; set
   `C3_CODE_EXTRA_IMPORTS=sys` if you want it scored.
+
+One thing this design does not close, stated rather than hidden: the candidate and the
+generated harness share one namespace, so a candidate that defines a global with the name
+of a builtin the comparison uses (`len`, `zip`, `isinstance`, `abs`, `type` and a few
+more) is read by the comparison too, and could in principle turn a failure into a pass.
+Capturing its own function and rebinding the reference's imports is what stops the direct
+forgeries; this one needs the evaluator to give `test_setup_code` a namespace of its own
+and hand out only the entry point, which is a change to the execution model and is filed
+for 0.2.5 rather than done here. Nothing in the 378 reference solutions collides with
+those names, which the self check would report if it did.
 
 #### Strict-mode behavior
 

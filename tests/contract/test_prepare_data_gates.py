@@ -310,14 +310,19 @@ def test_the_generated_tests_stay_inside_the_evaluators_own_budget() -> None:
 
 
 def test_an_mbpp_plus_row_declares_the_wall_clock_its_benchmark_needs() -> None:
-    """The row asks for what EvalPlus allows one task; the task file cannot lower it."""
-    assert _coerce_timeout({}, {"timeout_s": 60}) == 60
-    assert _coerce_timeout({"task_env_cfg": {"code_timeout": 15}}, {"timeout_s": 60}) == 60
-    assert _coerce_timeout({"task_env_cfg": {"code_timeout": 90}}, {"timeout_s": 60}) == 90
+    """Twice what EvalPlus allows one task, because every input runs twice here.
+
+    EvalPlus spends its 60 seconds on the candidate alone; these tests run the reference
+    over the same input as well. The task file cannot lower what the row asks for, and
+    the row cannot ask for more than the ceiling.
+    """
+    assert _coerce_timeout({}, {"timeout_s": 120}) == 120
+    assert _coerce_timeout({"task_env_cfg": {"code_timeout": 15}}, {"timeout_s": 120}) == 120
+    assert _coerce_timeout({"task_env_cfg": {"code_timeout": 240}}, {"timeout_s": 120}) == 240
     assert _coerce_timeout({}, {}) == 15
     assert _coerce_timeout({}, None) == 15
     # A data file cannot ask for an hour.
-    assert _coerce_timeout({}, {"timeout_s": 3600}) == 60
+    assert _coerce_timeout({}, {"timeout_s": 3600}) == 120
 
 
 def test_the_sandbox_lets_the_complex_number_problems_run() -> None:
