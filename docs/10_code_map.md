@@ -142,6 +142,7 @@ machine-independent `source` path in `summary.json`. Pass `--results_root` (or
 | [c3/analysis/rebuild/aggregate_e1.py](../c3/analysis/rebuild/aggregate_e1.py) | E1 aggregation: scan the reliability cells, write the E1 `summary.json` |
 | [c3/analysis/rebuild/aggregate_e1b.py](../c3/analysis/rebuild/aggregate_e1b.py) | E1b aggregation: the noise-law grid |
 | [c3/analysis/rebuild/aggregate_e1c_temp.py](../c3/analysis/rebuild/aggregate_e1c_temp.py) | E1c aggregation for the temperature sweep and the alert-band subsets |
+| [c3/analysis/rebuild/aggregate_e2.py](../c3/analysis/rebuild/aggregate_e2.py) | E2 aggregation: the training arms, under one training seed or five |
 | [c3/analysis/rebuild/aggregate_e3a.py](../c3/analysis/rebuild/aggregate_e3a.py) | Command line aggregation for E3a, the ablation bias map |
 | [c3/analysis/rebuild/aggregate_e5.py](../c3/analysis/rebuild/aggregate_e5.py) | Command line aggregation for E5, the paired policy contrast |
 
@@ -187,6 +188,7 @@ that leaves ten files out is worse than no map.
 | [tests/unit/test_chat_template_thinking.py](../tests/unit/test_chat_template_thinking.py) | Thinking stays off on hybrid-thinking chat templates |
 | [tests/unit/test_code_executor_limits.py](../tests/unit/test_code_executor_limits.py) | The sandbox resource limits land on the worker child and on no other process |
 | [tests/unit/test_prompt_render.py](../tests/unit/test_prompt_render.py) | The role prompt renderer, including an unmatched brace left as it stands |
+| [tests/unit/test_rebuild_aggregate_e2.py](../tests/unit/test_rebuild_aggregate_e2.py) | The E2 aggregation and the two replication units it has to tell apart |
 | [tests/unit/test_rebuild_bias_coupling.py](../tests/unit/test_rebuild_bias_coupling.py) | The influence estimator, the E3a bias map and the E5 coupling |
 | [tests/unit/test_rebuild_context_scope.py](../tests/unit/test_rebuild_context_scope.py) | The generation-time context scope |
 | [tests/unit/test_rebuild_e1_cells.py](../tests/unit/test_rebuild_e1_cells.py) | The E1 cell driver and the bucket meta injection |

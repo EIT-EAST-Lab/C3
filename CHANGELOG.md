@@ -87,6 +87,14 @@ back by accident.
   MBPP-test and 54 from MBPP+, so 374 upstream rows become 317 and the `sha256`
   pin moves with them.
 
+- A p value in a summary was written as a LaTeX math fragment, `$<\!0.001$`,
+  which the paper's macro generator refuses: its escaper turns a dollar sign
+  into a literal one and rejects a backslash or a brace, so the first real p
+  value to reach it stopped the generator rather than the build. The three
+  tiers of the analysis plan are unchanged and are now plain text, `< 0.001`,
+  `< 0.01` and `= 0.30`. Typography belongs to the `.tex`, which writes
+  `$p$ \res{...}`, and a value in a summary carries no LaTeX control character.
+
 - The sandbox resource limits landed on whatever process asked for them. `setrlimit`
   applies to the caller, and `c3/envs/code/executor.py:_apply_rlimits` is written for
   the child that runs one untrusted sample, where a CPU budget and a 4 GB address
@@ -133,6 +141,18 @@ back by accident.
   was in on every rerun after the first. A `sha256` pin says that a file is the one we
   produced, never that it is usable, and this is the difference that let 378 empty
   rows pass as a benchmark.
+
+- `c3/analysis/rebuild/aggregate_e2.py`, the aggregation of the training arms.
+  It reads every `final_eval_record.json` under
+  `<results>/<arm>/<method>/train_s<k>/eval_s<j>/` and writes the `E2.*` keys of
+  the results manifest through the package's one summary writer. Which
+  replication unit an arm has is an explicit decision rather than an inference
+  from the shape of the data: one training seed means the spread reported is
+  between evaluation runs of one model and no paired interval or p value is
+  written at all, while more than one means each seed is first reduced to the
+  mean of its evaluation runs and the mean, the spread and the paired reading
+  are taken over the seeds, with Holm across the four mathematics benchmarks.
+  The summary records the mode it used, per arm and overall.
 
 - `docs/10_code_map.md` lists every test file rather than 17 of the 27, and
   `tests/contract/test_release_surface.py` fails when a test file is missing from
