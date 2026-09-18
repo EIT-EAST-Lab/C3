@@ -398,6 +398,7 @@ def _collect_runtime_env_vars() -> Dict[str, str]:
         "CRITIC_WARMUP_ROLLOUT_SCHEDULE",
         "DS_INPLACE_GRAD_PRESCALE",
         "OPENRLHF_PG_CPU_PER_BUNDLE",
+        "OPENRLHF_TORCH_ADAM",
     ]
     for k in forward_if_set:
         v = os.environ.get(k)
