@@ -17,16 +17,18 @@ so the order is pinned here against the evaluator itself rather than described.
 from __future__ import annotations
 
 import importlib.util
+import builtins
 import json
 import os
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
 from c3.envs.code import executor as code_executor
+from c3.envs.code.executor import run_mbpp_tests
 from c3.envs.code.reward import _coerce_timeout
 from c3.task.datasets import _PROMPT_KEY_CANDIDATES
 
@@ -104,20 +106,50 @@ def _evalplus_task(**over: Any) -> Dict[str, Any]:
 
 
 def _score(row: Dict[str, Any], candidate: str) -> Dict[str, Any]:
-    """Run one prepared row against one candidate answer, the way the worker does."""
+    """
+    Run one prepared row against one candidate answer, in a child process.
+
+    Going through `run_mbpp_tests` rather than calling `_exec_all` here is not a
+    preference. `_exec_all` ends in `_apply_rlimits`, which sets RLIMIT_CPU and RLIMIT_AS
+    on whatever process calls it, and it is written for the worker child, where that is
+    the point. Called from a test it gave the pytest process a CPU budget of
+    `timeout + 1` seconds and a 4 GB address space. On Windows `import resource` fails
+    and the whole thing is a silent no-op, which is why it looked fine here; on Linux it
+    took the run down with an INTERNALERROR in pathlib right after the first test that
+    called it. Evaluation code runs in a child, and that includes the tests of it.
+    """
+    _score, info = run_mbpp_tests(
+        candidate_code=candidate,
+        ref_code=None,
+        sample_meta=row,
+        timeout=int(row.get("timeout_s", 15)),
+    )
+    return info
+
+
+def _process_globals() -> Dict[str, Any]:
+    """The objects a test that executes code in this process has been seen to replace."""
+    return {
+        "os.fspath": os.fspath,
+        "os.path.abspath": os.path.abspath,
+        "sys.modules['os']": sys.modules["os"],
+        "builtins.str": builtins.str,
+        "builtins.isinstance": builtins.isinstance,
+        "sys.stdout": sys.stdout,
+        "sys.stderr": sys.stderr,
+    }
+
+
+def _resource_limits() -> Optional[Dict[str, Any]]:
+    """The limits `_apply_rlimits` sets, or None where the platform has no `resource`."""
     try:
-        return code_executor._exec_all(
-            candidate_code=candidate,
-            setup_code=row["test_setup_code"],
-            tests=list(row["test_list"]),
-            challenge=[],
-            test_script=None,
-            timeout_s=int(row.get("timeout_s", 15)),
-            mem_mb=None,
-            cpu_s=None,
-        )
-    except BaseException as exc:  # the worker turns this into a zero as well
-        return {"passed": 0, "total": len(row["test_list"]), "errors": [repr(exc)]}
+        import resource  # type: ignore
+    except Exception:
+        return None
+    return {
+        "RLIMIT_CPU": resource.getrlimit(resource.RLIMIT_CPU),
+        "RLIMIT_AS": resource.getrlimit(resource.RLIMIT_AS),
+    }
 
 
 def test_the_statement_comes_out_of_the_docstring_without_the_assertion() -> None:
@@ -326,12 +358,44 @@ def test_an_mbpp_plus_row_declares_the_wall_clock_its_benchmark_needs() -> None:
 
 
 def test_the_sandbox_lets_the_complex_number_problems_run() -> None:
-    """Three MBPP+ problems need cmath, and no correct answer to them can run without it."""
-    env = code_executor._mk_safe_env()
-    exec("import cmath\nvalue = cmath.polar(complex(1, 1))[0]", env, env)
-    assert round(env["value"], 6) == round(2 ** 0.5, 6)
+    """Three MBPP+ problems need cmath, and no correct answer to them can run without it.
+
+    The import hook is called directly rather than through `exec`, so that nothing in
+    this file executes evaluation code in the pytest process.
+    """
+    safe_import = code_executor._mk_safe_env()["__builtins__"]["__import__"]
+    assert round(safe_import("cmath").polar(complex(1, 1))[0], 6) == round(2 ** 0.5, 6)
     with pytest.raises(ImportError):
-        exec("import sys", code_executor._mk_safe_env())
+        safe_import("sys")
+
+
+def test_running_an_evaluation_leaves_this_process_alone() -> None:
+    """An evaluation happens in a child, and this is what says so out loud.
+
+    `_exec_all` applies RLIMIT_CPU and RLIMIT_AS to its own process, because it is
+    written to run in the worker child. A test that called it directly therefore gave
+    the pytest process a CPU budget of `timeout + 1` seconds and a 4 GB address space.
+    On Windows `import resource` fails and it is a silent no-op; on Linux it ended a CI
+    run with an INTERNALERROR, a TypeError raised inside pathlib while pytest was
+    working out where the next test lived, one test after the first one that called it.
+
+    So this pins the property rather than the symptom: after an evaluation, the objects
+    the interpreter depends on are the same objects, and the resource limits are the
+    same limits.
+    """
+    pc = _load("prepare_code")
+    row = pc.canon_mbpp_plus_row(_evalplus_task(), "s")
+
+    before = _process_globals()
+    limits_before = _resource_limits()
+
+    result = _score(row, row["code"])
+    assert (result["passed"], result["total"]) == (5, 5)
+
+    after = _process_globals()
+    replaced = [name for name in before if before[name] is not after[name]]
+    assert not replaced, f"an evaluation replaced these in the test process: {replaced}"
+    assert _resource_limits() == limits_before
 
 
 # ---------------------------------------------------------------------------
