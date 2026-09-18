@@ -35,7 +35,7 @@ choice is explicit rather than inferred from the data's shape:
   seeds. The paired reading follows `30_analysis/local/paired_n5_local.py`: the
   two-sided paired t test of `scipy.stats.ttest_rel`, a 95 percent interval
   `mean +/- t(0.975, n-1) * sd(differences) / sqrt(n)`, and Holm over the four
-  mathematics benchmarks, with `avg3` tested outside that family.
+  main benchmarks, with `avg4` tested outside that family.
 
 The mode is decided per arm, because an arm is one table of the paper and never
 shares a row with another, and the summary records both the per-arm modes and
@@ -51,9 +51,15 @@ What this script does not write
   must not be filled with two-agent numbers. What the run directories do carry
   about compute is collected into the summary's `extras` instead, where it
   cannot be mistaken for a manifest value.
+- Any key the manifest does not define. The manifest is the single source of
+  truth for which keys exist, and the set differs by benchmark: the four main
+  ones carry a paired reading while the two appendix controls carry a mean, a
+  standard deviation and a plain difference. Rather than keep a second table of
+  that here, every write asks the manifest first; the names it turned down are
+  counted in `extras`.
 
-Keys the manifest does not define are skipped with a line on stderr and the exit
-code stays 0, so a partly collected tree still produces the keys it supports.
+The exit code stays 0 through all of this, so a partly collected tree still
+produces the keys it supports.
 
 Only numpy, scipy and the standard library are imported (through this package).
 """
@@ -79,8 +85,9 @@ __all__ = [
     "METHOD_NAMES",
     "STRONGEST_BASELINE_CANDIDATES",
     "BENCH_SUITES",
-    "AVG3_PARTS",
+    "AVG4_PARTS",
     "HOLM_FAMILY",
+    "AIME_MERGED_QUESTIONS",
     "INTERIM_NOTE",
     "EvalRun",
     "scan_e2_records",
@@ -116,24 +123,40 @@ STRONGEST_BASELINE_CANDIDATES = ("mappo", "magrpo", "ccpo")
 
 #: Bench segment of a key -> the suite of the evaluation record it reads.
 #: The left column is manifest_skeleton.py, the right column is final_eval.py.
+#: Preregistration revision 18 (2026-09-15) made the main table MATH500,
+#: Minerva-Math, AMC23 and AIME, the last being the 60 problems of 2024 and 2025
+#: merged, which is why `aime` reads the record's merged entry rather than a
+#: single year. GSM8K and CMATH stayed as appendix saturation controls.
 BENCH_SUITES = {
     "math500": "MATH500",
-    "aime25": "AIME25",
-    "cmath": "CMATH-test",
+    "minerva": "Minerva-Math",
+    "amc23": "AMC23",
+    "aime": "AIME",
     "gsm8k": "GSM8K-test",
+    "cmath": "CMATH-test",
     "mbppplus": "MBPP+",
     "mbpptest": "MBPP-test",
 }
 
-#: `avg3` is the mean of these three, taken inside each evaluation run so that
-#: the pairing survives.
-AVG3_PARTS = ("math500", "cmath", "gsm8k")
+#: The merged AIME entry is the two years together and nothing else. A record
+#: that carries only one of them still calls the merge `AIME`, so the count is
+#: checked rather than trusted.
+AIME_MERGED_QUESTIONS = 60
 
-#: The four benchmarks Holm corrects across; `avg3` is tested outside the family.
-HOLM_FAMILY = ("math500", "aime25", "cmath", "gsm8k")
+#: `avg4` is the unweighted mean of these four, taken inside each evaluation run
+#: so that the pairing survives. Unweighted: AIME's 60 problems count as much as
+#: MATH500's 500, which is what the manifest key means by the mean of the four.
+AVG4_PARTS = ("math500", "minerva", "amc23", "aime")
+
+#: The four benchmarks Holm corrects across; `avg4` is tested outside the family.
+HOLM_FAMILY = AVG4_PARTS
 
 #: The note every key of an interim arm carries (preregistration revision 20).
 INTERIM_NOTE = "replication: 1 training seed x 5 evaluation runs (interim, Captain 2026-09-19)"
+
+#: The note every `avg4` key carries, because the weighting is a choice.
+AVG4_NOTE = ("unweighted mean of MATH500, Minerva-Math, AMC23 and AIME, "
+             "taken inside each evaluation run")
 
 #: The record schema this script knows how to read. A later version may mean the
 #: same field names differently, so it is refused rather than read hopefully.
@@ -207,16 +230,20 @@ def _read_record(path: str, builder: SummaryBuilder) -> Optional[Dict[str, Any]]
 
 
 def scan_e2_records(results_root: str, builder: SummaryBuilder,
-                    *, arm_filter: Optional[str] = None) -> List[EvalRun]:
+                    *, arm_filter: Optional[str] = None,
+                    partial_merges: Optional[List[Dict[str, Any]]] = None) -> List[EvalRun]:
     """Every evaluation record under the tree, in arm, method, seed order.
 
     Anything the layout does not define is skipped with one line on stderr: an
     arm or method directory with an unknown name, a seed directory that does not
     end in a number, a missing or unreadable record. A tree that is half written
     is the normal state while the platform is still running, so nothing here is
-    fatal.
+    fatal. `partial_merges` collects the records whose AIME entry is not the
+    merged 60, for the summary to report.
     """
     runs: List[EvalRun] = []
+    if partial_merges is None:
+        partial_merges = []
     if not os.path.isdir(results_root):
         raise ValueError("results root %s is not a directory" % results_root)
 
@@ -253,7 +280,7 @@ def scan_e2_records(results_root: str, builder: SummaryBuilder,
                     record = _read_record(path, builder)
                     if record is None:
                         continue
-                    accuracy, counts = _accuracies_of(record)
+                    accuracy, counts = _accuracies_of(record, path, builder, partial_merges)
                     if not accuracy:
                         builder.note("ignored: %s carries no suite accuracy" % source_path(path))
                         continue
@@ -261,14 +288,18 @@ def scan_e2_records(results_root: str, builder: SummaryBuilder,
     return runs
 
 
-def _accuracies_of(record: Mapping[str, Any]) -> Tuple[Dict[str, float], Dict[str, int]]:
+def _accuracies_of(record: Mapping[str, Any], path: str, builder: SummaryBuilder,
+                   partial_merges: List[Dict[str, Any]]) -> Tuple[Dict[str, float], Dict[str, int]]:
     """Bench segment -> accuracy in percent, plus the problem count behind each.
 
-    `avg3` is formed here, inside the run, so that a later pairing compares the
-    same three benchmarks of the same run. The merged `AIME` entry of the record
-    has no manifest key; it is carried under its own name for the summary's
-    extras and is never written to `aime25`, which the manifest defines as
-    AIME 2025.
+    `avg4` is formed here, inside the run, so that a later pairing compares the
+    same four benchmarks of the same run, and it is the unweighted mean of them.
+
+    The `aime` bench is the record's merged entry, the 60 problems of 2024 and
+    2025 together. `final_eval.py` merges whichever parts of that pair the run
+    produced, so a run that lost one year still calls its 30 problems `AIME`.
+    That is a different benchmark under the same name, so the count is checked
+    and a short merge is dropped with a line on stderr rather than reported.
     """
     suites = record.get("suites")
     if not isinstance(suites, Mapping):
@@ -285,22 +316,18 @@ def _accuracies_of(record: Mapping[str, Any]) -> Tuple[Dict[str, float], Dict[st
             continue
         if not math.isfinite(float(value)):
             continue
-        out[bench] = float(value) * 100.0
         n_questions = entry.get("n_questions")
+        if bench == "aime" and n_questions != AIME_MERGED_QUESTIONS:
+            builder.note("ignored: %s has AIME over %r problems, not the %d of the merged "
+                         "2024 and 2025 set" % (source_path(path), n_questions, AIME_MERGED_QUESTIONS))
+            partial_merges.append({"path": source_path(path), "n_questions": n_questions})
+            continue
+        out[bench] = float(value) * 100.0
         if isinstance(n_questions, int) and not isinstance(n_questions, bool):
             counts[bench] = n_questions
 
-    if all(part in out for part in AVG3_PARTS):
-        out["avg3"] = sum(out[part] for part in AVG3_PARTS) / len(AVG3_PARTS)
-
-    merged = suites.get("AIME")
-    if isinstance(merged, Mapping):
-        value = merged.get("accuracy")
-        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)):
-            out["aime_merged"] = float(value) * 100.0
-            n_questions = merged.get("n_questions")
-            if isinstance(n_questions, int) and not isinstance(n_questions, bool):
-                counts["aime_merged"] = n_questions
+    if all(part in out for part in AVG4_PARTS):
+        out["avg4"] = sum(out[part] for part in AVG4_PARTS) / len(AVG4_PARTS)
     return out, counts
 
 
@@ -519,6 +546,29 @@ def _ledger_totals(path: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+class ManifestGate:
+    """Writes only the keys the manifest defines, and remembers the ones it refused.
+
+    The manifest is the single source of truth for which keys exist, and the set
+    differs by bench: the four main benchmarks carry a paired reading, while the
+    two appendix controls carry a mean, a standard deviation and a plain
+    difference and nothing else (preregistration revision 18). Asking the
+    manifest is therefore better than a second table here that could disagree
+    with it, and it keeps the expected absences off stderr, where the lines that
+    matter are the ones about the result tree.
+    """
+
+    def __init__(self, builder: SummaryBuilder) -> None:
+        self.builder = builder
+        self.skipped: List[str] = []
+
+    def add(self, key: str, value: Any, *, n: int, source: Any, note: str = "") -> bool:
+        if key not in self.builder.manifest:
+            self.skipped.append(key)
+            return False
+        return self.builder.add(key, value, n=n, source=source, note=note)
+
+
 def _note(mode: str, tail: str = "") -> str:
     """The note of one key: the interim stamp when the arm has one training seed."""
     parts = []
@@ -531,7 +581,7 @@ def _note(mode: str, tail: str = "") -> str:
 
 def _benches_present(table: Mapping[Tuple[str, str, str], Any], arm: str) -> List[str]:
     """Bench segments the arm has numbers for, in manifest order."""
-    order = list(BENCH_SUITES) + ["avg3"]
+    order = list(BENCH_SUITES) + ["avg4"]
     present = {bench for (cell_arm, _method, bench) in table if cell_arm == arm}
     return [bench for bench in order if bench in present]
 
@@ -545,15 +595,18 @@ def build_e2_summary(results_root: str, manifest: Mapping[str, Any], *,
                      stream=None, arm_filter: Optional[str] = None) -> SummaryBuilder:
     """Compute every E2 key the collected arms support."""
     builder = SummaryBuilder(EXPERIMENT, SCRIPT, manifest, stream=stream)
-    runs = scan_e2_records(results_root, builder, arm_filter=arm_filter)
+    partial_merges: List[Dict[str, Any]] = []
+    runs = scan_e2_records(results_root, builder, arm_filter=arm_filter,
+                           partial_merges=partial_merges)
     table = accuracy_table(runs)
 
     arms = [arm for arm in ARMS if any(key[0] == arm for key in table)]
     modes = {arm: arm_mode(table, arm) for arm in arms}
 
+    gate = ManifestGate(builder)
     for arm in arms:
         mode = modes[arm]
-        _write_arm(builder, table, runs, arm, mode)
+        _write_arm(gate, table, runs, arm, mode)
 
     distinct = sorted(set(modes.values()))
     builder.extra["results_root"] = source_path(results_root)
@@ -565,39 +618,23 @@ def build_e2_summary(results_root: str, manifest: Mapping[str, Any], *,
                  "more than one: mean over the evaluation runs of each training seed first, "
                  "then mean, std and paired reading over the training seeds"),
     }
-    builder.extra["extras"] = {
+    extras: Dict[str, Any] = {
         "runs": collect_run_extras(results_root, runs),
-        "aime_merged": _aime_merged_extra(table, runs, modes),
         "n_records": len(runs),
     }
+    if partial_merges:
+        extras["aime_partial_merges"] = partial_merges
+    if gate.skipped:
+        extras["keys_the_manifest_does_not_define"] = sorted(set(gate.skipped))
+        builder.note("%d key(s) the manifest does not define were not written; see extras"
+                     % len(set(gate.skipped)))
+    builder.extra["extras"] = extras
     return builder
 
 
-def _aime_merged_extra(table, runs, modes) -> Dict[str, Any]:
-    """The merged AIME reading, which the manifest has no key for.
-
-    `final_eval.py` also reports AIME24 and AIME25 merged into one 60 problem
-    entry. The manifest's `aime25` is AIME 2025, so the merged reading is kept
-    here rather than written to that key.
-    """
-    out: Dict[str, Any] = {}
-    for arm in sorted({key[0] for key in table}):
-        for method in _methods_present(table, arm):
-            series = series_of(table, runs, arm, method, "aime_merged", modes[arm])
-            if series is None or series.mean is None:
-                continue
-            out["%s/%s" % (arm, method)] = {
-                "mean_pct": series.mean,
-                "std_pct": series.std,
-                "n": series.n,
-                "mode": series.mode,
-            }
-    return out
-
-
-def _write_arm(builder: SummaryBuilder, table, runs, arm: str, mode: str) -> None:
+def _write_arm(gate: "ManifestGate", table, runs, arm: str, mode: str) -> None:
     """Every key of one arm: the cells, the strongest baseline, the differences."""
-    benches = [bench for bench in _benches_present(table, arm) if bench != "aime_merged"]
+    benches = _benches_present(table, arm)
     methods = _methods_present(table, arm)
     series: Dict[Tuple[str, str], Optional[Series]] = {}
     for bench in benches:
@@ -613,18 +650,19 @@ def _write_arm(builder: SummaryBuilder, table, runs, arm: str, mode: str) -> Non
             if cell is None or cell.mean is None:
                 continue
             base = "E2.%s.%s.%s" % (arm, bench, method)
-            builder.add(base + ".mean", cell.mean, n=cell.n, source=cell.sources,
-                        note=_note(mode, "mean over the %s" % over))
+            formed = (AVG4_NOTE if bench == "avg4" else "")
+            gate.add(base + ".mean", cell.mean, n=cell.n, source=cell.sources,
+                     note=_note(mode, "; ".join(x for x in ("mean over the %s" % over, formed) if x)))
             if cell.std is not None:
-                builder.add(base + ".std", cell.std, n=cell.n, source=cell.sources,
-                            note=_note(mode, "std over the %s" % over))
+                gate.add(base + ".std", cell.std, n=cell.n, source=cell.sources,
+                         note=_note(mode, "; ".join(x for x in ("std over the %s" % over, formed) if x)))
 
     best = _strongest_baseline(series, benches)
     if best is not None:
-        _write_strongest(builder, arm, mode, series, best)
+        _write_strongest(gate, arm, mode, series, best)
 
-    _write_differences(builder, arm, mode, series, benches, best)
-    _write_gains(builder, arm, mode, series)
+    _write_differences(gate, arm, mode, series, benches, best)
+    _write_gains(gate, arm, mode, series)
 
 
 def _strongest_baseline(series: Mapping[Tuple[str, str], Optional[Series]],
@@ -647,19 +685,19 @@ def _strongest_baseline(series: Mapping[Tuple[str, str], Optional[Series]],
     return ranked[0][1]
 
 
-def _write_strongest(builder: SummaryBuilder, arm: str, mode: str,
+def _write_strongest(gate: "ManifestGate", arm: str, mode: str,
                      series: Mapping[Tuple[str, str], Optional[Series]], best: str) -> None:
     cell = series[("math500", best)]
     if cell is None or cell.mean is None:
         return
-    builder.add("E2.%s.strongest_baseline.name" % arm, METHOD_NAMES[best],
-                n=cell.n, source=cell.sources,
-                note=_note(mode, "highest MATH500 mean among MAPPO, MAGRPO and CCPO"))
-    builder.add("E2.%s.math500.best.mean" % arm, cell.mean, n=cell.n, source=cell.sources,
-                note=_note(mode, "the MATH500 mean of %s" % METHOD_NAMES[best]))
+    gate.add("E2.%s.strongest_baseline.name" % arm, METHOD_NAMES[best],
+             n=cell.n, source=cell.sources,
+             note=_note(mode, "highest MATH500 mean among MAPPO, MAGRPO and CCPO"))
+    gate.add("E2.%s.math500.best.mean" % arm, cell.mean, n=cell.n, source=cell.sources,
+             note=_note(mode, "the MATH500 mean of %s" % METHOD_NAMES[best]))
     if cell.std is not None:
-        builder.add("E2.%s.math500.best.std" % arm, cell.std, n=cell.n, source=cell.sources,
-                    note=_note(mode, "the MATH500 std of %s" % METHOD_NAMES[best]))
+        gate.add("E2.%s.math500.best.std" % arm, cell.std, n=cell.n, source=cell.sources,
+                 note=_note(mode, "the MATH500 std of %s" % METHOD_NAMES[best]))
 
 
 def _pair(left: Optional[Series], right: Optional[Series], mode: str) -> Optional[Dict[str, Any]]:
@@ -674,7 +712,7 @@ def _pair(left: Optional[Series], right: Optional[Series], mode: str) -> Optiona
     return paired_stats([left.by_unit[u] for u in units], [right.by_unit[u] for u in units])
 
 
-def _write_differences(builder: SummaryBuilder, arm: str, mode: str,
+def _write_differences(gate: "ManifestGate", arm: str, mode: str,
                        series: Mapping[Tuple[str, str], Optional[Series]],
                        benches: Sequence[str], best: Optional[str]) -> None:
     """`c3_minus_best` and `c3_minus_mappo`, with Holm inside each family."""
@@ -701,30 +739,30 @@ def _write_differences(builder: SummaryBuilder, arm: str, mode: str,
                         "one training seed")
             else:
                 tail = "paired over the %d training seeds both arms have" % pair["n"]
-            builder.add(base + ".diff", pair["diff"], n=max(1, int(pair["n"])),
-                        source=_pair_sources(series, bench, other),
-                        note=_note(mode, tail))
+            gate.add(base + ".diff", pair["diff"], n=max(1, int(pair["n"])),
+                     source=_pair_sources(series, bench, other),
+                     note=_note(mode, tail))
             if mode == "interim":
                 continue
             if pair["ci_lo"] is not None:
-                builder.add(base + ".ci_lo", pair["ci_lo"], n=pair["n"],
-                            source=_pair_sources(series, bench, other), note=_note(mode, tail))
-                builder.add(base + ".ci_hi", pair["ci_hi"], n=pair["n"],
-                            source=_pair_sources(series, bench, other), note=_note(mode, tail))
+                gate.add(base + ".ci_lo", pair["ci_lo"], n=pair["n"],
+                         source=_pair_sources(series, bench, other), note=_note(mode, tail))
+                gate.add(base + ".ci_hi", pair["ci_hi"], n=pair["n"],
+                         source=_pair_sources(series, bench, other), note=_note(mode, tail))
             if pair["p"] is not None:
                 formatted = format_p(pair["p"])
                 if formatted is not None:
-                    builder.add(base + ".p", formatted, n=pair["n"],
-                                source=_pair_sources(series, bench, other),
-                                note=_note(mode, "two-sided paired t test"))
+                    gate.add(base + ".p", formatted, n=pair["n"],
+                             source=_pair_sources(series, bench, other),
+                             note=_note(mode, "two-sided paired t test"))
                 adjusted = corrected.get(bench, pair["p"])
                 inside = "Holm over %d benchmarks" % len(family) if bench in corrected \
                     else "tested outside the Holm family"
                 formatted = format_p(adjusted)
                 if formatted is not None:
-                    builder.add(base + ".p_holm", formatted, n=pair["n"],
-                                source=_pair_sources(series, bench, other),
-                                note=_note(mode, inside))
+                    gate.add(base + ".p_holm", formatted, n=pair["n"],
+                             source=_pair_sources(series, bench, other),
+                             note=_note(mode, inside))
 
 
 def _pair_sources(series: Mapping[Tuple[str, str], Optional[Series]],
@@ -737,7 +775,7 @@ def _pair_sources(series: Mapping[Tuple[str, str], Optional[Series]],
     return sources
 
 
-def _write_gains(builder: SummaryBuilder, arm: str, mode: str,
+def _write_gains(gate: "ManifestGate", arm: str, mode: str,
                  series: Mapping[Tuple[str, str], Optional[Series]]) -> None:
     """The two decomposition keys of the two-agent Qwen3-4B arm."""
     if arm != "a2_4b":
@@ -746,9 +784,10 @@ def _write_gains(builder: SummaryBuilder, arm: str, mode: str,
         pair = _pair(series.get(("math500", left)), series.get(("math500", right)), mode)
         if pair is None:
             continue
-        builder.add("E2.a2_4b.math500.%s" % key, pair["diff"], n=max(1, int(pair["n"])),
-                    source=_pair_sources_for(series, "math500", left, right),
-                    note=_note(mode, "%s minus %s on MATH500" % (METHOD_NAMES[left], METHOD_NAMES[right])))
+        gate.add("E2.a2_4b.math500.%s" % key, pair["diff"], n=max(1, int(pair["n"])),
+                 source=_pair_sources_for(series, "math500", left, right),
+                 note=_note(mode, "%s minus %s on MATH500"
+                            % (METHOD_NAMES[left], METHOD_NAMES[right])))
 
 
 def _pair_sources_for(series, bench: str, left: str, right: str) -> List[str]:

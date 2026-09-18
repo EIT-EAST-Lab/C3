@@ -29,7 +29,11 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 # The keys of the two-agent Qwen3-4B arm, spelled as manifest_skeleton.py spells
 # them. Only the keys the fixtures can reach are listed; anything else the
 # aggregation tries would be refused, which is itself one of the tests.
-BENCHES = ("math500", "aime25", "cmath", "gsm8k", "avg3")
+# The main table of preregistration revision 18 and the two appendix controls.
+# The appendix pair carries a mean, a standard deviation and a plain difference
+# and no test at all, which is one of the things this file pins.
+BENCHES = ("math500", "minerva", "amc23", "aime", "avg4")
+APPX_BENCHES = ("gsm8k", "cmath")
 METHODS = ("ppo1a", "mappo", "magrpo", "c3")
 
 UNITS = {"mean": "%", "std": "%", "diff": "pp", "ci_lo": "pp", "ci_hi": "pp",
@@ -53,6 +57,11 @@ def manifest_keys(arm="a2_4b"):
             add("E2.%s.%s.%s.ci_hi" % (arm, bench, pair), "pp")
             add("E2.%s.%s.%s.p" % (arm, bench, pair), "p")
             add("E2.%s.%s.%s.p_holm" % (arm, bench, pair), "p")
+    for bench in APPX_BENCHES:
+        for method in METHODS:
+            add("E2.%s.%s.%s.mean" % (arm, bench, method), "%")
+            add("E2.%s.%s.%s.std" % (arm, bench, method), "%")
+        add("E2.%s.%s.c3_minus_best.diff" % (arm, bench), "pp")
     add("E2.%s.strongest_baseline.name" % arm, "name")
     add("E2.%s.math500.best.mean" % arm, "%")
     add("E2.%s.math500.best.std" % arm, "%")
@@ -72,22 +81,26 @@ def write_manifest(tmp_path, arm="a2_4b"):
     return path
 
 
-def record(accuracies, *, merged=None, schema="c3.final_eval.record/1"):
+#: How many problems each suite of a record carries. `AIME` is the merged pair
+#: of years, and the aggregation checks that count rather than trusting the name.
+N_QUESTIONS = {"MATH500": 500, "Minerva-Math": 272, "AMC23": 40, "AIME": 60,
+               "GSM8K-test": 1319, "CMATH-test": 1098}
+
+
+def record(accuracies, *, schema="c3.final_eval.record/1", n_questions=None):
     """One final_eval_record.json in the shape scripts/70_rebuild/final_eval.py writes."""
+    counts = dict(N_QUESTIONS)
+    counts.update(n_questions or {})
     suites = {}
     for suite, value in accuracies.items():
         suites[suite] = {
             "k": 4,
-            "n_questions": 500,
+            "n_questions": counts.get(suite, 500),
             "accuracy": value,
             "wilson95": {"low": 0.0, "high": 1.0},
             "boxed_rate": 1.0,
             "per_question": [],
         }
-    if merged is not None:
-        suites["AIME"] = {"k": 16, "n_questions": 60, "accuracy": merged,
-                          "wilson95": {"low": 0.0, "high": 1.0}, "boxed_rate": 1.0,
-                          "per_question": []}
     return {"schema": schema, "policy": "ckpt", "method": "C3", "seed": 0,
             "suites": suites, "problems": [], "ok": True}
 
@@ -101,8 +114,10 @@ def write_run(root, arm, method, train_seed, eval_seed, accuracies, **kwargs):
     return path
 
 
-def suite_values(math500, aime25=0.10, cmath=0.90, gsm8k=0.92):
-    return {"MATH500": math500, "AIME25": aime25, "CMATH-test": cmath, "GSM8K-test": gsm8k}
+def suite_values(math500, minerva=0.30, amc23=0.50, aime=0.10, gsm8k=0.92, cmath=0.90):
+    """The six suites of one record, the four of the main table first."""
+    return {"MATH500": math500, "Minerva-Math": minerva, "AMC23": amc23, "AIME": aime,
+            "GSM8K-test": gsm8k, "CMATH-test": cmath}
 
 
 # -----------------------------------------------------------------------------
@@ -150,10 +165,8 @@ def interim_tree(root):
     c3 = [0.80, 0.81, 0.82, 0.83, 0.84]
     magrpo = [0.70, 0.71, 0.72, 0.73, 0.74]
     for eval_seed in range(5):
-        write_run(root, "a2_4b", "c3", 0, eval_seed,
-                  suite_values(c3[eval_seed]), merged=0.15)
-        write_run(root, "a2_4b", "magrpo", 0, eval_seed,
-                  suite_values(magrpo[eval_seed]), merged=0.05)
+        write_run(root, "a2_4b", "c3", 0, eval_seed, suite_values(c3[eval_seed]))
+        write_run(root, "a2_4b", "magrpo", 0, eval_seed, suite_values(magrpo[eval_seed]))
     return c3, magrpo
 
 
@@ -199,34 +212,71 @@ def test_interim_reports_the_evaluation_runs_and_refuses_to_pair_them(tmp_path, 
     assert len(sources) == 5
     assert all(item.endswith("final_eval_record.json") for item in sources)
 
+    # The two appendix controls are reported without a test, which is the
+    # manifest's own key set rather than a second rule kept here.
+    for bench in ("gsm8k", "cmath"):
+        assert "E2.a2_4b.%s.c3.mean" % bench in keys
+        assert "E2.a2_4b.%s.c3_minus_best.diff" % bench in keys
+        assert "E2.a2_4b.%s.c3_minus_mappo.diff" % bench not in keys
 
-def test_avg3_is_formed_inside_each_run(tmp_path):
+
+def test_the_manifest_decides_which_keys_exist(tmp_path, capsys):
+    """A key the manifest does not define is not attempted and is counted."""
+    root = os.path.join(str(tmp_path), "E2")
+    interim_tree(root)
+    manifest = manifest_keys()
+    del manifest["E2.a2_4b.math500.c3.std"]
+
+    doc = a2.build_e2_summary(root, manifest).payload()
+    assert "E2.a2_4b.math500.c3.mean" in doc["keys"]
+    assert "E2.a2_4b.math500.c3.std" not in doc["keys"]
+    assert "E2.a2_4b.math500.c3.std" in doc["extras"]["keys_the_manifest_does_not_define"]
+    assert "key(s) the manifest does not define" in capsys.readouterr().err
+
+
+def test_avg4_is_the_unweighted_mean_formed_inside_each_run(tmp_path):
     root = os.path.join(str(tmp_path), "E2")
     write_run(root, "a2_4b", "c3", 0, 0,
-              {"MATH500": 0.60, "CMATH-test": 0.90, "GSM8K-test": 0.30, "AIME25": 0.10})
+              {"MATH500": 0.60, "Minerva-Math": 0.90, "AMC23": 0.30, "AIME": 0.20})
     write_run(root, "a2_4b", "c3", 0, 1,
-              {"MATH500": 0.30, "CMATH-test": 0.60, "GSM8K-test": 0.90, "AIME25": 0.10})
+              {"MATH500": 0.30, "Minerva-Math": 0.60, "AMC23": 0.90, "AIME": 0.20})
     manifest = json.load(open(write_manifest(tmp_path), encoding="utf-8"))
 
     keys = a2.build_e2_summary(root, manifest).payload()["keys"]
-    # Both runs average 60 over the three benchmarks, so the mean is 60 and the
-    # spread is zero: the three are averaged inside a run, not across runs.
-    assert keys["E2.a2_4b.avg3.c3.mean"]["value"] == pytest.approx(60.0)
-    assert keys["E2.a2_4b.avg3.c3.std"]["value"] == pytest.approx(0.0)
+    # Both runs average 50 over the four benchmarks, so the mean is 50 and the
+    # spread is zero: the four are averaged inside a run, not across runs. The
+    # mean is unweighted, so AIME's 60 problems count as much as MATH500's 500.
+    assert keys["E2.a2_4b.avg4.c3.mean"]["value"] == pytest.approx(50.0)
+    assert keys["E2.a2_4b.avg4.c3.std"]["value"] == pytest.approx(0.0)
+    assert "unweighted" in keys["E2.a2_4b.avg4.c3.mean"]["note"]
 
 
-def test_the_merged_aime_entry_never_lands_in_the_aime25_key(tmp_path):
+def test_the_aime_key_is_the_merged_pair_and_a_short_merge_is_refused(tmp_path, capsys):
+    """`final_eval.py` merges whichever years ran, so 30 problems can arrive as AIME.
+
+    That is a different benchmark under the same name, so it is dropped with a
+    line on stderr and recorded in extras rather than reported as AIME.
+    """
     root = os.path.join(str(tmp_path), "E2")
-    interim_tree(root)
+    for eval_seed in range(2):
+        write_run(root, "a2_4b", "c3", 0, eval_seed, suite_values(0.80, aime=0.10))
+    # One run where only 2025 was evaluated, so the merge covers 30 problems.
+    write_run(root, "a2_4b", "c3", 0, 2, suite_values(0.80, aime=0.99),
+              n_questions={"AIME": 30})
     manifest = json.load(open(write_manifest(tmp_path), encoding="utf-8"))
 
     doc = a2.build_e2_summary(root, manifest).payload()
-    # The manifest's aime25 is AIME 2025, which the fixture puts at 10 percent;
-    # the record's merged AIME entry (60 problems) is 15 and is kept apart.
-    assert doc["keys"]["E2.a2_4b.aime25.c3.mean"]["value"] == pytest.approx(10.0)
-    merged = doc["extras"]["aime_merged"]["a2_4b/c3"]
-    assert merged["mean_pct"] == pytest.approx(15.0)
-    assert merged["mode"] == "interim"
+    keys = doc["keys"]
+    # Three runs of MATH500, two of AIME: the short merge took nothing else with it.
+    assert keys["E2.a2_4b.math500.c3.mean"]["n"] == 3
+    assert keys["E2.a2_4b.aime.c3.mean"]["value"] == pytest.approx(10.0)
+    assert keys["E2.a2_4b.aime.c3.mean"]["n"] == 2
+    # avg4 needs all four, so the short run contributes no avg4 either.
+    assert keys["E2.a2_4b.avg4.c3.mean"]["n"] == 2
+
+    partial = doc["extras"]["aime_partial_merges"]
+    assert len(partial) == 1 and partial[0]["n_questions"] == 30
+    assert "not the 60 of the merged" in capsys.readouterr().err
 
 
 # -----------------------------------------------------------------------------
@@ -238,13 +288,17 @@ def test_the_merged_aime_entry_never_lands_in_the_aime25_key(tmp_path):
 #: with the seed, so all four have a spread and the Holm family really has four
 #: members; math500 is the one the interval below is hand computed for.
 C3_BY_SEED = {"math500": [80.0, 82.0, 81.0, 84.0, 83.0],
-              "aime25": [10.0, 12.0, 11.0, 13.0, 9.0],
-              "cmath": [90.0, 91.0, 92.0, 90.0, 93.0],
-              "gsm8k": [92.0, 93.0, 91.0, 94.0, 92.0]}
+              "minerva": [30.0, 32.0, 31.0, 33.0, 29.0],
+              "amc23": [50.0, 52.0, 51.0, 55.0, 53.0],
+              "aime": [10.0, 12.0, 11.0, 13.0, 9.0],
+              "gsm8k": [92.0, 93.0, 91.0, 94.0, 92.0],
+              "cmath": [90.0, 91.0, 92.0, 90.0, 93.0]}
 MAGRPO_BY_SEED = {"math500": [78.0, 79.0, 80.0, 79.0, 80.0],
-                  "aime25": [8.0, 9.0, 10.0, 8.0, 9.0],
-                  "cmath": [88.0, 90.0, 89.0, 88.0, 91.0],
-                  "gsm8k": [90.0, 90.0, 89.0, 91.0, 90.0]}
+                  "minerva": [28.0, 30.0, 29.0, 28.0, 31.0],
+                  "amc23": [48.0, 50.0, 49.0, 48.0, 51.0],
+                  "aime": [8.0, 9.0, 10.0, 8.0, 9.0],
+                  "gsm8k": [90.0, 90.0, 89.0, 91.0, 90.0],
+                  "cmath": [88.0, 90.0, 89.0, 88.0, 91.0]}
 
 
 def full_tree(root):
@@ -260,9 +314,11 @@ def full_tree(root):
             for method, table in (("c3", C3_BY_SEED), ("magrpo", MAGRPO_BY_SEED)):
                 write_run(root, "a2_4b", method, seed, eval_seed,
                           suite_values(table["math500"][seed] / 100.0 + offset,
-                                       aime25=table["aime25"][seed] / 100.0 + offset,
-                                       cmath=table["cmath"][seed] / 100.0 + offset,
-                                       gsm8k=table["gsm8k"][seed] / 100.0 + offset))
+                                       minerva=table["minerva"][seed] / 100.0 + offset,
+                                       amc23=table["amc23"][seed] / 100.0 + offset,
+                                       aime=table["aime"][seed] / 100.0 + offset,
+                                       gsm8k=table["gsm8k"][seed] / 100.0 + offset,
+                                       cmath=table["cmath"][seed] / 100.0 + offset))
 
 
 def test_full_pairs_over_training_seeds_and_corrects_across_the_four(tmp_path):
@@ -295,11 +351,16 @@ def test_full_pairs_over_training_seeds_and_corrects_across_the_four(tmp_path):
 
     raw = float(stats.ttest_rel(C3_BY_SEED["math500"], MAGRPO_BY_SEED["math500"]).pvalue)
     assert keys["E2.a2_4b.math500.c3_minus_best.p"]["value"] == a2.format_p(raw)
-    # Holm runs over the four mathematics benchmarks; avg3 is outside the family.
+    # Holm runs over the four main benchmarks; avg4 is outside the family, and
+    # the two appendix controls have no test at all.
     assert "Holm over 4 benchmarks" in keys["E2.a2_4b.math500.c3_minus_best.p_holm"]["note"]
-    assert "outside the Holm family" in keys["E2.a2_4b.avg3.c3_minus_best.p_holm"]["note"]
-    assert keys["E2.a2_4b.avg3.c3_minus_best.p_holm"]["value"] == \
-        keys["E2.a2_4b.avg3.c3_minus_best.p"]["value"]
+    assert "outside the Holm family" in keys["E2.a2_4b.avg4.c3_minus_best.p_holm"]["note"]
+    assert keys["E2.a2_4b.avg4.c3_minus_best.p_holm"]["value"] == \
+        keys["E2.a2_4b.avg4.c3_minus_best.p"]["value"]
+    for bench in ("gsm8k", "cmath"):
+        assert "E2.a2_4b.%s.c3_minus_best.diff" % bench in keys
+        for tail in ("ci_lo", "ci_hi", "p", "p_holm"):
+            assert "E2.a2_4b.%s.c3_minus_best.%s" % (bench, tail) not in keys
 
     # A p value is a plain string, never a LaTeX fragment.
     for key, item in keys.items():
