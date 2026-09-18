@@ -399,6 +399,7 @@ def _collect_runtime_env_vars() -> Dict[str, str]:
         "DS_INPLACE_GRAD_PRESCALE",
         "OPENRLHF_PG_CPU_PER_BUNDLE",
         "OPENRLHF_TORCH_ADAM",
+        "PYTORCH_CUDA_ALLOC_CONF",
     ]
     for k in forward_if_set:
         v = os.environ.get(k)
