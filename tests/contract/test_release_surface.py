@@ -138,6 +138,22 @@ def test_prose_is_english_without_em_or_en_dashes() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_the_code_map_lists_every_test_file() -> None:
+    """The map claims to be the whole suite, so it has to stay the whole suite.
+
+    It listed 17 of the 27 files, which is the failure mode a map has: a reader trusts
+    it and never learns that the file they wanted is one of the ten it forgot.
+    """
+    code_map = (REPO_ROOT / "docs" / "10_code_map.md").read_text(encoding="utf-8")
+    listed = {target.lstrip("./").replace("../", "") for target in _MD_LINK.findall(code_map)}
+    actual = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (REPO_ROOT / "tests").rglob("test_*.py")
+    }
+    missing = sorted(actual - listed)
+    assert not missing, "docs/10_code_map.md does not list these test files:\n" + "\n".join(missing)
+
+
 def test_generated_output_ignore_patterns_are_root_anchored() -> None:
     lines = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     unanchored: List[str] = []

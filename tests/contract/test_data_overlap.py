@@ -632,18 +632,21 @@ def test_the_artifacts_that_did_not_change_keep_their_pins() -> None:
         assert isinstance(item['sha256'], str) and len(item['sha256']) == 64, name
 
 
-def test_mbpp_plus_keeps_its_provenance_tag_and_carries_no_hash() -> None:
-    """The MBPP+ hash was the empty file's, so the entry now carries none.
+def test_mbpp_plus_is_pinned_to_evalplus_and_has_no_second_source() -> None:
+    """One source, one hash, and the hash is no longer the empty file's.
 
-    The 378 rows it covered held a value in task_id and source and in nothing else,
-    because the row builder read MBPP column names out of an EvalPlus task. The hash
-    matched that file byte for byte on every strict run, which is exactly how the empty
-    artifact kept passing, so it is cleared until a row builder exists that can write a
-    usable one.
+    Until 0.2.4 this entry pinned a file whose 378 rows held a value in task_id and
+    source and in nothing else, because the row builder read MBPP column names out of an
+    EvalPlus task. It also accepted a second provenance form, `fallback_mbpp@<sha>`,
+    which wrote the MBPP test problems under the MBPP+ name whenever EvalPlus was
+    unavailable. A benchmark that quietly holds another benchmark is worse than one that
+    is missing, so that form is gone and EvalPlus is the only source.
     """
     item = _entry('MBPP+')
     assert item['source']['revision'] == 'evalplus@0.3.1'
-    assert item['sha256'] is None
+    assert isinstance(item['sha256'], str) and len(item['sha256']) == 64
+    # tests/contract/test_prepare_data_gates.py pins that the preparer rejects the form.
+    assert not str(item['source']['revision']).startswith('fallback_mbpp@')
 
 
 def test_every_manifest_entry_carries_notes() -> None:

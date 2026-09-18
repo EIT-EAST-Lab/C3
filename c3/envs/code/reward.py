@@ -12,6 +12,7 @@ We implement MBPP/MBPP+ style judging:
 Extra knobs (env):
 - C3_CODE_SANDBOX_MEM_MB: override per-call RLIMIT_AS for executor (default: 4096)
 - C3_CODE_SANDBOX_CPU_S:  override per-call RLIMIT_CPU for executor (default: 0 => executor auto)
+- C3_CODE_MAX_TIMEOUT_S:  ceiling on the wall clock a prepared row may ask for (default: 60)
 """
 
 from __future__ import annotations
@@ -38,13 +39,35 @@ def _maybe_load_dataset_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
     return {}
 
 
-def _coerce_timeout(meta: Dict[str, Any], default: int = 15) -> int:
+def _coerce_timeout(meta: Dict[str, Any], dataset_meta: Optional[Dict[str, Any]] = None, default: int = 15) -> int:
+    """
+    The wall clock one code sample gets.
+
+    Two sources, in this order. The task file sets `code_timeout` for everything it
+    evaluates. A prepared row may also declare `timeout_s`, the budget its own benchmark
+    needs: MBPP+ carries 60, which is what EvalPlus allows one of its tasks, because the
+    reference solution of one MBPP+ problem runs for close to 30 seconds and the default
+    of 15 would score that problem 0 for every candidate. The larger of the two wins, so
+    a row that needs 60 never silently gets 15, and the row's claim alone is bounded by
+    C3_CODE_MAX_TIMEOUT_S (60) so that a data file cannot ask for an hour. A timeout the
+    task file sets is the operator's own choice and is not bounded here.
+    """
+    seconds = int(default)
+
     cfg = meta.get("task_env_cfg", {})
     if isinstance(cfg, dict):
         t = cfg.get("code_timeout", None)
         if isinstance(t, (int, float)) and t > 0:
-            return int(t)
-    return int(default)
+            seconds = int(t)
+
+    if isinstance(dataset_meta, dict):
+        declared = dataset_meta.get("timeout_s", None)
+        if isinstance(declared, (int, float)) and declared > 0:
+            cap = _env_int("C3_CODE_MAX_TIMEOUT_S", 60)
+            bounded = int(declared) if cap <= 0 else min(int(declared), cap)
+            seconds = max(seconds, bounded)
+
+    return max(1, seconds)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -72,7 +95,7 @@ def compute_code_reward(
             ref_code = v
             break
 
-    timeout = _coerce_timeout(meta, default=15)
+    timeout = _coerce_timeout(meta, dataset_meta, default=15)
 
     # Per-call sandbox limits (override env-based defaults inside executor).
     mem_mb = _env_int("C3_CODE_SANDBOX_MEM_MB", 4096)

@@ -167,7 +167,7 @@ outputs:
 - name: MBPP-train
   type: code
   output_path: data/MBPP/train.jsonl
-  sha256: 3d8b5e9e900eb6960a253f18b0d72c72380f687077ca54931fdd58f8b3964f40
+  sha256: 5232fdbbf6cd79893b84348a08a4fab13dc602276ee910bd351711d6f6b237a7
   source:
     kind: huggingface
     id: google-research-datasets/mbpp
@@ -176,10 +176,12 @@ outputs:
     revision: 4bb6404fdc6cacfda99d4ac4205087b89d32030c
     license: check HF card
     notes: MBPP train split of the full config, the training artifact of the code
-      task, minus the problems that also occur in the test split (this revision ships
-      three such problems, so the shipped split is not disjoint from MBPP-test and
-      MBPP+). The subtraction is by normalized problem text, the key check_overlap.py
-      compares; check_overlap.py verifies the result against MBPP-test and MBPP+.
+      task, minus every problem that also occurs in an evaluation artifact. Of the
+      374 rows upstream ships, 3 occur in MBPP-test and 54 more occur in MBPP+ (which
+      is drawn from the sanitized MBPP and therefore spans the train id range as well),
+      so 317 remain. The subtraction is by normalized problem text, the key
+      check_overlap.py compares; check_overlap.py verifies the result against MBPP-test
+      and MBPP+.
 - name: MBPP-test
   type: code
   output_path: data/MBPP/test.jsonl
@@ -196,19 +198,20 @@ outputs:
 - name: MBPP+
   type: code
   output_path: data/MBPP_PLUS/test.jsonl
-  sha256: null
+  sha256: 5c3deb4a3412bfde322336989f046b06e50b9d328a932ce215382dbb067e737b
   source:
     kind: evalplus
     id: mbpp_plus
     license: check EvalPlus
     revision: evalplus@0.3.1
-    notes: MBPP+ evaluation artifact. The pin was cleared because the file it pinned
-      was the empty one, 378 rows in which only task_id and source carried a value,
-      written by a row builder that read MBPP column names out of an EvalPlus task
-      (issue 2). The builder now refuses to write this artifact at all until the two
-      open questions in the MBPP+ section of docs/30_data_sources.md are answered,
-      so pass --prepare_mbpp_plus 0 to prepare the rest of the code data. Repin from
-      a clean run once a row builder exists.
+    notes: MBPP+ evaluation artifact, 378 tasks with 1174 base inputs and 39841 plus
+      inputs, one generated test each. A row carries the statement taken out of the
+      EvalPlus docstring prompt, the reference solution, every input as a literal, and
+      a test_setup_code that computes the expected value by running the reference and
+      compares with EvalPlus's own rules. The expected values are not stored because
+      writing them out comes to 1.3 GB. Until 0.2.4 this entry pinned the sha256 of a
+      file whose 378 rows were empty, which is issue 2. There is no fallback source any
+      more. EvalPlus is the only one, and preparation fails when it is unavailable.
 - name: Minerva-Math
   type: math
   output_path: data/MINERVA_MATH/test.jsonl

@@ -51,16 +51,38 @@ back by accident.
   column names `text`, `code`, `test_list` and `test_setup_code` out of an
   EvalPlus 0.3.1 task, which carries `prompt`, `canonical_solution`, `assertion`,
   `contract`, `entry_point`, `atol`, `base_input`, `plus_input` and `task_id`.
-  Reported as issue 2, with the diagnosis. The builder is removed rather than
-  half repaired and the pin is cleared: MBPP+ is not prepared in this release,
-  because writing a correct row needs two decisions that change what a number on
-  this benchmark means, and the MBPP+ section of `docs/30_data_sources.md` now
-  states both with the measurements behind them. Prepare the rest of the code
-  data with `--prepare_mbpp_plus 0`. The same commit removes `--mbpp_plus_seed`
-  and `--mbpp_plus_max_tests`, which sampled a test list that was never read, and
-  with them the `int("Mbpp/100")` that failed and left every row of the file
-  sharing one sampling seed; an EvalPlus task id that does not parse is now a
-  failure rather than a silent `0`.
+  Reported as issue 2, with the diagnosis.
+
+  The artifact is now the whole benchmark: 378 tasks and 41,015 tests, one for
+  each of the 1,174 base inputs and 39,841 plus inputs. Each row carries the
+  statement taken out of the EvalPlus docstring prompt, the reference solution,
+  every input as a Python literal, and a `test_setup_code` that computes the
+  expected value by running the reference and compares with EvalPlus's own rules,
+  including its set comparison, its output-is-not-None rule and its float
+  tolerance. The expected values are not stored because writing them out comes to
+  1.3 GB; 4.9 MB of inputs and code carries the same information. What keeps a
+  candidate from writing its own verdict is the order the evaluator runs things
+  in: the generated setup opens by capturing the entry point and deleting the
+  name, which raises `NameError` until a candidate has run, and the evaluator
+  then runs the whole block after the candidate instead. `cmath` is on the
+  sandbox import whitelist for the three complex-number problems, and the row
+  asks for the 60 seconds EvalPlus allows one task, which one problem needs
+  because its reference alone runs for about 30 seconds. `Mbpp/596` needs `sys`,
+  which is not on that whitelist, so it scores 0 for every candidate; that is
+  stated in `docs/30_data_sources.md` rather than worked around.
+
+  `--mbpp_plus_seed` and `--mbpp_plus_max_tests` are gone with the builder they
+  belonged to, and with them the `int("Mbpp/100")` that failed and left every row
+  of the file sharing one sampling seed. An EvalPlus task id that does not parse
+  is now a failure rather than a silent `0`.
+
+- `data/MBPP/train.jsonl` held 54 problems that also occur in MBPP+. MBPP+ is
+  drawn from the sanitized MBPP, which spans the whole id range, so 108 of its
+  378 task ids are MBPP train-split ids. Nothing could see this while the MBPP+
+  artifact had no problem statement in it. The training artifact is now written
+  minus every problem that occurs in either evaluation file, which is 3 from
+  MBPP-test and 54 from MBPP+, so 374 upstream rows become 317 and the `sha256`
+  pin moves with them.
 
 - `data/MATH/train.jsonl` still shared one problem with `data/MATH/test_full.jsonl`,
   which the overlap gate reported as a `MATH-train x MATH-test` failure, and held
@@ -80,6 +102,13 @@ back by accident.
   `c3.tools.c3_env_smoke`). `docs/50_release_policy.md` now states when a shim
   is created, which release removes it, and which test enforces that.
 
+- The MBPP+ fallback source. `fallback_mbpp@<HF_COMMIT_SHA>` was a second
+  provenance form that wrote the MBPP test problems, with the three original MBPP
+  assertions, under the MBPP+ name whenever EvalPlus was unavailable. That is
+  MBPP and not MBPP+, and a file that quietly holds another benchmark is worse
+  than a file that is missing. EvalPlus is the only source now, and preparation
+  fails with the mirror instructions when it cannot be loaded.
+
 ### Added
 
 - A write door in both data preparation scripts. A prepared row now has to carry a
@@ -91,6 +120,10 @@ back by accident.
   produced, never that it is usable, and this is the difference that let 378 empty
   rows pass as a benchmark.
 
+- `docs/10_code_map.md` lists every test file rather than 17 of the 27, and
+  `tests/contract/test_release_surface.py` fails when a test file is missing from
+  it. A map that leaves ten files out is worse than no map, because a reader
+  trusts it.
 
 - The E1 aggregation reads a noise measurement out of every sweep cell without a
   second run: the even and the odd replays of one group are two independent

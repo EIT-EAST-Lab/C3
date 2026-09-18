@@ -717,8 +717,12 @@ def _mk_safe_env() -> Dict[str, Any]:
     }
 
     # Default: stdlib-only (keep cold-start light, reduce abuse surface).
+    # `cmath` is here for the same reason `math` is: three MBPP+ problems are about
+    # complex numbers and neither their reference solution nor any correct answer to
+    # them can run without it. Like `math` it is pure computation with no side effects.
     allowed_imports = {
         "math",
+        "cmath",
         "re",
         "string",
         "typing",

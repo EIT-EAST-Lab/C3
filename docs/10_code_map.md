@@ -163,19 +163,33 @@ unless the row says otherwise. The role graph column is read off the role file's
 | [configs/tasks/math_eval_probe.yaml](../configs/tasks/math_eval_probe.yaml), start-accuracy probe over the candidate benchmarks, evaluation only | [roles_duo.json](../configs/roles/math/roles_duo.json) | reasoner, actor |
 | [configs/tasks/math_final_eval.yaml](../configs/tasks/math_final_eval.yaml), the evaluation of record after training, evaluation only | [roles_duo.json](../configs/roles/math/roles_duo.json) | reasoner, actor |
 
-### Tests added with these files
+### The test suite
+
+Every test file, in path order. `tests/mechanism/` holds the credit-assignment
+arithmetic, `tests/contract/` the release surface and the data contracts, `tests/unit/`
+everything else. This table is the whole list on purpose, and
+`tests/contract/test_release_surface.py` fails if a test file is missing from it: a map
+that leaves ten files out is worse than no map.
 
 | Test file | What it pins |
 |---|---|
-| [tests/unit/test_bucket_guard.py](../tests/unit/test_bucket_guard.py) | The context-key collision guard of the bucket validator |
-| [tests/unit/test_chat_template_thinking.py](../tests/unit/test_chat_template_thinking.py) | Thinking stays off on hybrid-thinking chat templates |
 | [tests/contract/test_data_overlap.py](../tests/contract/test_data_overlap.py) | The data contamination gate and the split rules it depends on |
-| [tests/contract/test_prepare_code_subtract.py](../tests/contract/test_prepare_code_subtract.py) | MBPP-train is written minus the problems that also occur in MBPP-test |
+| [tests/contract/test_main_results.py](../tests/contract/test_main_results.py) | The main-results aggregation: which suites are the main table, and the two AIME suites as one merged column |
+| [tests/contract/test_prepare_code_subtract.py](../tests/contract/test_prepare_code_subtract.py) | MBPP-train is written minus the problems that also occur in an evaluation file |
+| [tests/contract/test_prepare_data_gates.py](../tests/contract/test_prepare_data_gates.py) | The write door of both preparation scripts, the MBPP+ differential row, and MATH-train's two reductions |
 | [tests/contract/test_prepare_math_gate.py](../tests/contract/test_prepare_math_gate.py) | The data-prep write door refuses rows without an answer, and CMATH's `golden` column is read |
 | [tests/contract/test_prepare_math_pool.py](../tests/contract/test_prepare_math_pool.py) | The MATH test-split builder, the row-id rule, the id list and the pool builder |
+| [tests/contract/test_release_contracts.py](../tests/contract/test_release_contracts.py) | The paper training recipe in executable form, the budget ledger and the context-key hash |
+| [tests/contract/test_release_surface.py](../tests/contract/test_release_surface.py) | The public release surface: tracked scripts, documentation links, prose, workflows, and every intra-repository import |
+| [tests/mechanism/test_credit_mechanism.py](../tests/mechanism/test_credit_mechanism.py) | The paper's counterfactual credit assignment on CPU (skipped without torch) |
+| [tests/mechanism/test_mappo_step_gae.py](../tests/mechanism/test_mappo_step_gae.py) | The MAPPO step-level GAE over multi-episode batches, and the step ids it refuses |
+| [tests/unit/test_bucket_guard.py](../tests/unit/test_bucket_guard.py) | The context-key collision guard of the bucket validator |
+| [tests/unit/test_chat_template_thinking.py](../tests/unit/test_chat_template_thinking.py) | Thinking stays off on hybrid-thinking chat templates |
+| [tests/unit/test_prompt_render.py](../tests/unit/test_prompt_render.py) | The role prompt renderer, including an unmatched brace left as it stands |
 | [tests/unit/test_rebuild_bias_coupling.py](../tests/unit/test_rebuild_bias_coupling.py) | The influence estimator, the E3a bias map and the E5 coupling |
 | [tests/unit/test_rebuild_context_scope.py](../tests/unit/test_rebuild_context_scope.py) | The generation-time context scope |
 | [tests/unit/test_rebuild_e1_cells.py](../tests/unit/test_rebuild_e1_cells.py) | The E1 cell driver and the bucket meta injection |
+| [tests/unit/test_rebuild_e1b_reuse.py](../tests/unit/test_rebuild_e1b_reuse.py) | Reusing the alternatives of an earlier run |
 | [tests/unit/test_rebuild_e3a.py](../tests/unit/test_rebuild_e3a.py) | The E3a null action injection |
 | [tests/unit/test_rebuild_eval_probe.py](../tests/unit/test_rebuild_eval_probe.py) | The start-accuracy probe and the candidate benchmark builders |
 | [tests/unit/test_rebuild_final_eval.py](../tests/unit/test_rebuild_final_eval.py) | The evaluation of record: grouping by sample count, the generated per-group task file, avg@k, the boxed rate and the AIME merge |
@@ -183,6 +197,8 @@ unless the row says otherwise. The role graph column is read off the role file's
 | [tests/unit/test_rebuild_replay_batched.py](../tests/unit/test_rebuild_replay_batched.py) | The cross bucket batched replay path |
 | [tests/unit/test_rebuild_summary.py](../tests/unit/test_rebuild_summary.py) | One `summary.json` implementation for the whole rebuild package |
 | [tests/unit/test_rebuild_workflows.py](../tests/unit/test_rebuild_workflows.py) | The task configurations added for the rebuild study: the five deeper workflows plus the two-agent copy |
+| [tests/unit/test_role_graph.py](../tests/unit/test_role_graph.py) | The role graph topological order, and the missing dependencies and cycles it refuses |
+| [tests/unit/test_task_datasets.py](../tests/unit/test_task_datasets.py) | The task loader: dataset specs from the task file, repository-relative paths and evaluation suite names |
 | [tests/unit/test_task_datasets_align.py](../tests/unit/test_task_datasets_align.py) | Schema alignment before concatenating evaluation suites or training sources |
 
 The fixtures these use are [tests/fixtures/data/](../tests/fixtures/data):

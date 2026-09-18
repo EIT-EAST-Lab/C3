@@ -1,8 +1,10 @@
-"""MBPP-train is written minus the problems that also occur in MBPP-test.
+"""MBPP-train is written minus the problems that also occur in an evaluation file.
 
 Upstream MBPP (full config, revision 4bb6404) ships three problems in both splits; the
-overlap gate of 2026-09-15 caught them. The subtraction keys on the same normalized problem
-text the gate compares, so the two cannot disagree.
+overlap gate of 2026-09-15 caught them. MBPP+ is drawn from the sanitized MBPP, which
+spans the whole id range, so 54 more of its problems occur in the training file; issue 2
+is where that came out. The subtraction keys on the same normalized problem text the gate
+compares, so the two cannot disagree.
 """
 
 from __future__ import annotations
@@ -22,17 +24,23 @@ def _load(name: str):
     return module
 
 
-def test_train_rows_that_occur_in_test_are_dropped_and_counted(capsys):
+def test_train_rows_that_occur_in_an_evaluation_file_are_dropped_and_counted(capsys):
     pc = _load("prepare_code")
-    test_rows = [{"task_id": 11, "text": "Write a function to  check if a nested list is a subset."}]
-    test_keys = {pc._problem_key(r) for r in test_rows}
+    # One problem from MBPP-test and one from MBPP+, which is the pair of files the
+    # training artifact has to be disjoint from.
+    eval_rows = [
+        {"task_id": 11, "text": "Write a function to  check if a nested list is a subset."},
+        {"task_id": 726, "text": "Write a function to extract elements that occur singly."},
+    ]
+    eval_keys = {pc._problem_key(r) for r in eval_rows}
     train_rows = [
         {"task_id": 601, "text": "Write a function to check if a nested list is a subset."},
         {"task_id": 602, "text": "Write a python function to find the first repeated character."},
+        {"task_id": 726, "text": "Write a function to extract elements that occur singly."},
     ]
-    kept = list(pc._subtract_test_problems("MBPP-train", train_rows, test_keys))
+    kept = list(pc._subtract_eval_problems("MBPP-train", train_rows, eval_keys))
     assert [r["task_id"] for r in kept] == [602]
-    assert "dropped 1 row(s)" in capsys.readouterr().out
+    assert "dropped 2 row(s)" in capsys.readouterr().out
 
 
 def test_problem_key_matches_the_overlap_gate_normalization():

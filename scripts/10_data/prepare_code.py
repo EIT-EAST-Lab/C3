@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import keyword
 import re
 import sys
 from pathlib import Path
@@ -29,6 +30,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from c3.task.datasets import _PROMPT_KEY_CANDIDATES as PROMPT_KEY_CANDIDATES  # noqa: E402
+
+# The MBPP+ builder generates a test_setup_code that depends on how the evaluator splits
+# and runs it, so it asks the evaluator itself rather than keeping a second copy of the
+# rule. Both names are private to that module and imported deliberately.
+from c3.envs.code.executor import _RE_IMPORT_LINE, _split_setup_imports  # noqa: E402
 
 try:
     from datasets import load_dataset  # type: ignore
@@ -53,9 +59,10 @@ except Exception as e:  # pragma: no cover
 
 
 _HEX_RE = re.compile(r"^[0-9a-f]{40}$")
-_EVALPLUS_REV_RE = re.compile(
-    r"^(?:evalplus@[0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z0-9.+-]*)?|fallback_mbpp@[0-9a-f]{40})$"
-)
+# MBPP+ has one provenance form. `fallback_mbpp@<HF_COMMIT_SHA>` was the second, and it
+# meant "write the MBPP test problems under the MBPP+ name when EvalPlus is unavailable";
+# that is a silent substitution of one benchmark for another and it is gone.
+_EVALPLUS_REV_RE = re.compile(r"^evalplus@[0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z0-9.+-]*)?$")
 
 
 # -----------------------------
@@ -489,21 +496,24 @@ def _problem_keys_from_file(path: Path) -> set:
     return keys
 
 
-def _subtract_test_problems(name: str, rows: Iterable[Dict[str, Any]], test_keys: set) -> Iterator[Dict[str, Any]]:
+def _subtract_eval_problems(name: str, rows: Iterable[Dict[str, Any]], eval_keys: set) -> Iterator[Dict[str, Any]]:
     """
-    Yield the training rows whose problem does not occur in the test split.
+    Yield the training rows whose problem occurs in no evaluation artifact.
 
-    Upstream MBPP (full config, revision 4bb6404) ships three problems in both the train and
-    the test split, so a training artifact taken as shipped fails the overlap gate against
-    MBPP-test and MBPP+. The subtraction is by normalized problem text, the key the gate uses.
+    Two upstream facts make this necessary. MBPP (full config, revision 4bb6404) ships three
+    problems in both the train and the test split. MBPP+ is drawn from the sanitized MBPP,
+    which spans the whole id range, so 108 of its 378 task ids are MBPP train-split ids and
+    54 of its problem statements occur in the prepared training file. Either way the overlap
+    gate fails on the training artifact as shipped. The subtraction is by normalized problem
+    text, the key the gate compares, so the two cannot disagree.
     """
     dropped = 0
     for r in rows:
-        if _problem_key(r) in test_keys:
+        if _problem_key(r) in eval_keys:
             dropped += 1
             continue
         yield r
-    print(f"[INFO] {name}: dropped {dropped} row(s) whose problem also occurs in MBPP-test")
+    print(f"[INFO] {name}: dropped {dropped} row(s) whose problem also occurs in an evaluation file")
 
 
 # -----------------------------
@@ -558,37 +568,463 @@ def _evalplus_mbpp_plus_tasks() -> Optional[List[Dict[str, Any]]]:
     return rows
 
 
-def _refuse_mbpp_plus(tasks: List[Dict[str, Any]], evalplus_version: str) -> None:
-    """
-    Stop rather than write a file that says MBPP+ and holds something else.
+# The wall clock one MBPP+ task is given, carried on the row and read by
+# c3/envs/code/reward.py. It is what EvalPlus allows a task
+# (EVALPLUS_TIMEOUT_PER_TASK, 60 seconds); this benchmark needs it because the
+# reference solution of one of its problems runs for close to 30 seconds by itself,
+# and the evaluator's default of 15 would score that problem 0 for every candidate.
+MBPP_PLUS_TIMEOUT_S = 60
 
-    The builder that shipped through v0.2.3 read MBPP column names out of an EvalPlus
-    task and produced 378 rows in which only task_id and source carried a value. It is
-    gone rather than half repaired: two questions have to be answered before a correct
-    row can be written, and each of them changes what a number measured on this file
-    means. They are written out in docs/30_data_sources.md together with the counts
-    behind them.
+# The default of C3_CODE_MAX_ASSERT_CHARS in c3/envs/code/executor.py, which refuses a
+# task whose test_list text is longer. The generated tests are one short call each, so
+# the longest task lands near 3000 characters; this is checked, not assumed.
+# tests/contract/test_prepare_data_gates.py pins the two numbers together.
+MBPP_PLUS_ASSERT_BUDGET = 4000
+
+# EvalPlus judges these entry points with something other than equality. The lists are
+# MBPP_OUTPUT_SET_EQ_TASKS and MBPP_OUTPUT_NOT_NONE_TASKS in
+# evalplus/eval/_special_oracle.py, plus the two problems it re-implements there.
+MBPP_PLUS_SET_EQ_ENTRY_POINTS = (
+    "similar_elements",
+    "find_char_long",
+    "common_in_nested_lists",
+    "extract_singly",
+    "larg_nnum",
+    "intersection_array",
+    "find_dissimilar",
+    "Diff",
+)
+MBPP_PLUS_NOT_NONE_ENTRY_POINTS = ("check_str", "text_match_three", "text_starta_endb")
+
+# Two more EvalPlus special oracles. Neither entry point occurs in MbppPlus v0.2.0, so
+# neither has a mode below; if a future release brings one back, the builder stops
+# instead of judging those problems by plain equality.
+MBPP_PLUS_UNHANDLED_ENTRY_POINTS = ("are_equivalent", "sum_div")
+
+_SIMPLE_IMPORT_RE = re.compile(r"^import\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?$")
+_SIMPLE_FROM_RE = re.compile(r"^from\s+([A-Za-z_][A-Za-z0-9_]*)\s+import\s+(.+)$")
+_SIMPLE_FROM_NAME_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?$")
+
+# The judge, verbatim in every row. It is the comparison of
+# evalplus/eval/__init__.py:unsafe_execute written for the CodeEnv sandbox, which
+# whitelists the standard library and has no numpy: set comparison and the
+# output-is-not-None rule for the entry points that need them, then EvalPlus's float
+# tolerance, which starts at the task's atol, becomes 1e-06 the first time an expected
+# value is a float, and stays there for the rest of the task, exactly as the loop it
+# comes from does it.
+_MBPP_PLUS_HELPERS = '''
+def _c3_copy(value):
+    if isinstance(value, list):
+        return [_c3_copy(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple([_c3_copy(item) for item in value])
+    if isinstance(value, dict):
+        return dict([(key, _c3_copy(item)) for key, item in value.items()])
+    if isinstance(value, set):
+        return set([_c3_copy(item) for item in value])
+    if isinstance(value, frozenset):
+        return frozenset([_c3_copy(item) for item in value])
+    return value
+
+
+def _c3_is_number(value):
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, (int, float, complex))
+
+
+def _c3_is_floats(value):
+    if isinstance(value, float):
+        return True
+    if isinstance(value, (list, tuple)) and len(value) > 0:
+        for item in value:
+            if not isinstance(item, float):
+                return False
+        return True
+    return False
+
+
+def _c3_allclose(got, want, atol):
+    if isinstance(want, (list, tuple)):
+        if not isinstance(got, (list, tuple)) or len(got) != len(want):
+            return False
+        for left, right in zip(got, want):
+            if not _c3_allclose(left, right, atol):
+                return False
+        return True
+    if not _c3_is_number(got) or not _c3_is_number(want):
+        return False
+    if got == want:
+        return True
+    try:
+        delta = abs(got - want)
+        limit = atol + 1e-07 * abs(want)
+    except Exception:
+        return False
+    if delta != delta or limit != limit:
+        return False
+    return delta <= limit
+
+
+def _c3_judge(got, want, args):
+    global _C3_ATOL_STATE
+    try:
+        exact = bool(got == want)
+    except Exception:
+        exact = False
+    if _C3_MODE == "set_eq":
+        try:
+            exact = set(got) == set(want)
+        except Exception:
+            exact = False
+    elif _C3_MODE == "not_none":
+        if isinstance(got, bool):
+            exact = bool(got == want)
+        else:
+            exact = bool(want == (got is not None))
+    elif _C3_MODE == "surface_area" and not exact:
+        try:
+            exact = abs(got - _c3_oracle(*args)) <= _C3_ATOL_STATE
+        except Exception:
+            exact = False
+    elif _C3_MODE == "digit_distance" and not exact:
+        try:
+            exact = bool(got == _c3_oracle(*args))
+        except Exception:
+            exact = False
+    if _C3_ATOL_STATE == 0 and _c3_is_floats(want):
+        _C3_ATOL_STATE = 1e-06
+    if not exact and _C3_ATOL_STATE != 0:
+        if type(got) is not type(want):
+            return False
+        if isinstance(want, (list, tuple)) and len(got) != len(want):
+            return False
+        return _c3_allclose(got, want, _C3_ATOL_STATE)
+    return bool(exact)
+
+
+def _c3_case(index):
+    args = _C3_INPUTS[index]
+    try:
+        want = _C3_REF(*_c3_copy(args))
+    except Exception:
+        return False
+    if _C3_MODE == "not_none":
+        want = want is not None
+    try:
+        got = _C3_FN(*_c3_copy(args))
+    except Exception:
+        return False
+    return _c3_judge(got, want, args)
+'''
+
+# The two problems EvalPlus judges against a second implementation of its own.
+_MBPP_PLUS_ORACLES = {
+    "surface_Area": '''
+_c3_math = __import__("math")
+
+
+def _c3_oracle(base_edge, height):
+    slant_height = _c3_math.sqrt((base_edge / 2) ** 2 + height ** 2)
+    base_area = base_edge ** 2
+    lateral_area = 4 * (base_edge * slant_height) / 2
+    return round(base_area + lateral_area)
+''',
+    "digit_distance_nums": '''
+def _c3_oracle(num1, num2):
+    text1 = str(num1)
+    text2 = str(num2)
+    width = max(len(text1), len(text2))
+    text1 = text1.zfill(width)
+    text2 = text2.zfill(width)
+    total = 0
+    for left, right in zip(text1, text2):
+        total = total + abs(int(left) - int(right))
+    return total
+''',
+}
+
+
+def mbpp_plus_statement(prompt: Any) -> str:
     """
-    n_base = sum(len(t.get("base_input") or []) for t in tasks)
-    n_plus = sum(len(t.get("plus_input") or []) for t in tasks)
+    The problem statement of one EvalPlus task, taken out of its docstring prompt.
+
+    EvalPlus writes the prompt as a docstring holding the MBPP statement and the first
+    of the MBPP assertions. The statement is stored on its own because it is what the
+    contamination gate compares: writing the docstring in as the statement would leave
+    the gate comparing a docstring against a sentence, which matches nothing at all and
+    reports a clean file whatever the file holds.
+    """
+    text = str(prompt or "")
+    marker = '"""'
+    start = text.find(marker)
+    if start >= 0:
+        rest = text[start + len(marker):]
+        end = rest.find(marker)
+        text = rest if end < 0 else rest[:end]
+
+    kept: List[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("assert"):
+            continue
+        kept.append(stripped)
+    return " ".join(" ".join(kept).split())
+
+
+def python_literal(value: Any) -> str:
+    """
+    One input argument as Python source the sandbox can evaluate.
+
+    `repr` is not enough on its own: a non-finite float reprs as the bare name `inf`,
+    which is not a literal and is not defined in the sandbox. Every type that occurs in
+    the MbppPlus v0.2.0 inputs is handled here and an unknown one is a failure, because
+    the alternative is a test file that parses and means something else.
+    """
+    if value is None or value is True or value is False:
+        return repr(value)
+    if isinstance(value, float):
+        if value != value:
+            return "float('nan')"
+        if value == float("inf"):
+            return "float('inf')"
+        if value == float("-inf"):
+            return "float('-inf')"
+        return repr(value)
+    if isinstance(value, (int, str, bytes, complex)):
+        return repr(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(python_literal(item) for item in value) + "]"
+    if isinstance(value, tuple):
+        inner = ", ".join(python_literal(item) for item in value)
+        return "(" + inner + ("," if len(value) == 1 else "") + ")"
+    if isinstance(value, (set, frozenset)):
+        name = "set" if isinstance(value, set) else "frozenset"
+        if not value:
+            return name + "()"
+        items = sorted(value, key=repr)
+        return name + "([" + ", ".join(python_literal(item) for item in items) + "])"
+    if isinstance(value, dict):
+        pairs = ", ".join(f"{python_literal(k)}: {python_literal(v)}" for k, v in value.items())
+        return "{" + pairs + "}"
     raise SystemExit(
-        "\n".join(
-            [
-                f"[FAIL] MBPP+: refusing to write an artifact from EvalPlus {evalplus_version}.",
-                f"  The {len(tasks)} tasks carry {n_base} base inputs and {n_plus} plus inputs, and two",
-                "  questions about how they become a row of data/MBPP_PLUS/test.jsonl are open:",
-                "    1. the tests. An MBPP+ test is an input plus what the canonical solution returns",
-                "       for it, while the CodeEnv evaluator runs assert statements and caps the assert",
-                "       text of one task at C3_CODE_MAX_ASSERT_CHARS, 4000 characters by default.",
-                "    2. the problem statement. The EvalPlus prompt is the statement wrapped in a",
-                "       docstring with one assertion appended, so writing it as is leaves the",
-                "       contamination gate comparing a docstring against a sentence, which matches",
-                "       nothing by construction and reports a clean file whatever it holds.",
-                "  See the MBPP+ section of docs/30_data_sources.md. Until both are answered, prepare",
-                "  the rest of the code data with --prepare_mbpp_plus 0.",
-            ]
-        )
+        f"[FAIL] MBPP+: no literal form for an input of type {type(value).__name__}. "
+        "Extend python_literal rather than letting the test file mean something else."
     )
+
+
+def _same_value(left: Any, right: Any) -> bool:
+    """Equality that also requires the same type, for the literal round trip check."""
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, (list, tuple)):
+        return len(left) == len(right) and all(_same_value(a, b) for a, b in zip(left, right))
+    if isinstance(left, dict):
+        return list(left.keys()) == list(right.keys()) and all(_same_value(left[k], right[k]) for k in left)
+    if isinstance(left, float) and left != left:
+        return right != right
+    return bool(left == right)
+
+
+_LITERAL_NAMESPACE: Dict[str, Any] = {
+    "__builtins__": {"set": set, "frozenset": frozenset, "complex": complex, "float": float}
+}
+
+
+def _check_literal_round_trip(name: str, value: Any, text: str) -> None:
+    """The emitted source has to read back as the value it was emitted from."""
+    try:
+        back = eval(text, dict(_LITERAL_NAMESPACE))  # noqa: S307  (our own emitted literal)
+    except Exception as exc:
+        raise SystemExit(f"[FAIL] {name}: the emitted input literal does not parse: {type(exc).__name__}: {exc}")
+    if not _same_value(value, back):
+        raise SystemExit(f"[FAIL] {name}: the emitted input literal reads back as a different value.")
+
+
+def _rebind_import_lines(code: str) -> List[str]:
+    """
+    Statements that restore, after the candidate has run, what the reference imports.
+
+    The executor hoists every import line of `test_setup_code` and runs it before the
+    candidate, so the modules the reference uses are bound before the candidate gets a
+    chance to rebind those names. These lines bind them again inside the part that runs
+    after the candidate, and they are written with `__import__` so that the hoist does
+    not take them too. Only the three import forms the MbppPlus canonical solutions use
+    are understood; anything else stops the preparation.
+    """
+    out: List[str] = []
+    for raw in str(code or "").splitlines():
+        line = raw.strip()
+        if not _RE_IMPORT_LINE.match(line):
+            continue
+
+        plain = _SIMPLE_IMPORT_RE.match(line)
+        if plain is not None:
+            module, alias = plain.group(1), plain.group(2)
+            out.append(f'{alias or module} = __import__("{module}")')
+            continue
+
+        from_form = _SIMPLE_FROM_RE.match(line)
+        if from_form is not None:
+            module, names = from_form.group(1), from_form.group(2)
+            for piece in names.split(","):
+                name_form = _SIMPLE_FROM_NAME_RE.match(piece.strip())
+                if name_form is None:
+                    raise SystemExit(f"[FAIL] MBPP+: cannot rebind the import {line!r}.")
+                symbol, alias = name_form.group(1), name_form.group(2)
+                out.append(f'{alias or symbol} = __import__("{module}").{symbol}')
+            continue
+
+        raise SystemExit(
+            f"[FAIL] MBPP+: the import {line!r} is not one of the forms this builder can "
+            "restore after the candidate code. Extend _rebind_import_lines."
+        )
+    return out
+
+
+def _mbpp_plus_mode(entry_point: str) -> str:
+    """Which of EvalPlus's comparisons this task is judged by."""
+    if entry_point in MBPP_PLUS_UNHANDLED_ENTRY_POINTS:
+        raise SystemExit(
+            f"[FAIL] MBPP+: entry point {entry_point!r} needs an EvalPlus special oracle this "
+            "builder does not implement. Judging it by equality would report a wrong number."
+        )
+    if entry_point in MBPP_PLUS_SET_EQ_ENTRY_POINTS:
+        return "set_eq"
+    if entry_point in MBPP_PLUS_NOT_NONE_ENTRY_POINTS:
+        return "not_none"
+    if entry_point == "surface_Area":
+        return "surface_area"
+    if entry_point == "digit_distance_nums":
+        return "digit_distance"
+    return "plain"
+
+
+def mbpp_plus_setup_code(task: Dict[str, Any], inputs: List[Any], name: str) -> str:
+    """
+    The `test_setup_code` of one MBPP+ row: a differential test against the reference.
+
+    Order is the whole design. The executor runs `test_setup_code` before the candidate,
+    and when that raises NameError it runs the same block again after the candidate
+    instead. The first two statements here capture the candidate's function and then
+    delete the name, which raises NameError while no candidate has run yet, so the whole
+    block lands after the candidate on the second attempt. Everything the tests depend
+    on is therefore defined after the candidate and cannot be forged by it: a candidate
+    that defines its own `_c3_case` is simply overwritten. The `del` is what makes this
+    work for `Mbpp/126` as well, whose entry point is `sum`: a bare reference to it
+    would find the builtin and raise nothing.
+
+    Expected values are not stored. They are computed here by running the reference on
+    the same input, which is how the whole of MBPP+ fits in a few megabytes: writing
+    them out comes to 1.3 GB, because one problem returns a value that serializes to
+    1.29 GB by itself.
+    """
+    entry = str(task["entry_point"])
+    if not entry.isidentifier() or keyword.iskeyword(entry):
+        raise SystemExit(f"[FAIL] {name}: {entry!r} is not usable as a function name.")
+
+    solution = str(task.get("prompt") or "") + str(task.get("canonical_solution") or "")
+    literal = python_literal(inputs)
+    _check_literal_round_trip(name, inputs, literal)
+
+    mode = _mbpp_plus_mode(entry)
+    atol = task.get("atol", 0)
+
+    parts: List[str] = [
+        "# Generated by scripts/10_data/prepare_code.py. The two statements below raise",
+        "# NameError until the candidate has run, which is what moves this whole block",
+        "# after it; see the MBPP+ section of docs/30_data_sources.md.",
+        f"_C3_FN = {entry}",
+        f"del {entry}",
+    ]
+    parts.extend(_rebind_import_lines(solution))
+    parts.append(solution.strip("\n"))
+    parts.append(f"_C3_REF = {entry}")
+    parts.append(f"_C3_MODE = {mode!r}")
+    parts.append(f"_C3_ATOL = {atol!r}")
+    parts.append(f"_C3_ATOL_STATE = {atol!r}")
+    parts.append(f"_C3_INPUTS = {literal}")
+    oracle = _MBPP_PLUS_ORACLES.get(entry)
+    if oracle:
+        parts.append(oracle.strip("\n"))
+    parts.append(_MBPP_PLUS_HELPERS.strip("\n"))
+
+    setup = "\n".join(parts) + "\n"
+    _check_setup_compiles(name, setup)
+    return setup
+
+
+def _check_setup_compiles(name: str, setup: str) -> None:
+    """
+    Both halves of the executor's import split have to compile.
+
+    The executor moves every import line of the setup to the front and runs the rest as
+    one block. A canonical solution with an indented import therefore loses that line
+    from its block, which can leave an empty one. None of the MbppPlus v0.2.0 solutions
+    does, and this check is what keeps that a fact rather than an assumption.
+    """
+    imports, rest = _split_setup_imports(setup)
+    for half, text in (("hoisted imports", imports), ("the rest", rest)):
+        if not text.strip():
+            continue
+        try:
+            compile(text, f"<{name} setup>", "exec")
+        except SyntaxError as exc:
+            raise SystemExit(
+                f"[FAIL] {name}: {half} of the generated test_setup_code does not compile "
+                f"after the executor's import split: {exc}"
+            )
+
+
+def canon_mbpp_plus_row(task: Dict[str, Any], source: str) -> Dict[str, Any]:
+    """
+    One EvalPlus MBPP+ task as a row of `data/MBPP_PLUS/test.jsonl`.
+
+    EvalPlus key on the left, the key a consumer of this repository reads on the right:
+
+      prompt              -> text              (the statement, out of the docstring)
+      canonical_solution  -> code              (with the prompt, as EvalPlus runs it)
+      entry_point         -> entry_point
+      atol                -> atol
+      base_input          -> test_setup_code and one entry of test_list each
+      plus_input          -> test_setup_code and one entry of test_list each
+      task_id             -> task_id           (the integer, not 'Mbpp/100')
+
+    `assertion` and `contract` are not carried: the first is the three original MBPP
+    assertions, which are the base tests this row already runs against the reference,
+    and the second is input validation for EvalPlus's own input generator.
+    """
+    entry = str(task["entry_point"])
+    task_id = mbpp_plus_task_id(task.get("task_id"))
+    name = f"MBPP+ Mbpp/{task_id}"
+
+    base_inputs = list(task.get("base_input") or [])
+    plus_inputs = list(task.get("plus_input") or [])
+    inputs = base_inputs + plus_inputs
+    if not inputs:
+        raise SystemExit(f"[FAIL] {name}: the task carries no inputs at all.")
+
+    tests = [f"assert _c3_case({index})" for index in range(len(inputs))]
+    budget = sum(len(test) for test in tests)
+    if budget > MBPP_PLUS_ASSERT_BUDGET:
+        raise SystemExit(
+            f"[FAIL] {name}: its {len(tests)} tests are {budget} characters, over the "
+            f"{MBPP_PLUS_ASSERT_BUDGET} the evaluator allows one task."
+        )
+
+    return {
+        "task_id": task_id,
+        "text": mbpp_plus_statement(task.get("prompt")),
+        "code": str(task.get("prompt") or "") + str(task.get("canonical_solution") or ""),
+        "entry_point": entry,
+        "atol": task.get("atol", 0),
+        "n_base_inputs": len(base_inputs),
+        "n_plus_inputs": len(plus_inputs),
+        "test_setup_code": mbpp_plus_setup_code(task, inputs=inputs, name=name),
+        "test_list": tests,
+        "timeout_s": MBPP_PLUS_TIMEOUT_S,
+        "source": source,
+    }
 
 
 # -----------------------------
@@ -681,37 +1117,22 @@ def main() -> None:
             rev = src.get("revision")
             if not _is_pinned_evalplus_revision(rev):
                 raise SystemExit(
-                    f"[FAIL] {name}: source.revision must be pinned as "
-                    f"'evalplus@<VERSION>' or 'fallback_mbpp@<HF_COMMIT_SHA>' "
+                    f"[FAIL] {name}: source.revision must be pinned as 'evalplus@<VERSION>' "
                     f"(got '{rev}')."
                 )
 
-            rev = str(rev).strip()
-            if rev.startswith("evalplus@"):
-                expected_ver = rev.split("@", 1)[1]
-                installed_ver = _get_evalplus_version()
-                if not installed_ver:
-                    raise SystemExit(
-                        "[FAIL] MBPP+: manifest pins EvalPlus, but `evalplus` is not importable."
-                    )
-                if installed_ver != expected_ver:
-                    raise SystemExit(
-                        "[FAIL] MBPP+: EvalPlus version mismatch.\n"
-                        f"  expected: {expected_ver}\n"
-                        f"  actual:   {installed_ver}"
-                    )
-
-            if rev.startswith("fallback_mbpp@"):
-                expected_base = rev.split("@", 1)[1]
-                base_spec = idx.get("MBPP-test") or idx.get("MBPP-train")
-                base_src = (base_spec or {}).get("source", {})
-                base_rev = base_src.get("revision")
-                if base_rev and base_rev != expected_base:
-                    raise SystemExit(
-                        "[FAIL] MBPP+: fallback pin does not match MBPP HF revision.\n"
-                        f"  fallback pin: {expected_base}\n"
-                        f"  MBPP rev:     {base_rev}"
-                    )
+            expected_ver = str(rev).strip().split("@", 1)[1]
+            installed_ver = _get_evalplus_version()
+            if not installed_ver:
+                raise SystemExit(
+                    "[FAIL] MBPP+: manifest pins EvalPlus, but `evalplus` is not importable."
+                )
+            if installed_ver != expected_ver:
+                raise SystemExit(
+                    "[FAIL] MBPP+: EvalPlus version mismatch.\n"
+                    f"  expected: {expected_ver}\n"
+                    f"  actual:   {installed_ver}"
+                )
 
     def _require(name: str) -> Dict[str, Any]:
         spec = idx.get(name)
@@ -760,120 +1181,104 @@ def main() -> None:
         print("[SKIP] APPS disabled (--prepare_apps 0).")
 
     # ---------------- MBPP ----------------
-    if bool(args.prepare_mbpp):
-        # MBPP-test first: MBPP-train is written minus the problems that also occur in the
-        # test split, so the training artifact and the evaluation artifacts stay disjoint.
-        test_keys: set = set()
-        for name in ("MBPP-test", "MBPP-train"):
-            if name not in idx:
-                continue
-            spec = _require(name)
-            _check_pinned(name, spec)
-            src = spec.get("source", {})
-            out_path = _resolve_output_path(spec["output_path"], out_base)
-            if _handle_existing(name, spec, out_path):
-                if name == "MBPP-test":
-                    test_keys = _problem_keys_from_file(out_path)
-                continue
+    # The order below is the contamination rule rather than a convenience: both
+    # evaluation artifacts are prepared first, and the training artifact is written
+    # minus every problem that occurs in either of them. MBPP+ is drawn from the
+    # sanitized MBPP and 108 of its 378 task ids are MBPP train-split ids, so leaving it
+    # out of the subtraction leaves real contamination in the training file.
+    eval_problem_keys: set = set()
 
-            src_str = f"{src['id']}:{src.get('split')}@{src.get('revision')}"
-            rows: Iterable[Dict[str, Any]] = (_canon_mbpp_row(x, src_str) for x in _load_hf_rows(src, name))
-            if name == "MBPP-test":
-                test_rows = list(rows)
-                test_keys = {_problem_key(r) for r in test_rows}
-                test_keys.discard("")
-                rows = test_rows
+    def _prepare_mbpp_split(name: str) -> Optional[Tuple[Dict[str, Any], Path, str]]:
+        """The manifest entry, output path and source string of one MBPP split, or None."""
+        if name not in idx:
+            return None
+        spec = _require(name)
+        _check_pinned(name, spec)
+        src = spec.get("source", {})
+        out_path = _resolve_output_path(spec["output_path"], out_base)
+        src_str = f"{src['id']}:{src.get('split')}@{src.get('revision')}"
+        return spec, out_path, src_str
+
+    def _record_written(name: str, spec: Dict[str, Any], out_path: Path, n: int) -> None:
+        sha = _sha256(out_path)
+        _verify_or_record(
+            name, spec.get("sha256"), sha,
+            missing_sha=missing_sha, computed_by_name=computed_by_name, out_path=out_path,
+            allow_repin_on_mismatch=allow_repin_on_mismatch,
+        )
+        print(f"[OK] {name} -> {out_path} ({n} rows, sha256 {sha})")
+
+    # ---------------- MBPP-test ----------------
+    if bool(args.prepare_mbpp):
+        prepared = _prepare_mbpp_split("MBPP-test")
+        if prepared is not None:
+            spec, out_path, src_str = prepared
+            if _handle_existing("MBPP-test", spec, out_path):
+                eval_problem_keys |= _problem_keys_from_file(out_path)
             else:
-                if "MBPP-test" in idx and not test_keys:
-                    raise SystemExit("[FAIL] MBPP-train: the MBPP-test problems are not available for subtraction.")
-                rows = _subtract_test_problems(name, rows, test_keys)
-            n = _write_checked(name, out_path, rows)
-            sha = _sha256(out_path)
-            _verify_or_record(
-                name, spec.get("sha256"), sha,
-                missing_sha=missing_sha, computed_by_name=computed_by_name, out_path=out_path,
-                allow_repin_on_mismatch=allow_repin_on_mismatch,
-            )
-            print(f"[OK] {name} -> {out_path} ({n} rows, sha256 {sha})")
+                rows = [_canon_mbpp_row(x, src_str) for x in _load_hf_rows(spec.get("source", {}), "MBPP-test")]
+                eval_problem_keys |= {k for k in (_problem_key(r) for r in rows) if k}
+                _record_written("MBPP-test", spec, out_path, _write_checked("MBPP-test", out_path, rows))
     else:
         print("[SKIP] MBPP disabled (--prepare_mbpp 0).")
 
     # ---------------- MBPP+ ----------------
+    plus_spec = idx.get("MBPP+")
+    if plus_spec is None:
+        raise SystemExit("[FAIL] Manifest missing output entry: MBPP+")
+    plus_out = _resolve_output_path(plus_spec["output_path"], out_base)
+
     if bool(args.prepare_mbpp_plus):
-        plus_spec = idx.get("MBPP+")
-        if plus_spec is None:
-            raise SystemExit("[FAIL] Manifest missing output entry: MBPP+")
         _check_pinned("MBPP+", plus_spec)
-        plus_out = _resolve_output_path(plus_spec["output_path"], out_base)
-
-        if not _handle_existing("MBPP+", plus_spec, plus_out):
-            expected_rev = (plus_spec.get("source") or {}).get("revision")
-            expected_rev_str = str(expected_rev).strip() if expected_rev is not None else ""
-
-            force_fallback = bool(strict and expected_rev_str.startswith("fallback_mbpp@"))
-            force_evalplus = bool(strict and expected_rev_str.startswith("evalplus@"))
-
-            rows: Optional[List[Dict[str, Any]]] = None
-
-            if not force_fallback:
-                tasks = _evalplus_mbpp_plus_tasks()
-                if tasks is not None:
-                    v = _get_evalplus_version()
-                    if not v and strict:
-                        raise SystemExit(
-                            "[FAIL] MBPP+: could not determine EvalPlus version in strict mode."
-                        )
-                    # Loading works; turning a task into a row does not. This never falls
-                    # through to the MBPP fallback below, because writing the MBPP test
-                    # problems under the MBPP+ name is the misnaming, not a recovery.
-                    _refuse_mbpp_plus(tasks, v or "unknown")
-
-            # Reaching this line means EvalPlus did not load, because the refusal above
-            # is the only other way out of that branch.
-            if force_evalplus:
+        if _handle_existing("MBPP+", plus_spec, plus_out):
+            eval_problem_keys |= _problem_keys_from_file(plus_out)
+        else:
+            tasks = _evalplus_mbpp_plus_tasks()
+            if tasks is None:
                 raise SystemExit(
-                    "[FAIL] MBPP+: manifest pins EvalPlus, but EvalPlus MBPP+ could not be loaded.\n"
-                    "  EvalPlus downloads MBPP+ from a GitHub release.\n"
-                    "  If your network cannot reach github.com, set GITHUB_MIRROR_PREFIX "
-                    "(see docs/31_network_mirrors.md) and rerun through "
-                    "scripts/10_data/prepare_all.sh, which seeds the EvalPlus cache "
-                    "through the mirror."
+                    "[FAIL] MBPP+: EvalPlus could not be loaded, and there is no substitute.\n"
+                    "  EvalPlus downloads MBPP+ from a GitHub release. If your network cannot\n"
+                    "  reach github.com, set GITHUB_MIRROR_PREFIX (see docs/31_network_mirrors.md)\n"
+                    "  and rerun through scripts/10_data/prepare_all.sh, which seeds the EvalPlus\n"
+                    "  cache through the mirror. Preparing the MBPP test problems under the MBPP+\n"
+                    "  name was the former fallback; it is gone, because a benchmark that holds\n"
+                    "  something else is worse than a benchmark that is missing."
                 )
+            version = _get_evalplus_version()
+            if not version:
+                raise SystemExit("[FAIL] MBPP+: EvalPlus is importable but reports no version.")
 
-            if rows is None:
-                base_spec = idx.get("MBPP-test") or idx.get("MBPP-train")
-                if base_spec is None:
-                    raise SystemExit("[FAIL] MBPP+: requires MBPP-test or MBPP-train for fallback path.")
-                src = base_spec.get("source", {})
-                base_rev = src.get("revision")
-
-                if strict and not _is_pinned_revision(base_rev):
-                    raise SystemExit("[FAIL] MBPP+: fallback requires pinned MBPP source revision.")
-
-                if strict and expected_rev_str.startswith("fallback_mbpp@"):
-                    expected_base = expected_rev_str.split("@", 1)[1]
-                    if base_rev and base_rev != expected_base:
-                        raise SystemExit(
-                            "[FAIL] MBPP+: fallback pin does not match MBPP HF revision.\n"
-                            f"  expected: {expected_base}\n"
-                            f"  actual:   {base_rev}"
-                        )
-
-                src_str = f"{src['id']}:{src.get('split', 'test')}@{src.get('revision')} (fallback-mbpp-plus)"
-                rows = [_canon_mbpp_row(x, src_str) for x in _load_hf_rows(src, "MBPP+ fallback")]
-                if base_rev:
-                    computed_src_revision_by_name["MBPP+"] = f"fallback_mbpp@{base_rev}"
-
-            n = _write_checked("MBPP+", plus_out, rows)
-            sha = _sha256(plus_out)
-            _verify_or_record(
-                "MBPP+", plus_spec.get("sha256"), sha,
-                missing_sha=missing_sha, computed_by_name=computed_by_name, out_path=plus_out,
-                allow_repin_on_mismatch=allow_repin_on_mismatch,
+            src_str = f"evalplus:mbpp_plus@{version}"
+            rows = [canon_mbpp_plus_row(task, src_str) for task in tasks]
+            n_base = sum(int(r["n_base_inputs"]) for r in rows)
+            n_plus = sum(int(r["n_plus_inputs"]) for r in rows)
+            print(
+                f"[INFO] MBPP+: {len(rows)} tasks, {n_base} base inputs and {n_plus} plus inputs, "
+                f"one test each, judged against the reference solution at evaluation time"
             )
-            print(f"[OK] MBPP+ -> {plus_out} ({n} rows, sha256 {sha})")
+            eval_problem_keys |= {k for k in (_problem_key(r) for r in rows) if k}
+            computed_src_revision_by_name["MBPP+"] = f"evalplus@{version}"
+            _record_written("MBPP+", plus_spec, plus_out, _write_checked("MBPP+", plus_out, rows))
     else:
         print("[SKIP] MBPP+ disabled (--prepare_mbpp_plus 0).")
+        if plus_out.exists():
+            # Not preparing it does not make its problems safe to train on.
+            eval_problem_keys |= _problem_keys_from_file(plus_out)
+
+    # ---------------- MBPP-train ----------------
+    if bool(args.prepare_mbpp):
+        prepared = _prepare_mbpp_split("MBPP-train")
+        if prepared is not None:
+            spec, out_path, src_str = prepared
+            if not _handle_existing("MBPP-train", spec, out_path):
+                if not eval_problem_keys:
+                    raise SystemExit(
+                        "[FAIL] MBPP-train: the evaluation problems are not available for "
+                        "subtraction. Prepare MBPP-test and MBPP+ first."
+                    )
+                rows = (_canon_mbpp_row(x, src_str) for x in _load_hf_rows(spec.get("source", {}), "MBPP-train"))
+                kept = _subtract_eval_problems("MBPP-train", rows, eval_problem_keys)
+                _record_written("MBPP-train", spec, out_path, _write_checked("MBPP-train", out_path, kept))
 
     # Write back pins for artifacts processed in this run.
     if args.update_manifest_sha256:

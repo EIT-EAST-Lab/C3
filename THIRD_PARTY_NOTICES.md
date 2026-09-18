@@ -94,21 +94,22 @@ The manifest also includes pinned upstream revisions and prepared-artifact SHA25
   - `data/MBPP/train.jsonl`
   - `data/MBPP/test.jsonl`
 
-- MBPP+ (stronger tests) has a manifest entry and is not prepared in this release:
+- MBPP+ (stronger tests) is prepared from EvalPlus:
   - Manifest entry name: `MBPP+`
   - Manifest source kind: `evalplus`
   - Manifest pinned provenance tag: `evalplus@0.3.1`
-  - Intended output (via `scripts/10_data/prepare_code.py`):
+  - Prepared output (via `scripts/10_data/prepare_code.py`):
     - `data/MBPP_PLUS/test.jsonl`
 
 > Note on MBPP+ reproducibility:
 > - This release pins MBPP+ to an explicit EvalPlus version tag in the manifest.
 > - Strict verification (`--strict 1`) enforces that your environment matches the pinned provenance rule.
-> - `scripts/10_data/prepare_code.py` refuses to write the artifact since 0.2.4. An
->   EvalPlus task holds `prompt`, `canonical_solution`, `assertion`, `contract`,
->   `entry_point`, `atol`, `base_input`, `plus_input` and `task_id`, and turning the
->   inputs into tests this repository's evaluator can run is an open question.
-> - See `docs/30_data_sources.md` for strict-mode behavior and for that question.
+> - An EvalPlus task holds `prompt`, `canonical_solution`, `assertion`, `contract`,
+>   `entry_point`, `atol`, `base_input`, `plus_input` and `task_id`. The prepared row
+>   carries the statement, the reference solution and every input, and computes the
+>   expected value by running the reference while the test runs, so no EvalPlus output
+>   is redistributed and the comparison is EvalPlus's own.
+> - There is no fallback source since 0.2.4. See `docs/30_data_sources.md`.
 
 ### Minerva-Math
 
