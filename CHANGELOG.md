@@ -5,7 +5,7 @@ All notable changes to this repository are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.4] - 2026-09-16
+## [0.2.4] - 2026-09-19
 
 **This release removes import paths.** Five aliases kept since 0.2.0 are gone,
 and four subpackages are renamed. The full mapping is below; nothing else about
