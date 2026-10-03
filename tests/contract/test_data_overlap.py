@@ -37,6 +37,8 @@ MANIFEST = REPO_ROOT / 'configs' / 'data_manifest.yaml'
 
 MATH_TASK_YAMLS = (
     'configs/tasks/math.yaml',
+    'configs/tasks/math_5seed.yaml',
+    'configs/tasks/math_5seed_a3.yaml',
     'configs/tasks/math_a3.yaml',
     'configs/tasks/math_branch.yaml',
     'configs/tasks/math_c5.yaml',

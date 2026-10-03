@@ -372,7 +372,7 @@ class C3CreditProvider:
         self.critic_forward_bs = int(cfg.get("critic_forward_bs", self.critic_forward_bs) or self.critic_forward_bs)
 
         variant = str(
-            cfg.get("credit_variant", getattr(self.args, "c3_credit_variant", "value_assisted")) or "value_assisted"
+            cfg.get("credit_variant", getattr(self.args, "c3_credit_variant", "reward_only")) or "reward_only"
         ).strip().lower()
         if variant not in self._VARIANTS:
             raise RuntimeError(f"[C3][FAIL-FAST] Unknown credit_variant={variant!r}")

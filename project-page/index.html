@@ -3,28 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>C3 - Contextual Counterfactual Credit Assignment</title>
-  <meta
-    name="description"
-    content="Project page for C3: Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration."
-  >
+  <title>C3 | The Trace Is the State: Exact Credit Assignment for LLM Agent Teams</title>
+  <meta name="description" content="When everything an LLM agent team reads is written into the trace, the trace is the state: C3 executes the counterfactual for each message instead of predicting it, so its credit is unbiased, exact up to Monte Carlo error.">
   <meta name="theme-color" content="#b24a2f">
   <link rel="canonical" href="https://eit-east-lab.github.io/C3/">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://eit-east-lab.github.io/C3/">
-  <meta property="og:title" content="C3 - Contextual Counterfactual Credit Assignment">
-  <meta
-    property="og:description"
-    content="Now on arXiv as 2603.06859: decision-level credit assignment for collaborative LLM systems via fixed-context replay and leave-one-out baselines."
-  >
+  <meta property="og:title" content="C3 | The Trace Is the State: Exact Credit Assignment for LLM Agent Teams">
+  <meta property="og:description" content="When everything an LLM agent team reads is written into the trace, the trace is the state: C3 executes the counterfactual for each message instead of predicting it, so its credit is unbiased, exact up to Monte Carlo error.">
   <meta property="og:image" content="https://eit-east-lab.github.io/C3/assets/figs/c3-social.png">
-  <meta property="og:image:alt" content="C3 logo for the project page">
+  <meta property="og:image:alt" content="The C3 logo and the paper title, The Trace Is the State: Exact Credit Assignment for LLM Agent Teams">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="C3 - Contextual Counterfactual Credit Assignment">
-  <meta
-    name="twitter:description"
-    content="Now on arXiv as 2603.06859: decision-level credit assignment for multi-agent reinforcement learning in LLM collaboration."
-  >
+  <meta name="twitter:title" content="C3 | The Trace Is the State: Exact Credit Assignment for LLM Agent Teams">
+  <meta name="twitter:description" content="When everything an LLM agent team reads is written into the trace, the trace is the state: C3 executes the counterfactual for each message instead of predicting it, so its credit is unbiased, exact up to Monte Carlo error.">
   <meta name="twitter:image" content="https://eit-east-lab.github.io/C3/assets/figs/c3-social.png">
   <link rel="icon" type="image/png" href="assets/figs/c3-mark-512.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,7 +33,8 @@
         <a class="brand" href="#top">C3</a>
         <div class="nav-links">
           <a href="#abstract">Abstract</a>
-          <a href="#method">Method</a>
+          <a href="#why">Why</a>
+          <a href="#method">How</a>
           <a href="#results">Results</a>
           <a href="#reproduce">Reproduce</a>
           <a href="#citation">Citation</a>
@@ -52,15 +44,18 @@
       <div class="hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">Project Page</p>
-          <h1>Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration</h1>
+          <h1>The Trace Is the State: Exact Credit Assignment for LLM Agent Teams</h1>
           <p class="authors">
-            Yanjun Chen, Yirong Sun, Hanlin Wang, Xinming Zhang, Xiaoyu Shen, Wenjie Li, Wei Zhang
+            Yanjun Chen<sup>1,2*</sup>, Yirong Sun<sup>1</sup>, Hanlin Wang<sup>2</sup>, Jinghan Wang<sup>3</sup>, Xinming Zhang<sup>1</sup>, Xiaoyu Shen<sup>1</sup>, Wenjie Li<sup>2</sup>, Wei Zhang<sup>1&dagger;</sup>
           </p>
           <p class="affiliations">
-            Eastern Institute of Technology, Ningbo and The Hong Kong Polytechnic University
+            <sup>1</sup>Eastern Institute of Technology &nbsp; <sup>2</sup>The Hong Kong Polytechnic University &nbsp; <sup>3</sup>Harbin Institute of Technology
+          </p>
+          <p class="affiliations">
+            <sup>*</sup>Correspondence: yan-jun.chen@connect.polyu.hk &nbsp; <sup>&dagger;</sup>Corresponding author: zhw@eitech.edu.cn
           </p>
           <p class="hero-summary">
-            C3 turns terminal-only feedback in multi-agent LLM collaboration into decision-level credit through fixed-context replay and a leave-one-out baseline.
+            <strong>When the trace is the state, credit need not be predicted; it can be exact.</strong>
           </p>
 
           <div class="hero-actions">
@@ -75,44 +70,39 @@
           <div class="status-strip" id="paper-status">
             <div class="status-card">
               <span class="status-label">Status</span>
-              <strong>Now on arXiv as 2603.06859</strong>
+              <strong>Preprint on arXiv as 2603.06859, under review</strong>
               <p>
                 Read the official abstract <a class="inline-link" href="https://arxiv.org/abs/2603.06859">on arXiv</a>
                 or download the paper <a class="inline-link" href="https://arxiv.org/pdf/2603.06859">here</a>.
               </p>
-            </div>
-            <div class="status-card">
-              <span class="status-label">Setting</span>
-              <strong>2-agent Reasoner -&gt; Actor collaboration</strong>
-              <p>Only the final actor output is scored, which makes upstream credit assignment the central learning bottleneck.</p>
             </div>
           </div>
         </div>
 
         <div class="hero-visual">
           <div class="logo-card">
-            <img src="assets/figs/c3-logo-light.svg" alt="C3, Contextual Counterfactual Credit assignment">
+            <img src="assets/figs/c3-logo-light.svg" alt="C3, credit assignment by counterfactual continuation">
           </div>
           <div class="signal-grid">
-            <article class="signal-card">
-              <span class="signal-label">Main math result</span>
-              <strong>82.80%</strong>
-              <p>MATH500 greedy accuracy on Qwen3-4B-Instruct-2507.</p>
+            <article class="metric-card accent">
+              <span class="metric-name">Agreement with a reference</span>
+              <strong>0.69</strong>
+              <p>Rank correlation of C3 from 4 continuations against a 16-continuation reference; 2 such references agree at 0.73, a trained critic reaches 0.29.</p>
             </article>
-            <article class="signal-card">
-              <span class="signal-label">Pass@10</span>
-              <strong>91.44%</strong>
-              <p>MATH500 pass@10 under matched evaluation resources.</p>
+            <article class="metric-card">
+              <span class="metric-name">Noise law</span>
+              <strong>2 to 10</strong>
+              <p>Decision points across 6 workflows on which the observed noise follows a derived law with no term for the number of agents.</p>
             </article>
-            <article class="signal-card">
-              <span class="signal-label">Token efficiency</span>
-              <strong>418M</strong>
-              <p>Training-token Pareto point on the Qwen3 math suite.</p>
+            <article class="metric-card">
+              <span class="metric-name">Training, MATH500</span>
+              <strong>+8.28</strong>
+              <p>Points over MAGRPO, the stronger baseline, with C3 as the advantage for a 2-agent team; 5 training seeds.</p>
             </article>
-            <article class="signal-card">
-              <span class="signal-label">Mechanistic signal</span>
-              <strong>0.270</strong>
-              <p>Highest reported credit-fidelity correlation in the paper diagnostics.</p>
+            <article class="metric-card">
+              <span class="metric-name">Training cost</span>
+              <strong>37%</strong>
+              <p>Fewer training tokens than MAPPO at a 2048-token generation limit: only messages downstream of a decision point are regenerated.</p>
             </article>
           </div>
         </div>
@@ -120,217 +110,107 @@
     </header>
 
     <main>
-      <section class="section intro-grid" id="abstract">
+      <section class="section" id="abstract">
         <div class="section-heading">
-          <p class="eyebrow">Abstract</p>
-          <h2>Why C3 exists</h2>
+          <h2>Abstract</h2>
         </div>
         <div class="abstract-card">
           <p>
-            Terminal-only feedback diffuses credit across multi-agent LLM trajectories. C3 freezes transcript-derived
-            context and estimates local causal credit with fixed-context replay plus a leave-one-out baseline,
-            outperforming MAPPO and MAGRPO under matched budgets.
+Credit assignment for a team of LLM agents, what each message was worth, has mostly been treated as prediction: a learned critic, a trajectory-level score, or an agent ablation stands in for the counterfactual that defines credit, which is rarely run. Teams that communicate through a shared context are different: when everything a downstream agent reads is written into the trace, the trace is the state, and that counterfactual can be executed. A credit signal can then be judged as any estimator is: by bias, variance, and agreement with an independent reference. C3, credit assignment by counterfactual continuation, substitutes one message at a decision point and continues the run to the terminal reward, so its credit is unbiased, exact up to Monte Carlo error. Given the sampled alternatives, that error’s variance follows a derived law with no term for the number of agents, and the observed noise follows the law on 6 workflows of 2 to 10 decision points. On the 2-agent chain, from 4 continuations, C3 ranks alternatives at 0.69 rank correlation against a 16-continuation reference, near the 0.73 at which 2 such references agree; a critic trained on the same rollouts reaches 0.29. Used as the advantage in training a 2-agent team, C3 beats MAGRPO, the stronger baseline in our comparison, and spends 37% fewer training tokens than MAPPO, since only the messages downstream of a decision point are regenerated. When the trace is the state, credit need not be predicted; it can be exact.
           </p>
         </div>
-        <div class="takeaways">
-          <article class="takeaway">
-            <h3>Problem</h3>
-            <p>Terminal-only supervision diffuses reward across the whole trajectory, obscuring which message actually mattered.</p>
-          </article>
-          <article class="takeaway">
-            <h3>Key idea</h3>
-            <p>Turn collaboration into targeted causal interventions over frozen transcript contexts instead of learning a critic for the whole episode.</p>
-          </article>
-          <article class="takeaway">
-            <h3>Outcome</h3>
-            <p>Better terminal performance and cleaner internal optimization signatures under matched evaluator budgets.</p>
-          </article>
+      </section>
+
+      <section class="section" id="why">
+        <div class="section-heading">
+          <h2>Why: credit has been predicted</h2>
         </div>
+        <div class="prose-card">
+          <p>
+Training a team of LLM agents from one terminal reward means answering, for every message in the trace, how much it was worth. Reinforcement learning answers by comparing the message with the alternatives the agent could have written, but in a physical environment a decision point cannot be revisited, so a critic predicts what each alternative would have earned. LLM agent teams inherited that tool. Yet when every message, tool call, memory read, and routing decision is written into the trace, the trace is the complete state of the system, and the counterfactual can be executed instead.
+          </p>
+        </div>
+        <figure class="figure-panel">
+          <img src="assets/figs/fig1_overview.png" alt="Two ways to value an alternative message: predicted by a critic, or executed by C3 when the trace is the state">
+          <figcaption class="figure-caption">
+Figure 1: Two ways to value an alternative message. (a) Credit from predicted counterfactuals: the decision point is not revisited, so a critic fitted on past runs predicts the value of each alternative. (b) Credit from executed counterfactuals, when the trace is the state: C3 resets the run to the trace prefix, substitutes an alternative message, runs the downstream roles to the terminal reward, and compares the mean reward of each alternative with the continuation-weighted mean of the other alternatives. Against a 16-continuation reference, C3 from 4 continuations reaches 0.69 rank correlation, and the critic reaches 0.29.
+          </figcaption>
+        </figure>
       </section>
 
       <section class="section" id="method">
         <div class="section-heading">
-          <p class="eyebrow">Method</p>
-          <h2>Replay the right decision, not the whole episode</h2>
+          <h2>How: execute the counterfactual</h2>
         </div>
-
-        <div class="figure-panel">
-          <img src="assets/figs/fig1_overview.png" alt="Overview of the C3 mechanism">
-          <p class="figure-caption">
-            Figure 1 from the paper. C3 records replay states from collaborative trajectories, samples context-matched
-            alternatives, and estimates per-decision marginal value with fixed-continuation replay plus a leave-one-out baseline.
-          </p>
-        </div>
-
-        <div class="method-grid">
-          <article class="method-step">
-            <span>01</span>
-            <h3>Freeze the transcript-derived context</h3>
-            <p>
-              The algorithm logs replay states at visited decision occurrences, preserving the exact observable context
-              of a Reasoner or Actor turn.
-            </p>
-          </article>
-          <article class="method-step">
-            <span>02</span>
-            <h3>Evaluate context-matched alternatives</h3>
-            <p>
-              Instead of rolling out fresh full episodes, C3 restarts from the frozen replay state and compares
-              alternatives under the same continuation distribution.
-            </p>
-          </article>
-          <article class="method-step">
-            <span>03</span>
-            <h3>Compute low-variance local credit</h3>
-            <p>
-              A leave-one-out baseline removes context-level difficulty, producing unbiased marginal advantages that can
-              feed directly into policy-gradient updates.
-            </p>
-          </article>
-        </div>
-
-        <div class="protocol-card">
-          <div>
-            <p class="eyebrow">Protocol</p>
-            <h3>Reasoner -> Actor, terminal evaluation only</h3>
-          </div>
+        <div class="prose-card">
           <p>
-            In the paper's primary setup, two LLM agents collaborate asynchronously. The Reasoner proposes a concise
-            plan, the Actor produces the final answer or code, and only the final Actor output is scored by the external
-            evaluator. That asymmetry is exactly why decision-level credit matters.
+At each decision point, C3 samples alternative messages, resets the run to the trace prefix, substitutes each alternative, and continues the downstream roles to the terminal reward. Each alternative is compared with the continuation-weighted mean return of the others, so its credit is unbiased and uses no learned parameters. What remains is Monte Carlo error, and it is predictable: given the sampled alternatives, its variance follows a derived law set by the decision point's own budget and return variance, with no term for the number of agents. At the opening decision point of 6 workflows of 2 to 10 decision points, the observed variance is 0.90 to 1.07 times the law.
           </p>
         </div>
+        <figure class="figure-panel">
+          <img src="assets/figs/fig2_prediction.png" alt="Left: split-half reliability against the implied reliability S/(S+2N) for 6 workflows. Right: observed noise over the derived law, within a band of 10 percent">
+          <figcaption class="figure-caption">
+Figure 2: Reliability follows the signal share of the variance, and the noise follows the law. Left: split-half reliability of 6 workflows on a policy held fixed, against the share S/(S+2N) of a 2-continuation half's variance that is signal; the dashed line is equality. Right: the ratio of the observed noise on an advantage to the derived law, over a grid of branching factors and continuation counts on the 2-agent chain and over the 6 workflows; the band marks ±10%.
+          </figcaption>
+        </figure>
       </section>
 
       <section class="section" id="results">
         <div class="section-heading">
-          <p class="eyebrow">Results</p>
-          <h2>Performance gains with matched budgets</h2>
+          <h2>Results: near the reference, ahead in training</h2>
         </div>
-
-        <div class="metrics-grid">
-          <article class="metric-card accent">
-            <span class="metric-name">Qwen3 math</span>
-            <strong>82.80%</strong>
-            <p>MATH500 greedy accuracy, compared with 74.52 for MAGRPO and 69.28 for MAPPO.</p>
-          </article>
-          <article class="metric-card">
-            <span class="metric-name">Qwen3 math</span>
-            <strong>91.44%</strong>
-            <p>MATH500 pass@10 under the same evaluation-resource accounting.</p>
-          </article>
-          <article class="metric-card">
-            <span class="metric-name">Qwen2.5 math</span>
-            <strong>87.01%</strong>
-            <p>GSM8K greedy accuracy with Qwen2.5-3B-Instruct.</p>
-          </article>
-          <article class="metric-card">
-            <span class="metric-name">Qwen2.5 code</span>
-            <strong>7.98</strong>
-            <p>MBPP+ pass metric with Qwen2.5-Coder-3B-Instruct.</p>
-          </article>
-        </div>
-
-        <div class="figure-duo">
-          <figure class="result-figure">
-            <img src="assets/figs/fig_learning_dynamics_4b.png" alt="Learning dynamics comparison across methods">
-            <figcaption>
-              Figure 2. C3 reaches a higher return plateau earlier and shows tighter uncertainty bands across seeds.
-            </figcaption>
-          </figure>
-          <figure class="result-figure">
-            <img src="assets/figs/fig_pareto_tokens_4b.png" alt="Training efficiency Pareto frontier">
-            <figcaption>
-              Figure 3. C3 lies on a favorable training-token Pareto frontier, reaching strong returns with 418M training tokens.
-            </figcaption>
-          </figure>
-        </div>
-
-        <div class="benchmarks-panel">
-          <div class="benchmarks-copy">
-            <p class="eyebrow">Benchmarks</p>
-            <h3>Five mathematical and coding evaluation suites</h3>
-            <p>
-              The paper evaluates C3 on MATH500, CMATH, GSM8K, MBPP-test, and MBPP+ with matched budgets and five
-              random seeds. Mathematical tasks use Qwen2.5-3B-Instruct and Qwen3-4B-Instruct-2507; coding tasks use
-              Qwen2.5-Coder-3B-Instruct.
-            </p>
-          </div>
-          <div class="benchmark-tags">
-            <span>MATH500</span>
-            <span>CMATH</span>
-            <span>GSM8K</span>
-            <span>MBPP-test</span>
-            <span>MBPP+</span>
-            <span>5 seeds</span>
-            <span>Matched evaluator budgets</span>
-            <span>Reasoner / Actor protocol</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="section diagnostics">
-        <div class="section-heading">
-          <p class="eyebrow">Mechanistic Validation</p>
-          <h2>Evidence beyond benchmark accuracy</h2>
-        </div>
-        <div class="diagnostic-grid">
-          <article class="diagnostic-card">
-            <span>Credit fidelity</span>
-            <strong>0.270</strong>
-            <p>Spearman correlation to the target within-context advantage in the shared replay-bucket diagnostics.</p>
-          </article>
-          <article class="diagnostic-card">
-            <span>Within-context variance</span>
-            <strong>0.00513</strong>
-            <p>The LOO baseline reduces variance, stabilizing gradient estimates across tasks.</p>
-          </article>
-          <article class="diagnostic-card">
-            <span>Inter-agent influence</span>
-            <strong>0.187</strong>
-            <p>Higher conditional mutual information suggests stronger downstream responsiveness to upstream reasoning interventions.</p>
-          </article>
-        </div>
-        <div class="ablation-card">
-          <h3>Ablations support the causal story</h3>
+        <div class="prose-card">
           <p>
-            Removing fixed-context replay lowers terminal accuracy from 90.7% to 86.5%, and removing the LOO baseline
-            reduces the influence metric from 0.187 to 0.149. Both components matter: context matching sharpens the
-            comparison, while LOO removes context-level shifts that would otherwise blur collaboration credit.
+Scored against a reference of 16 fresh continuations that shares none of its rollouts, C3 from 4 continuations ranks alternatives at 0.69 rank correlation, near the 0.73 at which 2 such references agree; a critic trained on the same rollouts reaches 0.29. Used as the advantage in training a 2-agent team on Qwen3-4B, C3 beats MAGRPO, the stronger baseline, by +8.28 points on MATH500 over 5 training seeds (Holm-corrected p &lt; 0.001). At a 2048-token generation limit it spends 37% fewer training tokens than MAPPO, because only the messages downstream of a decision point are regenerated.
           </p>
         </div>
+        <figure class="table-panel">
+          <p class="table-title">The 5-seed run (Table 2 of the paper):</p>
+          <div class="table-scroll">
+            <table class="results-table">
+              <thead>
+                <tr><th>Method</th><th>MATH500</th><th>AIME 2025</th><th>CMATH</th><th>GSM8K</th><th>Avg.&dagger;</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>MAPPO</td><td>69.3 ± 0.9</td><td>3.3 ± 0.0</td><td>95.3 ± 0.2</td><td>92.9 ± 0.1</td><td>85.8 ± 0.3</td></tr>
+                <tr><td>MAGRPO</td><td>74.5 ± 0.4</td><td>5.3 ± 1.8</td><td>96.1 ± 0.2</td><td><strong>93.4 ± 0.3</strong></td><td>88.0 ± 0.1</td></tr>
+                <tr><td>C3</td><td><strong>82.8 ± 0.6</strong></td><td><strong>8.0 ± 1.8</strong></td><td><strong>96.3 ± 0.2</strong></td><td><strong>93.4 ± 0.2</strong></td><td><strong>90.9 ± 0.3</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <figcaption class="figure-caption">
+Qwen3-4B: greedy accuracy (%) under a 512-token generation limit, mean ± std over 5 training seeds on the 2-agent workflow; best value per column in bold, including ties at the printed precision. &dagger;Avg. is the mean of MATH500, CMATH and GSM8K; AIME 2025 (30 problems) is reported beside it, not inside it.
+          </figcaption>
+        </figure>
       </section>
 
       <section class="section" id="reproduce">
         <div class="section-heading">
-          <p class="eyebrow">Reproduce</p>
-          <h2>Built to connect the paper to runnable code</h2>
+          <h2>Reproduce</h2>
         </div>
 
         <div class="repro-grid">
           <article class="repro-card">
-            <h3>Quickstart</h3>
+            <h3>Quickstart (CPU)</h3>
             <pre><code>python -m pip install -r requirements/cpu.lock.txt
 python -m pip install -e . --no-deps
 bash scripts/10_data/prepare_all.sh --out_dir data
 bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0</code></pre>
           </article>
           <article class="repro-card">
-            <h3>Core paths</h3>
-            <ul>
-              <li><code>c3/credit/</code> for credit assignment logic</li>
-              <li><code>openrlhf/trainer/ppo_utils/experience_maker.py</code> for paper-facing integration</li>
-              <li><code>configs/main_results_registry.yaml</code> for experiment references</li>
-              <li><code>scripts/</code> numbered stages for data, smoke tests, training, and analysis</li>
-            </ul>
+            <h3>Training (GPU)</h3>
+            <pre><code>export PRETRAIN=Qwen/Qwen3-4B-Instruct-2507
+RECIPE=main bash scripts/40_train/paper_train.sh  # Table 2
+RECIPE=long bash scripts/40_train/paper_train.sh  # Table 7
+RECIPE=a3   bash scripts/40_train/paper_train.sh  # Table 8</code></pre>
           </article>
           <article class="repro-card">
-            <h3>Release hygiene</h3>
+            <h3>Core paths</h3>
             <ul>
-              <li><code>bash scripts/90_audit/release_gate.sh</code></li>
-              <li><code>bash scripts/30_smoke/preflight_repro.sh --task math</code></li>
-              <li><a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/51_release_checklist.md">Release checklist</a></li>
-              <li><a href="https://github.com/EIT-EAST-Lab/C3/blob/main/docs/20_implementation_audit.md">Paper-to-code audit</a></li>
+              <li><code>c3/credit/</code> and <code>openrlhf/trainer/ppo_utils/experience_maker.py</code> for the credit computation</li>
+              <li><code>c3/utils/paper_train_contract.py</code> for the three training recipes</li>
+              <li><code>scripts/70_rebuild/</code> for the evaluation and the measurements of Sections 3 and 4, mapped to the paper's tables in its <a href="https://github.com/EIT-EAST-Lab/C3/blob/main/scripts/70_rebuild/README.md">README</a></li>
+              <li><code>bash scripts/90_audit/release_gate.sh</code> for the CPU release gate</li>
             </ul>
           </article>
         </div>
@@ -338,8 +218,7 @@ bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0</code></p
 
       <section class="section" id="citation">
         <div class="section-heading">
-          <p class="eyebrow">Citation</p>
-          <h2>Use C3 in your work</h2>
+          <h2>Citation</h2>
         </div>
 
         <div class="citation-layout">
@@ -354,14 +233,15 @@ bash scripts/30_smoke/smoke.sh --task math --limit 1 --print_example 0</code></p
             </div>
             <p class="copy-status" id="copy-status" aria-live="polite"></p>
           </div>
-          <pre class="citation-block" id="bibtex"><code>@misc{chen2026contextualcounterfactualcreditassignment,
-  title={Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration},
-  author={Yanjun Chen and Yirong Sun and Hanlin Wang and Xinming Zhang and Xiaoyu Shen and Wenjie Li and Wei Zhang},
-  year={2026},
-  eprint={2603.06859},
-  archivePrefix={arXiv},
-  primaryClass={cs.LG},
-  url={https://arxiv.org/abs/2603.06859}
+          <pre class="citation-block" id="bibtex"><code>@misc{chen2026trace,
+  title         = {The Trace Is the State: Exact Credit Assignment for {LLM} Agent Teams},
+  author        = {Yanjun Chen and Yirong Sun and Hanlin Wang and Jinghan Wang and Xinming Zhang and Xiaoyu Shen and Wenjie Li and Wei Zhang},
+  year          = {2026},
+  eprint        = {2603.06859},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  doi           = {10.48550/arXiv.2603.06859},
+  url           = {https://arxiv.org/abs/2603.06859}
 }</code></pre>
         </div>
       </section>

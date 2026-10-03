@@ -180,6 +180,7 @@ pre {
 .diagnostic-card p,
 .protocol-card p,
 .abstract-card p,
+.prose-card p,
 .takeaway p,
 .repro-card li,
 .citation-copy p,
@@ -253,13 +254,14 @@ pre {
 }
 
 .status-strip {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   margin-top: 28px;
 }
 
 .status-card,
 .signal-card,
 .abstract-card,
+.prose-card,
 .takeaway,
 .method-step,
 .protocol-card,
@@ -359,11 +361,63 @@ pre {
 }
 
 .abstract-card,
+.prose-card,
 .protocol-card,
 .ablation-card,
 .benchmarks-panel,
 .citation-layout {
   padding: 22px;
+}
+
+.prose-card {
+  margin-bottom: 18px;
+}
+
+.prose-card p,
+.abstract-card p {
+  margin: 0;
+}
+
+.table-panel {
+  margin: 0;
+}
+
+.table-title {
+  margin: 0 0 10px;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  background: var(--paper-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.results-table th,
+.results-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+.results-table thead th {
+  font-family: "Space Grotesk", sans-serif;
+  color: var(--accent-deep);
+  font-size: 0.86rem;
+  letter-spacing: 0.04em;
+}
+
+.results-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .takeaways {
@@ -376,7 +430,7 @@ pre {
 }
 
 .figure-panel {
-  margin-bottom: 18px;
+  margin: 0 0 18px;
 }
 
 .figure-panel img,

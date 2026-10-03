@@ -30,6 +30,7 @@ import sys
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from c3.analysis.rebuild.coupling import arm_scan, coupling_report, e5_key_values
+from c3.analysis.rebuild.summary import MANIFEST_HELP
 from c3.analysis.rebuild.influence import (
     boxed_extractor,
     load_manifest,
@@ -161,7 +162,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Aggregate E5 into summary.json")
     ap.add_argument("--results", required=True, help="the E5 results directory")
     ap.add_argument("--manifest", required=True,
-                    help="the results manifest of the paper build")
+                    help=MANIFEST_HELP)
     ap.add_argument("--out", required=True, help="where summary.json is written")
     ap.add_argument("--gold", required=True, help="jsonl of question id to gold answer")
     ap.add_argument("--extractor", default="boxed", choices=sorted(EXTRACTORS),

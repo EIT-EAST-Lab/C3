@@ -1,8 +1,9 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="figs/c3-logo-dark.svg">
-    <img src="figs/c3-logo-light.svg" alt="C3, Contextual Counterfactual Credit assignment" width="360">
+    <img src="figs/c3-logo-light.svg" alt="C3, credit assignment by counterfactual continuation" width="360">
   </picture>
+  <p><strong>When the trace is the state, credit need not be predicted; it can be exact.</strong></p>
   <p>
     <a href="https://eit-east-lab.github.io/C3/"><img src="https://img.shields.io/badge/Project-Page-B24A2F" alt="Project Page"></a>
     <a href="https://arxiv.org/abs/2603.06859"><img src="https://img.shields.io/badge/arXiv-2603.06859-B31B1B" alt="arXiv 2603.06859"></a>
@@ -26,15 +27,15 @@
   </p>
 </div>
 
-Reference implementation for the paper **Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration**.
+Reference implementation for the paper **The Trace Is the State: Exact Credit Assignment for LLM Agent Teams**.
 
-Paper status: now available on arXiv as [2603.06859](https://arxiv.org/abs/2603.06859). The companion project page is available at [eit-east-lab.github.io/C3](https://eit-east-lab.github.io/C3/), and the official PDF is available [here](https://arxiv.org/pdf/2603.06859).
+Paper status: preprint on arXiv as [2603.06859](https://arxiv.org/abs/2603.06859), under review. The companion project page is at [eit-east-lab.github.io/C3](https://eit-east-lab.github.io/C3/).
 
-Repository version 0.2.4. See [CHANGELOG.md](CHANGELOG.md) for what changed and why.
+Repository version 0.3.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and why.
 
 ## TL;DR
 
-Train a team of LLM agents from a single reward at the end and you have to decide what each message was worth. The usual answer is to guess it with a learned critic, because in most environments a decision point cannot be revisited. Agents that talk through a shared context are not most environments: the transcript is the whole state, so you can reset the run to any message, swap it, and play the rest out. **C3** does that. It samples alternatives at a decision point, replays each one to the final reward, and compares them against a leave-one-out baseline. No learned parameters, no fitted value function, and the counterfactual is executed rather than predicted.
+Train a team of LLM agents from a single terminal reward and you have to answer, for every message in the trace, how much it was worth. Credit assignment for such teams has mostly been treated as prediction: a learned critic, a trajectory-level score, or an agent ablation stands in for the counterfactual that defines credit, which is rarely run. Teams that communicate through a shared context are different: when everything a downstream agent reads is written into the trace, the trace is the state, and that counterfactual can be executed. **C3**, credit assignment by counterfactual continuation, substitutes one message at a decision point, continues the run to the terminal reward, and compares each alternative with the continuation-weighted mean return of the others. Its credit is unbiased, exact up to Monte Carlo error, and needs no learned parameters.
 
 <p align="center">
   <a href="#core-mechanism">Mechanism</a> |
@@ -48,35 +49,55 @@ Train a team of LLM agents from a single reward at the end and you have to decid
 ## Core Mechanism
 
 <div align="center">
-  <img src="figs/fig1_overview.png" alt="C3 mechanism overview figure" width="90%">
+  <img src="figs/fig1_overview.png" alt="Two ways to value an alternative message: predicted by a critic, or executed by C3 when the trace is the state" width="90%">
 </div>
 
-**Figure 1**: C3 mechanism overview. Protocol-level replay, fixed-context alternatives, and leave-one-out credit assignment.
+**Figure 1**: Two ways to value an alternative message. (a) Credit from predicted counterfactuals: the decision point is not revisited, so a critic fitted on past runs predicts the value of each alternative. (b) Credit from executed counterfactuals, when the trace is the state: C3 resets the run to the trace prefix, substitutes an alternative message, runs the downstream roles to the terminal reward, and compares the mean reward of each alternative with the continuation-weighted mean of the other alternatives. Executed, not predicted: against a 16-continuation reference, C3 from 4 continuations reaches 0.69 rank correlation, and the critic reaches 0.29.
 
 ## Key Results
 
-<div align="center">
-  <img src="figs/fig_pareto_tokens_4b.png" alt="Pareto return versus token budget" width="48%">
-  &nbsp;
-  <img src="figs/fig_learning_dynamics_4b.png" alt="Learning dynamics comparison across methods" width="48%">
-</div>
+When the trace is the state, a credit signal can be judged as any estimator is: by bias, variance, and agreement with an independent reference. C3 is unbiased under that condition; on the other two criteria, and in training, the paper reports:
 
-Three-agent workflow, Qwen3-4B, five independent training seeds per method, matched rollout budget.
-Each cell is the mean over seeds with its standard deviation; higher is better.
+- **Agreement with a reference.** On the 2-agent chain, from 4 continuations, C3 ranks alternatives at **0.69** rank correlation against a 16-continuation reference, near the **0.73** at which 2 such references agree; a critic trained on the same rollouts reaches **0.29**.
+- **Variance.** Given the sampled alternatives, the variance of each advantage estimate follows a derived law with no term for the number of agents; at the opening decision point of 6 workflows of 2 to 10 decision points, the observed variance is **0.90 to 1.07** times the law.
+- **Training.** Used as the advantage in training a 2-agent team, C3 beats MAGRPO, the stronger baseline, by **+8.28** points on MATH500 over 5 training seeds (Holm-corrected p < 0.001).
+- **Cost.** At a 2048-token generation limit, C3 spends **37%** fewer training tokens than MAPPO, since only the messages downstream of a decision point are regenerated.
 
-| Method | MATH500 | AIME 2025 | CMATH | GSM8K | Avg. | MBPP+ | MBPP-test |
-|---|---|---|---|---|---|---|---|
-| MAPPO | 75.8 ± 0.7 | 6.7 ± 1.4 | 95.8 ± 0.3 | 93.4 ± 0.3 | 88.3 ± 0.3 | 6.4 ± 0.5 | 5.6 ± 0.4 |
-| MAGRPO | 62.1 ± 1.3 | 7.3 ± 2.5 | 79.6 ± 0.8 | 92.9 ± 0.3 | 78.2 ± 0.5 | 6.6 ± 0.4 | 5.7 ± 0.4 |
-| **C3** | **78.6 ± 0.5** | **7.8 ± 2.5** | **95.9 ± 0.2** | **93.5 ± 0.3** | **89.3 ± 0.4** | **6.9 ± 0.4** | **5.9 ± 0.4** |
+The 5-seed run (Table 2 of the paper):
 
-On the two-agent workflow C3 reaches 82.8 ± 0.6 on MATH500 against 74.6 ± 1.5 for CORY.
+| Method | MATH500 | AIME 2025 | CMATH | GSM8K | Avg.† |
+|:-|:-|:-|:-|:-|:-|
+| MAPPO | 69.3 ± 0.9 | 3.3 ± 0.0 | 95.3 ± 0.2 | 92.9 ± 0.1 | 85.8 ± 0.3 |
+| MAGRPO | 74.5 ± 0.4 | 5.3 ± 1.8 | 96.1 ± 0.2 | **93.4 ± 0.3** | 88.0 ± 0.1 |
+| C3 | **82.8 ± 0.6** | **8.0 ± 1.8** | **96.3 ± 0.2** | **93.4 ± 0.2** | **90.9 ± 0.3** |
 
-These are the numbers of the arXiv paper. To reproduce them from this repository, run the training
-matrix with [scripts/40_train/paper_train.sh](scripts/40_train/paper_train.sh) and the evaluation
-sweep with [scripts/50_eval/paper_main_results.sh](scripts/50_eval/paper_main_results.sh); the
-hyperparameters come from [c3/utils/paper_train_contract.py](c3/utils/paper_train_contract.py),
-which is the paper's Table 3 in executable form.
+Qwen3-4B: greedy accuracy (%) under a 512-token generation limit, mean ± std over 5 training seeds on the 2-agent workflow; best value per column in bold, including ties at the printed precision. †Avg. is the mean of MATH500, CMATH and GSM8K; AIME 2025 (30 problems) is reported beside it, not inside it.
+
+### Reproducing the experiments
+
+[c3/utils/paper_train_contract.py](c3/utils/paper_train_contract.py) holds three training recipes, with the settings of Tables 5 and 6 and Appendix B.2 of the paper. [scripts/40_train/paper_train.sh](scripts/40_train/paper_train.sh) trains MAPPO, MAGRPO and C3 under one of them (GPU):
+
+```bash
+export PRETRAIN=Qwen/Qwen3-4B-Instruct-2507
+RECIPE=main bash scripts/40_train/paper_train.sh   # Table 2: 2-agent workflow, 512 tokens, training seeds 0 to 4
+RECIPE=long bash scripts/40_train/paper_train.sh   # Table 7: 2-agent workflow, 2048 tokens, training seed 0
+RECIPE=a3   bash scripts/40_train/paper_train.sh   # Table 8: 3-agent workflow, 512 tokens, training seeds 0 to 4
+DRY_RUN=1 RECIPE=main bash scripts/40_train/paper_train.sh   # print the command lines, start nothing
+```
+
+Each trained model is evaluated by [scripts/70_rebuild/final_eval.py](scripts/70_rebuild/final_eval.py) (GPU). On the CPU, `python -m c3.analysis.rebuild.aggregate_5seed` turns the records of the 5-seed runs into Tables 2, 8 and 10, and `python -m c3.analysis.rebuild.aggregate_e2` turns those of the long-generation run into Table 7 and its training-token account.
+
+The measurements of Sections 3 and 4 run on a frozen policy: a driver under [scripts/70_rebuild/](scripts/70_rebuild/) generates the rollouts (GPU), and a module under [c3/analysis/rebuild/](c3/analysis/rebuild/) computes the numbers (CPU).
+
+| Measurement | Generation (GPU) | Analysis (CPU) |
+|---|---|---|
+| Split-half reliability of 6 workflows (Table 1, Figures 2 and 3) | `e1_cells.py` | `aggregate_e1` |
+| Signal and noise behind reliability (Table 1 Implied column, Table 3 lower block) | `e1_cells.py` | `e1_signal_noise` |
+| Noise law on the grid of branching factors and continuations (Table 3 upper block) | `e1b_cells.py` | `aggregate_e1b` |
+| Bias of agent ablation (Section 4, Appendix B.6, Table 9) | `e3a_cells.py` | `aggregate_e3a`, `e3a_strata` |
+| Learned critic against C3 (Section 4, Appendix B.7) | `e4_reference_cells.py`; `e4_critic.py` `train` and `score` | `e4_critic.py` `split`, `prepare-reference` and `evaluate` |
+
+Every driver takes `--dry-run`. The full command of each experiment, and the table each code name maps to, are in [scripts/70_rebuild/README.md](scripts/70_rebuild/README.md). The repository ships no data, checkpoints or results.
 
 ## Repository Purpose
 
@@ -115,10 +136,10 @@ The `scripts/` numbers are the workflow:
 | [scripts/10_data/](scripts/10_data/) | Download and pin the datasets |
 | [scripts/20_models/](scripts/20_models/) | Pre-download the base models |
 | [scripts/30_smoke/](scripts/30_smoke/) | Fast wiring checks and the reproduction preflight |
-| [scripts/40_train/](scripts/40_train/) | The paper training matrix (GPU) |
-| [scripts/50_eval/](scripts/50_eval/) | The paper main-results sweep (GPU) |
-| [scripts/60_analysis/](scripts/60_analysis/) | Analysis figures |
-| [scripts/70_rebuild/](scripts/70_rebuild/) | Reliability and ablation cells, and the start-accuracy probe (GPU) |
+| [scripts/40_train/](scripts/40_train/) | The paper's training recipes (GPU) |
+| [scripts/50_eval/](scripts/50_eval/) | The evaluation runner that `final_eval.py` calls, and the results sweep of the paper's earlier versions (GPU) |
+| [scripts/60_analysis/](scripts/60_analysis/) | Analysis figures of the paper's earlier versions |
+| [scripts/70_rebuild/](scripts/70_rebuild/) | The experiments of the paper: measurement cells, the critic comparison, the evaluation of record, and the start-accuracy probe (GPU) |
 | [scripts/90_audit/](scripts/90_audit/) | Release audit and the local release gate |
 | [scripts/_lib/](scripts/_lib/) | Shared shell helpers, sourced rather than run |
 
@@ -145,14 +166,13 @@ The repository installs in two tiers. Pick the one that matches what you want to
 | | CPU tier | GPU tier |
 |---|---|---|
 | Hardware | Any x86_64 machine, no GPU | NVIDIA GPUs |
-| CUDA runtime | not used | CUDA 13 with [requirements/gpu.lock.txt](requirements/gpu.lock.txt) (torch 2.13.0, which pulls the CUDA 13 runtime wheels), CUDA 12.8 with [requirements/gpu-paper.lock.txt](requirements/gpu-paper.lock.txt) (torch 2.9.0+cu128, the paper environment) |
+| CUDA runtime | not used | CUDA 13 with [requirements/gpu.lock.txt](requirements/gpu.lock.txt) (torch 2.13.0, which pulls the CUDA 13 runtime wheels), CUDA 12.8 with [requirements/gpu-paper.lock.txt](requirements/gpu-paper.lock.txt) (torch 2.9.0+cu128, the pinned paper environment) |
 | Python | 3.11 | 3.11 |
-| What it enables | Unit tests, dataset preparation and verification, smoke tests, analysis and plotting tooling on stored run artifacts (loading a critic checkpoint needs the GPU tier with flash-attn), the release gate | Everything in the CPU tier, plus training and full paper reproduction |
+| What it enables | Unit tests, dataset preparation and verification, smoke tests, analysis and plotting tooling on stored run artifacts (loading a critic checkpoint needs the GPU tier with flash-attn), the release gate | Everything in the CPU tier, plus training and the GPU stages of the paper's experiments |
 | Lock file | [requirements/cpu.lock.txt](requirements/cpu.lock.txt) | [requirements/gpu.lock.txt](requirements/gpu.lock.txt) |
 
-The environment that produced the paper's numbers is preserved verbatim as
-[requirements/gpu-paper.lock.txt](requirements/gpu-paper.lock.txt). Use it to
-reproduce the published results against the exact stack that produced them.
+A pinned GPU environment for the paper's experiments is kept as
+[requirements/gpu-paper.lock.txt](requirements/gpu-paper.lock.txt).
 
 ## Installation
 
@@ -244,12 +264,13 @@ reason are printed.
 With the GPU tier installed, the paper workflows are:
 
 ```bash
-bash scripts/40_train/paper_train.sh                       # training matrix
-bash scripts/50_eval/paper_main_results.sh sweep ...       # evaluation matrix
-bash scripts/60_analysis/paper_analysis_figs.sh fig2 ...   # analysis figures
+RECIPE=main bash scripts/40_train/paper_train.sh           # training (RECIPE=main, long or a3)
+python scripts/70_rebuild/final_eval.py --policy ...       # evaluation of record
+python scripts/70_rebuild/e1_cells.py --model_root ...     # measurement cells (Sections 3 and 4)
 ```
 
-Each one is spelled out under [Main Workflows](#main-workflows).
+Each one is spelled out under [Main Workflows](#main-workflows) and in
+[scripts/70_rebuild/README.md](scripts/70_rebuild/README.md).
 
 ## Network Mirrors
 
@@ -296,14 +317,17 @@ While Transformers/vLLM will automatically download weights on first use, we pro
 # Log in to Hugging Face (required for gated models like Qwen)
 hf auth login
 
-# List what the registry resolves to, without downloading anything
+# List the models, without downloading anything
 bash scripts/20_models/download_models.sh --dry_run 1
 
-# Pre-download all base models referenced in the results registry
-bash scripts/20_models/download_models.sh \
-  --registry configs/main_results_registry.yaml \
-  --out_dir models
+# Pre-download the models of the paper: Qwen3-4B-Instruct-2507, Qwen3-8B and mmBERT-base
+bash scripts/20_models/download_models.sh --models paper --out_dir models
 ```
+
+`--models early` downloads the base models of the results registry
+([configs/main_results_registry.yaml](configs/main_results_registry.yaml)),
+which belong to the evaluation protocol of the paper's earlier versions; the
+default, `all`, downloads both sets.
 
 ## Main Workflows
 
@@ -313,56 +337,61 @@ Fast end-to-end wiring check to verify environment and protocol integrity:
 bash scripts/30_smoke/smoke.sh
 ```
 
-### SFT-only Main Results Sweep
-Run the evaluation matrix exclusively for the SFT baseline:
+### Paper Training Recipes
+Train MAPPO, MAGRPO and C3 under one of the three recipes of the paper
+(`main` for Table 2, `long` for Table 7, `a3` for Table 8):
 ```bash
-bash scripts/50_eval/paper_main_results.sh sweep \
-  --registry configs/main_results_registry.yaml \
-  --only_methods SFT
+export PRETRAIN='Qwen/Qwen3-4B-Instruct-2507'
+RECIPE=main bash scripts/40_train/paper_train.sh
 ```
 
-### Full Paper Training Matrix
-Execute the complete set of model training runs:
-```bash
-export PRETRAIN='Qwen/Qwen2.5-3B-Instruct'
-bash scripts/40_train/paper_train.sh
-```
-
-### Full Main Results Sweep
-Run the full paper evaluation matrix across all methods:
-```bash
-bash scripts/50_eval/paper_main_results.sh sweep \
-  --registry configs/main_results_registry.yaml
-```
+`DRY_RUN=1` prints the command line of every run and starts none. `EXTRA_ARGS`
+is appended to every run, for the flags of the machine's hardware layout (GPU
+and vLLM engine counts, colocation, offloading). Each run writes its
+checkpoints and final model under its own directory, `ckpt/_runs/<run_id>/`.
 
 ### Evaluation of Record
 
-The numbers of the main table come from one evaluation per trained model, run
-after training by [scripts/70_rebuild/final_eval.py](scripts/70_rebuild/final_eval.py).
-The estimator is avg@k, k is fixed per suite by a sampling-noise calculation, and
-one evaluation run has exactly one k, so the driver groups the suites by their k
+The numbers of the trained tables come from evaluations run after training by
+[scripts/70_rebuild/final_eval.py](scripts/70_rebuild/final_eval.py). The
+5-seed runs (Tables 2 and 8) are evaluated once per training seed, greedily
+(one sample per problem) under a 512-token generation limit, on MATH500,
+AIME 2025, CMATH and GSM8K. The long-generation run (Table 7) is evaluated with
+avg@k under a 2048-token limit, five times under evaluation seeds 0 to 4. One
+evaluation run has exactly one k, so the driver groups the suites by their k
 and runs one evaluation per group. Which suites, with what decoding, where k
 comes from and what the evaluation record holds are all in
-[Evaluation Protocol](docs/32_evaluation_protocol.md).
+[Evaluation Protocol](docs/32_evaluation_protocol.md); the commands for each
+table are in [scripts/70_rebuild/README.md](scripts/70_rebuild/README.md).
 
 ```bash
 # Print the two commands and stop. Needs neither a GPU nor a model.
 python scripts/70_rebuild/final_eval.py --policy /models/Qwen3-4B-Instruct-2507 --dry-run
 
-# Evaluate one finished training run and write its record.
+# Evaluate one finished training run of the long-generation recipe and write its record.
 python scripts/70_rebuild/final_eval.py \
-  --policy ckpt/_runs/paper_C3_math_seed0/final_hf \
-  --run_id paper_C3_math_seed0 \
+  --policy ckpt/_runs/paper_long_C3_math_seed0/final_hf \
+  --run_id paper_long_C3_math_seed0 \
   --out /abs/path/final_eval_record.json
 ```
 
-The evaluation that runs during training is a different thing: every ten percent
-of the run, on the five main-table suites at four samples per problem, and it
-feeds the monitoring curve only.
+The evaluation that runs during training is a different thing: every 5 percent
+of the run in the 5-seed recipes and every 25 percent in the long-generation
+recipe, and it feeds the monitoring curve only.
 
-### Paper Analyses
-Generate analysis figures directly from local run directories:
+### Earlier Evaluation Protocol
+
+The registry sweep and the analysis figures below implement the evaluation
+protocol of the paper's earlier versions (v1 and v2): greedy and pass@10 on the
+registry's Qwen2.5 base models, and the credit, influence and variance
+diagnostics. They are kept for those versions and do not produce the tables of
+the current one.
+
 ```bash
+bash scripts/50_eval/paper_main_results.sh sweep \
+  --registry configs/main_results_registry.yaml \
+  --only_methods SFT
+
 bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
   --suite math \
   --run_c3 ckpt/_runs/<C3_run_dir> \
@@ -380,8 +409,10 @@ change nothing in it. Each one takes `--dry-run`, which prints the commands it
 would run and the cell count without a GPU or a model, so you can read the full
 sweep before spending anything on it.
 
-- [scripts/70_rebuild/e1_cells.py](scripts/70_rebuild/e1_cells.py): emit, and optionally run, the bucket-generation cells of the E1 depth study.
-- [scripts/70_rebuild/e3a_cells.py](scripts/70_rebuild/e3a_cells.py): emit, and optionally run, the bucket-generation cells of the E3a bias map.
+- [scripts/70_rebuild/e1_cells.py](scripts/70_rebuild/e1_cells.py): emit, and optionally run, the bucket-generation cells of the E1 depth study (Section 3: Table 1, Figures 2 and 3).
+- [scripts/70_rebuild/e1b_cells.py](scripts/70_rebuild/e1b_cells.py): the cells of the noise-law grid (Table 3, upper block).
+- [scripts/70_rebuild/e3a_cells.py](scripts/70_rebuild/e3a_cells.py): emit, and optionally run, the bucket-generation cells of the E3a bias map (Section 4 and Appendix B.6: the bias of agent ablation).
+- [scripts/70_rebuild/e4_reference_cells.py](scripts/70_rebuild/e4_reference_cells.py) and [scripts/70_rebuild/e4_critic.py](scripts/70_rebuild/e4_critic.py): the learned-critic comparison (Section 4 and Appendix B.7).
 - [scripts/70_rebuild/eval_probe.py](scripts/70_rebuild/eval_probe.py): measure the start accuracy of a frozen policy on the candidate benchmarks.
 
 ```bash
@@ -409,8 +440,8 @@ python scripts/70_rebuild/eval_probe.py --policy /models/Qwen3-4B-Instruct-2507 
 
 The probe reads the suites declared in
 [configs/tasks/math_eval_probe.yaml](configs/tasks/math_eval_probe.yaml). They
-are evaluation only; the main task evaluates on four of them since the
-evaluation protocol of 2026-09-15; nothing trains on them. The default
+are evaluation only; the long-generation run (Table 7) evaluates on four of
+them; nothing trains on them. The default
 preparation run writes them, so no extra flag is needed; see
 [Data Sources](docs/30_data_sources.md).
 
@@ -493,13 +524,14 @@ We deeply appreciate the open-source community for their foundational work. In p
 If you find this repository or paper useful for your research, please cite:
 
 ```bibtex
-@misc{chen2026contextualcounterfactualcreditassignment,
-  title={Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration},
-  author={Yanjun Chen and Yirong Sun and Hanlin Wang and Xinming Zhang and Xiaoyu Shen and Wenjie Li and Wei Zhang},
-  year={2026},
-  eprint={2603.06859},
-  archivePrefix={arXiv},
-  primaryClass={cs.LG},
-  url={https://arxiv.org/abs/2603.06859}
+@misc{chen2026trace,
+  title         = {The Trace Is the State: Exact Credit Assignment for {LLM} Agent Teams},
+  author        = {Yanjun Chen and Yirong Sun and Hanlin Wang and Jinghan Wang and Xinming Zhang and Xiaoyu Shen and Wenjie Li and Wei Zhang},
+  year          = {2026},
+  eprint        = {2603.06859},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  doi           = {10.48550/arXiv.2603.06859},
+  url           = {https://arxiv.org/abs/2603.06859}
 }
 ```

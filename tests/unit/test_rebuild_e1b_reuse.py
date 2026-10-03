@@ -818,7 +818,7 @@ def test_the_flag_takes_both_spellings() -> None:
     "given",
     [
         "20_data/results/E1b/a2/4b/n3_c2/seedA/buckets.jsonl",
-        "/root/c3/results/E1b/a2/4b/n3_c2/seedA/buckets.jsonl",
+        "/data/c3/results/E1b/a2/4b/n3_c2/seedA/buckets.jsonl",
         "seedA/buckets.jsonl",
         "C:\\work\\20_data\\results\\E1b\\seedA\\buckets.jsonl",
     ],

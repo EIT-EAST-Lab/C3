@@ -146,7 +146,7 @@ class DeepspeedStrategy(ABC):
         if os.environ.get("OPENRLHF_TORCH_ADAM", "") == "1":
             # FusedAdam and DeepSpeedCPUAdam are C++/CUDA extensions that DeepSpeed compiles at
             # first use, which needs ninja and a CUDA toolchain on the machine. A container that
-            # ships torch wheels but no nvcc (the bitahub image, 2026-09-19) cannot build either,
+            # ships torch wheels but no nvcc cannot build either,
             # so this switch takes torch's own AdamW: the same update rule (FusedAdam runs in
             # adam_w_mode by default), only not fused. The variable is forwarded to the Ray
             # workers by train_ppo_ray_tooling._ray_runtime_env_vars. (torch.optim is spelled

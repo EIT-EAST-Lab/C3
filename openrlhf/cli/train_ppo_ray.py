@@ -235,7 +235,7 @@ def validate_args(args, ctx: Dict[str, object]) -> None:
         eval_only = bool(getattr(args, "eval_only", False))
 
         # C3: Q-critic is only needed for value_assisted/value_only.
-        c3_cv = str(getattr(args, "c3_credit_variant", "value_assisted") or "value_assisted").lower().strip()
+        c3_cv = str(getattr(args, "c3_credit_variant", "reward_only") or "reward_only").lower().strip()
         need_q_critic = bool(marl_alg == "c3" and c3_cv in {"value_assisted", "value_only"})
 
         create_v_critic = bool(
@@ -408,7 +408,7 @@ def compute_execution_plan(args, ctx: Dict[str, object]) -> ExecutionPlan:
     eval_only = bool(getattr(args, "eval_only", False))
 
     # C3: Q-critic is only needed for value_assisted/value_only.
-    c3_cv = str(getattr(args, "c3_credit_variant", "value_assisted") or "value_assisted").lower().strip()
+    c3_cv = str(getattr(args, "c3_credit_variant", "reward_only") or "reward_only").lower().strip()
     need_q_critic = bool(args.marl_algorithm == "c3" and c3_cv in {"value_assisted", "value_only"})
     create_q_critic = bool((not eval_only) and is_c3_mas and need_q_critic)
     create_reward = bool(

@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # c3/reporting/main_results.py
 #
-# Aggregate "main results" from eval artifacts produced by examples/c3 sweep.
+# Aggregate "main results" from eval artifacts produced by the sweep of
+# scripts/50_eval/paper_main_results.sh. This is the main-results protocol of the
+# paper's EARLIER versions (arXiv:2603.06859v1 and v2), kept so those runs stay
+# reproducible; the tables of the current version (v3) are aggregated by
+# c3.analysis.rebuild.aggregate_e2 from scripts/70_rebuild/final_eval.py records.
 #
 # Contract:
 #   - Each run (id, method, task, seed) has two profiles:
@@ -63,7 +67,7 @@ APPENDIX_DATASOURCES: Dict[TaskType, List[str]] = {
 # than reporting half of it.
 MERGED_TABLE_COLUMNS: Dict[str, Tuple[str, ...]] = {"AIME": ("AIME24", "AIME25")}
 
-# Table column order (paper-facing order).
+# Table column order (the earlier versions' order).
 TABLE_COLUMNS: List[str] = ["MATH500", "Minerva-Math", "AMC23", "AIME", "MBPP+", "MBPP-test"]
 APPENDIX_TABLE_COLUMNS: List[str] = ["GSM8K-test", "CMATH-test"]
 METHOD_ORDER: List[str] = ["SFT", "MAPPO", "MAGRPO", "C3"]

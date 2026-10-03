@@ -1709,7 +1709,7 @@ class RemoteExperienceMaker(ABC):
         role_names = [r.name for r in roles]
 
         cfg = build_credit_cfg_from_args(args)
-        credit_variant = str(cfg.get("credit_variant", "value_assisted") or "value_assisted").lower().strip()
+        credit_variant = str(cfg.get("credit_variant", "reward_only") or "reward_only").lower().strip()
         need_q = credit_variant in ("value_assisted", "value_only")
         credit_tag = f"c3/{credit_variant}"
 

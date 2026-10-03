@@ -1,0 +1,46 @@
+# ===== Task: math_5seed (the 5-seed run, 2-agent workflow: MATH-train only) =====
+#
+# The training task of the 5-seed run (Table 2 of the paper). Table 5 trains it
+# on the MATH training split alone, so this file has one training source where
+# math.yaml, the task of the long-generation run, has two.
+#
+# The evaluation that runs during training is the monitoring curve only; its
+# suites are those of the run configuration. The numbers of Table 2 come from
+# scripts/70_rebuild/final_eval.py after training, one greedy evaluation per
+# training seed.
+experiment_name: "c3_math_5seed"
+
+environment:
+  env_name: "MathEnv"
+  sampling_mode: concat        # every problem appears once per epoch; merge_epoch oversamples the smaller source
+  reshuffle_each_epoch: true   # reshuffle at the start of every epoch; set false to keep a fixed order
+
+  # Training set: the MATH training split (Table 5, 5-seed run).
+  train_datasets:
+    - name: "MATH-train"
+      path: "data/MATH/train.jsonl"
+      weight: 1.0
+      limit: null
+
+  # Evaluation during training: the suites of the run configuration.
+  eval_suites:
+    - name: "MATH500"
+      path: "data/MATH500/test.jsonl"
+      limit: null
+    - name: "CMATH-test"
+      path: "data/CMATH/test.jsonl"
+      limit: null
+    - name: "GSM8K-test"
+      path: "data/GSM8K/test.jsonl"
+      limit: null
+
+  # Environment and reward conventions: the same scorer as math.yaml.
+  episode_length: 1
+  math_backend: marft            # marft | simple
+  reward_mode: vote_binary       # vote_binary | avg_per_answer
+  use_math_verify: true
+  mix_seed: 42                   # deterministic seed for the mixed sampling
+
+# Roles (Duo: Reasoner, Actor).
+mas:
+  roles_path: "../roles/math/roles_duo.json"

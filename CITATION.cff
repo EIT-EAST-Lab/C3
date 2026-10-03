@@ -1,6 +1,6 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite our arXiv paper."
-title: "C3: Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration"
+message: "If you use this software, please cite the paper The Trace Is the State: Exact Credit Assignment for LLM Agent Teams (arXiv:2603.06859)."
+title: "C3: Credit assignment by counterfactual continuation"
 type: software
 license: Apache-2.0
 authors:
@@ -11,6 +11,8 @@ authors:
     given-names: Yirong
   - family-names: Wang
     given-names: Hanlin
+  - family-names: Wang
+    given-names: Jinghan
   - family-names: Zhang
     given-names: Xinming
   - family-names: Shen
@@ -20,16 +22,16 @@ authors:
   - family-names: Zhang
     given-names: Wei
 keywords:
-  - multi-agent reinforcement learning
   - credit assignment
+  - LLM agent teams
+  - multi-agent reinforcement learning
+  - counterfactual continuation
   - large language models
-  - counterfactual evaluation
-  - RLHF infrastructure
-version: 0.2.4
-date-released: "2026-09-16"
+version: 0.3.0
+date-released: "2026-10-03"
 preferred-citation:
   type: article
-  title: "Contextual Counterfactual Credit Assignment for Multi-Agent Reinforcement Learning in LLM Collaboration"
+  title: "The Trace Is the State: Exact Credit Assignment for LLM Agent Teams"
   authors:
     - family-names: Chen
       given-names: Yanjun
@@ -37,6 +39,8 @@ preferred-citation:
       given-names: Yirong
     - family-names: Wang
       given-names: Hanlin
+    - family-names: Wang
+      given-names: Jinghan
     - family-names: Zhang
       given-names: Xinming
     - family-names: Shen

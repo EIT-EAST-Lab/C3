@@ -46,7 +46,7 @@ def get_train_ds_config(
     if stage == 3:
         zero_opt_dict["reduce_scatter"] = True
 
-    return {
+    ds_config = {
         "steps_per_print": 100,
         "zero_optimization": zero_opt_dict,
         "bf16": {
@@ -66,6 +66,16 @@ def get_train_ds_config(
             "autotp_size": tensor_parallel_size,
         },
     }
+
+    if adam_offload:
+        # DeepSpeed refuses an optimizer offload whose optimizer is not DeepSpeedCPUAdam
+        # (ZeRORuntimeException) unless this top-level key says otherwise. DeepSpeedCPUAdam is a
+        # C++ extension built at first use and the image has no nvcc, so the optimizer here is
+        # torch's AdamW (OPENRLHF_TORCH_ADAM=1, see DeepspeedStrategy.create_optimizer), which
+        # updates the offloaded CPU tensors with the same rule, only not fused.
+        ds_config["zero_force_ds_cpu_optimizer"] = False
+
+    return ds_config
 
 
 def get_eval_ds_config(

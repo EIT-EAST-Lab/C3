@@ -1,5 +1,10 @@
 # configs/main_results_registry.yaml
-# Central registry for paper main results.
+# Registry of the main-results evaluation of the paper's EARLIER versions
+# (arXiv:2603.06859v1 and v2): Qwen2.5 base models, a math and a code task,
+# greedy and n10 profiles. It is kept so those runs stay reproducible; it is not
+# the evaluation protocol of the current version (v3). The tables of v3 are
+# evaluated by scripts/70_rebuild/final_eval.py and aggregated by
+# c3.analysis.rebuild.aggregate_e2; see scripts/70_rebuild/README.md.
 #
 # Each run corresponds to:
 #   - a method (SFT / MAPPO / MAGRPO / C3)
@@ -7,7 +12,9 @@
 #   - a seed (0..4)  [required by c3.reporting.main_results]
 #   - a source:
 #       - hf_base: a HuggingFace model id (SFT baseline)
-#       - train_run_dir: a local run directory produced by scripts/40_train/paper_train.sh
+#       - train_run_dir: a local run directory of a training run (the run ids below
+#         are the earlier layout; scripts/40_train/paper_train.sh now names its runs
+#         paper_<recipe>_<method>_math_seed<k>)
 #
 # The main-results sweep script will produce:
 #   <run_root>/<out_subdir>/<task>/<profile>/{eval_only.jsonl, eval_only.jsonl.metrics.jsonl}
@@ -31,7 +38,7 @@ defaults:
 
 runs:
   # ------------------ SFT baseline (no training required) ------------------
-  # Paper-aligned default bases:
+  # Default bases of the earlier versions:
   #   - math: Qwen/Qwen2.5-3B-Instruct
   #   - code: Qwen/Qwen2.5-Coder-3B-Instruct
   # We expand SFT to 5 pseudo-seeds so that strict aggregation (expected_runs=5)
@@ -130,8 +137,7 @@ runs:
   # ------------------ RL-trained methods (require local training) ------------------
   # Training outputs are expected at:
   #   ckpt/_runs/<run_id>/final_hf
-  # and are produced by:
-  #   bash scripts/40_train/paper_train.sh
+  # under the run ids of the earlier layout.
 
   # MAPPO (5 seeds)
   - id: "paper_MAPPO_math_seed0"

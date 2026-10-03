@@ -2,7 +2,11 @@
 # scripts/60_analysis/paper_analysis_figs.sh
 set -euo pipefail
 
-# Paper analysis/diagnostics figure pipeline.
+# Analysis/diagnostics figure pipeline of the paper's EARLIER versions
+# (arXiv:2603.06859v1 and v2, the mechanism figure). It is kept so that figure stays
+# reproducible; the analyses of the current version (v3) are the drivers and
+# aggregations under scripts/70_rebuild/ and c3/analysis/rebuild/, see
+# scripts/70_rebuild/README.md.
 #
 # This script is the "single entry" replacement for the old examples/c3/analysis/* bash files.
 # It runs sequentially by default (predictable + minimal), but you can parallelize by
@@ -11,7 +15,7 @@ set -euo pipefail
 _usage() {
   cat <<'USAGE'
 Usage:
-  # Fig2 (paper): mechanism diagnostics (C3 / MAPPO / MAGRPO / SFT)
+  # Fig2 of the earlier versions: mechanism diagnostics (C3 / MAPPO / MAGRPO / SFT)
   bash scripts/60_analysis/paper_analysis_figs.sh fig2 \
     --suite math \
     --out_dir artifacts/fig2_mechanism \
@@ -22,7 +26,7 @@ Usage:
     --mappo_critic_ckpt <PATH_TO_MAPPO_CRITIC>
 
 Subcommands:
-  fig2                    Run + aggregate + plot mechanism diagnostics (paper Fig2).
+  fig2                    Run + aggregate + plot mechanism diagnostics (earlier versions' Fig2).
 
 Common options:
   --suite math|code       Which suite/task YAML to use (default: math)

@@ -89,7 +89,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from . import noise_law as nl
 from . import splithalf as sh
 from . import summary as summary_mod
-from .summary import build_summary, git_sha, key_refusal, load_manifest, write_summary
+from .summary import MANIFEST_HELP, build_summary, git_sha, key_refusal, load_manifest, write_summary
 
 __all__ = [
     "SummaryBuilder",
@@ -703,7 +703,7 @@ def build_parser(experiment: str) -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Aggregate the %s cells into a summary.json" % experiment)
     ap.add_argument("--results", required=True, help="root of the experiment's result tree")
-    ap.add_argument("--manifest", required=True, help="the paper's results/manifest.json")
+    ap.add_argument("--manifest", required=True, help=MANIFEST_HELP)
     ap.add_argument("--out", required=True, help="summary.json to write")
     return ap
 

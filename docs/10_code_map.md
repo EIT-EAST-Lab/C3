@@ -19,10 +19,10 @@ This document is a quick navigation guide to the repository. It is intentionally
 | [scripts/10_data/](../scripts/10_data) | dataset download, canonicalization, SHA256 verification | no |
 | [scripts/20_models/](../scripts/20_models) | base model pre-download | no |
 | [scripts/30_smoke/](../scripts/30_smoke) | wiring smoke test and reproduction preflight | no |
-| [scripts/40_train/](../scripts/40_train) | the paper training matrix | yes |
-| [scripts/50_eval/](../scripts/50_eval) | the paper main-results sweep | yes |
-| [scripts/60_analysis/](../scripts/60_analysis) | analysis figures from local run directories | no |
-| [scripts/70_rebuild/](../scripts/70_rebuild) | bucket-generation cells of the E1 depth study and the E3a bias map, the start-accuracy probe, and the evaluation of record | yes |
+| [scripts/40_train/](../scripts/40_train) | the paper's training recipes (`RECIPE` is `main`, `long` or `a3`) | yes |
+| [scripts/50_eval/](../scripts/50_eval) | the evaluation runner that `final_eval.py` calls, and the results sweep of the paper's earlier versions | yes |
+| [scripts/60_analysis/](../scripts/60_analysis) | analysis figures of the paper's earlier versions, from local run directories | no |
+| [scripts/70_rebuild/](../scripts/70_rebuild) | the experiments of the paper: the measurement cells of Sections 3 and 4 (E1, E1b, E3a), the critic comparison (E4), the start-accuracy probe, and the evaluation of record; its README maps each code name to the paper's tables | yes |
 | [scripts/90_audit/](../scripts/90_audit) | release audit and local release gate | no |
 | [scripts/_lib/](../scripts/_lib) | shared shell helpers, sourced rather than executed | no |
 
@@ -44,9 +44,11 @@ This document is a quick navigation guide to the repository. It is intentionally
 - data prep: [scripts/10_data/prepare_all.sh](../scripts/10_data/prepare_all.sh)
 - data contamination gate: [scripts/10_data/check_overlap.py](../scripts/10_data/check_overlap.py), which fails when an evaluation problem also occurs in a training file
 - model prep: [scripts/20_models/download_models.sh](../scripts/20_models/download_models.sh)
-- training matrix: [scripts/40_train/paper_train.sh](../scripts/40_train/paper_train.sh)
-- main-results sweep: [scripts/50_eval/paper_main_results.sh](../scripts/50_eval/paper_main_results.sh)
-- analysis figures: [scripts/60_analysis/paper_analysis_figs.sh](../scripts/60_analysis/paper_analysis_figs.sh)
+- training recipes: [scripts/40_train/paper_train.sh](../scripts/40_train/paper_train.sh)
+- evaluation of record: [scripts/70_rebuild/final_eval.py](../scripts/70_rebuild/final_eval.py)
+- experiments of the paper: [scripts/70_rebuild/README.md](../scripts/70_rebuild/README.md)
+- results sweep of the paper's earlier versions: [scripts/50_eval/paper_main_results.sh](../scripts/50_eval/paper_main_results.sh)
+- analysis figures of the paper's earlier versions: [scripts/60_analysis/paper_analysis_figs.sh](../scripts/60_analysis/paper_analysis_figs.sh)
 - release audit: [scripts/90_audit/pre_release.sh](../scripts/90_audit/pre_release.sh)
 - release gate: [scripts/90_audit/release_gate.sh](../scripts/90_audit/release_gate.sh)
 
@@ -63,6 +65,7 @@ This document is a quick navigation guide to the repository. It is intentionally
 - MAGRPO baseline: [c3/baselines/magrpo.py](../c3/baselines/magrpo.py)
 - group-baseline fallback registered as "c3": [c3/baselines/group_baseline.py](../c3/baselines/group_baseline.py)
 - algorithm naming and normalization: [c3/baselines/registry.py](../c3/baselines/registry.py)
+- the row chunking that keeps the log-probability pass over one whole question group from materialising a single `[group, tokens, vocabulary]` logits tensor: [openrlhf/trainer/ray/logprob_chunking.py](../openrlhf/trainer/ray/logprob_chunking.py)
 
 ### I want to understand evaluation and paper tables
 
@@ -119,8 +122,13 @@ machine-independent `source` path in `summary.json`. Pass `--results_root` (or
 
 | File | What it does | Needs a GPU |
 |---|---|---|
+| [scripts/70_rebuild/README.md](../scripts/70_rebuild/README.md) | The code names of the drivers against the tables and sections of the paper, and the commands of each experiment | |
 | [scripts/70_rebuild/e1_cells.py](../scripts/70_rebuild/e1_cells.py) | Emit, and optionally run, the bucket-generation cells of the E1 depth study | yes, except `--dry-run` |
+| [scripts/70_rebuild/e1b_cells.py](../scripts/70_rebuild/e1b_cells.py) | Emit, and optionally run, the cells of the E1b noise-law grid: two continuation seeds per grid point, the second reusing the alternatives of the first | yes, except `--dry-run` |
 | [scripts/70_rebuild/e3a_cells.py](../scripts/70_rebuild/e3a_cells.py) | Emit, and optionally run, the bucket-generation cells of the E3a bias map | yes, except `--dry-run` |
+| [scripts/70_rebuild/e4_critic.py](../scripts/70_rebuild/e4_critic.py) | E4, the learned-critic comparison: held-out split, reference preparation, critic sweep and refit, scoring, and the rank-correlation evaluation | `train` and `score` only |
+| [scripts/70_rebuild/e4_reference_cells.py](../scripts/70_rebuild/e4_reference_cells.py) | Emit, and optionally run, the 16-continuation reference cells E4 is scored against | yes, except `--dry-run` |
+| [scripts/70_rebuild/export_tag_hf.py](../scripts/70_rebuild/export_tag_hf.py) | Write one DeepSpeed checkpoint tag out as a Hugging Face model directory, so an earlier step can be evaluated like a final model | no, it runs on the CPU |
 | [scripts/70_rebuild/eval_probe.py](../scripts/70_rebuild/eval_probe.py) | Measure the start accuracy of a frozen policy on the candidate benchmarks | yes, except `--dry-run` and `--summarize_only` |
 | [scripts/70_rebuild/final_eval.py](../scripts/70_rebuild/final_eval.py) | The evaluation of record: the one evaluation per trained model the main table is read off, avg@k with k fixed per suite | yes, except `--dry-run` |
 | [scripts/70_rebuild/replay_tokens.py](../scripts/70_rebuild/replay_tokens.py) | Count what one replay of the deep chain regenerates downstream, in tokens: the one E1 key the aggregation cannot produce | yes, except `--dry-run`, and it needs a tokenizer rather than a GPU |
@@ -135,6 +143,7 @@ machine-independent `source` path in `summary.json`. Pass `--results_root` (or
 | [c3/analysis/rebuild/splithalf.py](../c3/analysis/rebuild/splithalf.py) | Split-half reliability of within-group credit, per group and per cell |
 | [c3/analysis/rebuild/duplicates.py](../c3/analysis/rebuild/duplicates.py) | Duplicate alternatives inside a group (E1c: the duplicate-rate monitor) |
 | [c3/analysis/rebuild/noise_law.py](../c3/analysis/rebuild/noise_law.py) | E1b: measured against predicted estimator noise of the leave-one-out advantage |
+| [c3/analysis/rebuild/e1_signal_noise.py](../c3/analysis/rebuild/e1_signal_noise.py) | E1: the signal and noise behind split-half reliability, and the reliability S / (S + 2N) they imply |
 | [c3/analysis/rebuild/influence.py](../c3/analysis/rebuild/influence.py) | Answer-level plug-in mutual information `I(J; Y \| h)`, the influence estimator frozen in the analysis plan of the rebuild experiments (E3a, E5) |
 | [c3/analysis/rebuild/bias_map.py](../c3/analysis/rebuild/bias_map.py) | E3a: the ablation bias map, decision point by decision point |
 | [c3/analysis/rebuild/coupling.py](../c3/analysis/rebuild/coupling.py) | E5: the paired contrast between two policies, with the estimators frozen |
@@ -143,7 +152,12 @@ machine-independent `source` path in `summary.json`. Pass `--results_root` (or
 | [c3/analysis/rebuild/aggregate_e1b.py](../c3/analysis/rebuild/aggregate_e1b.py) | E1b aggregation: the noise-law grid |
 | [c3/analysis/rebuild/aggregate_e1c_temp.py](../c3/analysis/rebuild/aggregate_e1c_temp.py) | E1c aggregation for the temperature sweep and the alert-band subsets |
 | [c3/analysis/rebuild/aggregate_e2.py](../c3/analysis/rebuild/aggregate_e2.py) | E2 aggregation: the training arms, under one training seed or five |
+| [c3/analysis/rebuild/e2_tokens.py](../c3/analysis/rebuild/e2_tokens.py) | E2: the training-token account of a run, read from its trainer log and budget ledger |
+| [c3/analysis/rebuild/e2_curves.py](../c3/analysis/rebuild/e2_curves.py) | E2: the monitoring curve of a run, from the in-training evaluation |
+| [c3/analysis/rebuild/aggregate_5seed.py](../c3/analysis/rebuild/aggregate_5seed.py) | The 5-seed runs: Tables 2 and 8 (mean and standard deviation over training seeds) and the Holm-corrected paired test of Table 10 |
+| [configs/results_keys_v3.json](../configs/results_keys_v3.json) | The result keys the paper prints, with unit and table, no values; accepted as `--manifest` by every aggregation |
 | [c3/analysis/rebuild/aggregate_e3a.py](../c3/analysis/rebuild/aggregate_e3a.py) | Command line aggregation for E3a, the ablation bias map |
+| [c3/analysis/rebuild/e3a_strata.py](../c3/analysis/rebuild/e3a_strata.py) | E3a: the bias of the two high-influence strata, checked a second time with plain numpy |
 | [c3/analysis/rebuild/aggregate_e5.py](../c3/analysis/rebuild/aggregate_e5.py) | Command line aggregation for E5, the paired policy contrast |
 
 ### Workflow configs
@@ -163,6 +177,9 @@ unless the row says otherwise. The role graph column is read off the role file's
 | [configs/tasks/math_screen.yaml](../configs/tasks/math_screen.yaml), E1 screening pass over the whole MATH test pool | [roles_duo.json](../configs/roles/math/roles_duo.json) | reasoner, actor |
 | [configs/tasks/math_eval_probe.yaml](../configs/tasks/math_eval_probe.yaml), start-accuracy probe over the candidate benchmarks, evaluation only | [roles_duo.json](../configs/roles/math/roles_duo.json) | reasoner, actor |
 | [configs/tasks/math_final_eval.yaml](../configs/tasks/math_final_eval.yaml), the evaluation of record after training, evaluation only | [roles_duo.json](../configs/roles/math/roles_duo.json) | reasoner, actor |
+| [configs/tasks/math_5seed.yaml](../configs/tasks/math_5seed.yaml), training task of the 5-seed run (`RECIPE=main`), MATH-train only | [roles_duo.json](../configs/roles/math/roles_duo.json) | reasoner, actor |
+| [configs/tasks/math_5seed_a3.yaml](../configs/tasks/math_5seed_a3.yaml), training task of the 3-agent 5-seed run (`RECIPE=a3`), MATH-train only | [roles_trio.json](../configs/roles/math/roles_trio.json) | reasoner, actor, verifier |
+| [configs/tasks/math_final_eval_a3.yaml](../configs/tasks/math_final_eval_a3.yaml), evaluation of the 3-agent 5-seed run on the four benchmarks of Table 8, evaluation only | [roles_trio.json](../configs/roles/math/roles_trio.json) | reasoner, actor, verifier |
 
 ### The test suite
 
@@ -180,26 +197,40 @@ that leaves ten files out is worse than no map.
 | [tests/contract/test_prepare_data_gates.py](../tests/contract/test_prepare_data_gates.py) | The write door of both preparation scripts, the MBPP+ differential row, and MATH-train's two reductions |
 | [tests/contract/test_prepare_math_gate.py](../tests/contract/test_prepare_math_gate.py) | The data-prep write door refuses rows without an answer, and CMATH's `golden` column is read |
 | [tests/contract/test_prepare_math_pool.py](../tests/contract/test_prepare_math_pool.py) | The MATH test-split builder, the row-id rule, the id list and the pool builder |
-| [tests/contract/test_release_contracts.py](../tests/contract/test_release_contracts.py) | The paper training recipe in executable form, the budget ledger and the context-key hash |
+| [tests/contract/test_release_contracts.py](../tests/contract/test_release_contracts.py) | The three paper training recipes in executable form, the budget ledger and the context-key hash |
 | [tests/contract/test_release_surface.py](../tests/contract/test_release_surface.py) | The public release surface: tracked scripts, documentation links, prose, workflows, and every intra-repository import |
 | [tests/mechanism/test_credit_mechanism.py](../tests/mechanism/test_credit_mechanism.py) | The paper's counterfactual credit assignment on CPU (skipped without torch) |
 | [tests/mechanism/test_mappo_step_gae.py](../tests/mechanism/test_mappo_step_gae.py) | The MAPPO step-level GAE over multi-episode batches, and the step ids it refuses |
 | [tests/unit/test_bucket_guard.py](../tests/unit/test_bucket_guard.py) | The context-key collision guard of the bucket validator |
 | [tests/unit/test_chat_template_thinking.py](../tests/unit/test_chat_template_thinking.py) | Thinking stays off on hybrid-thinking chat templates |
 | [tests/unit/test_code_executor_limits.py](../tests/unit/test_code_executor_limits.py) | The sandbox resource limits land on the worker child and on no other process |
+| [tests/unit/test_ds_config_offload.py](../tests/unit/test_ds_config_offload.py) | The DeepSpeed training config under an optimizer offload: the key that lets a non-DeepSpeed CPU optimizer offload, and the switch that puts the optimizer states on the CPU |
+| [tests/unit/test_e2_curves.py](../tests/unit/test_e2_curves.py) | The E2 monitoring curve: a point in percent, the problem count recovered from the per-problem dump, and the two absences it reports instead of filling |
+| [tests/unit/test_e2_tokens.py](../tests/unit/test_e2_tokens.py) | The E2 token account: one status line taken apart, the totals as products of the two recorded means, and the steps left out rather than guessed |
+| [tests/unit/test_eval_method_labels.py](../tests/unit/test_eval_method_labels.py) | What a method label may be along the evaluation path: a checkpoint label is evaluated as the method it is a checkpoint of, and a label that is not a method still falls through |
+| [tests/unit/test_logprob_chunking.py](../tests/unit/test_logprob_chunking.py) | The row chunking of the experience-phase log-probability forwards: the switch both forwards read, the packed-sequence guard, the batch-layer weight move, and that a chunked pass returns what one call returns |
 | [tests/unit/test_prompt_render.py](../tests/unit/test_prompt_render.py) | The role prompt renderer, including an unmatched brace left as it stands |
+| [tests/unit/test_rebuild_5seed_tasks.py](../tests/unit/test_rebuild_5seed_tasks.py) | The 5-seed task files, and a 3-agent model evaluated by `final_eval.py` and read into Table 8 |
+| [tests/unit/test_rebuild_aggregate_5seed.py](../tests/unit/test_rebuild_aggregate_5seed.py) | The 5-seed aggregation on synthetic records: means, standard deviations, the average column, the paired test and Holm checked against scipy |
 | [tests/unit/test_rebuild_aggregate_e2.py](../tests/unit/test_rebuild_aggregate_e2.py) | The E2 aggregation and the two replication units it has to tell apart |
 | [tests/unit/test_rebuild_bias_coupling.py](../tests/unit/test_rebuild_bias_coupling.py) | The influence estimator, the E3a bias map and the E5 coupling |
 | [tests/unit/test_rebuild_context_scope.py](../tests/unit/test_rebuild_context_scope.py) | The generation-time context scope |
 | [tests/unit/test_rebuild_e1_cells.py](../tests/unit/test_rebuild_e1_cells.py) | The E1 cell driver and the bucket meta injection |
+| [tests/unit/test_rebuild_e1_signal_noise.py](../tests/unit/test_rebuild_e1_signal_noise.py) | The signal and noise decomposition of the E1 cells and the reliability it implies |
+| [tests/unit/test_rebuild_e1b_cells.py](../tests/unit/test_rebuild_e1b_cells.py) | The E1b grid driver: grid size, seeds, the reuse of seed A's alternatives by seed B, and the layout the aggregation reads |
 | [tests/unit/test_rebuild_e1b_reuse.py](../tests/unit/test_rebuild_e1b_reuse.py) | Reusing the alternatives of an earlier run |
 | [tests/unit/test_rebuild_e3a.py](../tests/unit/test_rebuild_e3a.py) | The E3a null action injection |
+| [tests/unit/test_rebuild_e3a_strata.py](../tests/unit/test_rebuild_e3a_strata.py) | The stratified E3a bias and its independent numpy recheck |
+| [tests/unit/test_rebuild_e4_critic.py](../tests/unit/test_rebuild_e4_critic.py) | The E4 critic comparison on synthetic cells: the held-out split, the reference preparation, the training orchestration with the model parts faked, and the evaluation |
+| [tests/unit/test_rebuild_e4_reference_cells.py](../tests/unit/test_rebuild_e4_reference_cells.py) | The E4 reference cell driver: replay count, replay seeds, the refusal of the cell's own seed, and the output layout |
 | [tests/unit/test_rebuild_eval_probe.py](../tests/unit/test_rebuild_eval_probe.py) | The start-accuracy probe and the candidate benchmark builders |
+| [tests/unit/test_rebuild_export_tag_hf.py](../tests/unit/test_rebuild_export_tag_hf.py) | One checkpoint tag written out as a model directory: which key prefix the saved actor carries, what counts as a clean load, and the distance from the base snapshot that says the trained weights really landed |
 | [tests/unit/test_rebuild_final_eval.py](../tests/unit/test_rebuild_final_eval.py) | The evaluation of record: grouping by sample count, the generated per-group task file, avg@k, the boxed rate and the AIME merge |
 | [tests/unit/test_rebuild_reliability.py](../tests/unit/test_rebuild_reliability.py) | The rebuild-experiment reliability family: `c3.analysis.rebuild.{splithalf, duplicates, noise_law, aggregate_e1, aggregate_e1b, aggregate_e1c_temp}` |
 | [tests/unit/test_rebuild_replay_batched.py](../tests/unit/test_rebuild_replay_batched.py) | The cross bucket batched replay path |
 | [tests/unit/test_rebuild_summary.py](../tests/unit/test_rebuild_summary.py) | One `summary.json` implementation for the whole rebuild package |
 | [tests/unit/test_rebuild_workflows.py](../tests/unit/test_rebuild_workflows.py) | The task configurations added for the rebuild study: the five deeper workflows plus the two-agent copy |
+| [tests/unit/test_results_keys_v3.py](../tests/unit/test_results_keys_v3.py) | The key table of the paper: names, units and places only, and accepted by every aggregation as its manifest |
 | [tests/unit/test_role_graph.py](../tests/unit/test_role_graph.py) | The role graph topological order, and the missing dependencies and cycles it refuses |
 | [tests/unit/test_task_datasets.py](../tests/unit/test_task_datasets.py) | The task loader: dataset specs from the task file, repository-relative paths and evaluation suite names |
 | [tests/unit/test_task_datasets_align.py](../tests/unit/test_task_datasets_align.py) | Schema alignment before concatenating evaluation suites or training sources |

@@ -11,7 +11,7 @@
 #  5) Fonts slightly smaller but still crisp at single-column size.
 #
 # Usage:
-#   # Paper Fig2 (official): mechanism diagnostics
+#   # Fig2 of the paper's earlier versions (v1 and v2): mechanism diagnostics
 #   python plot_paper_figures.py mechanism --out_dir /tmp/figs --use_dummy
 #
 from __future__ import annotations
@@ -983,7 +983,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p_mech = sub.add_parser(
         "mechanism",
         aliases=["fig2"],
-        help="Paper Fig2: mechanism diagnostics (fidelity/var/influence).",
+        help="Fig2 of the earlier paper versions: mechanism diagnostics (fidelity/var/influence).",
     )
     p_mech.add_argument("--out_dir", type=str, required=True)
     p_mech.add_argument("--summary_json", type=str, default="", help="analysis_results.summary.json")

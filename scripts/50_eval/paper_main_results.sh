@@ -3,7 +3,15 @@ set -euo pipefail
 
 # scripts/50_eval/paper_main_results.sh
 #
-# Run evaluation-only sweeps for paper main results, and aggregate tables.
+# Evaluation-only runs through openrlhf.cli.train_ppo_ray --eval_only.
+#
+# Two uses, of different standing:
+# - `one` in its direct mode is the evaluation step scripts/70_rebuild/final_eval.py
+#   calls for every group of suites; that driver is the evaluation of record of
+#   the current paper (arXiv:2603.06859v3).
+# - `sweep` with configs/main_results_registry.yaml, and the greedy / n10 profiles,
+#   are the main-results protocol of the paper's EARLIER versions (v1 and v2). They
+#   are kept so those runs stay reproducible, and are not the protocol of v3.
 #
 # Usage:
 #   bash scripts/50_eval/paper_main_results.sh sweep \
@@ -166,6 +174,14 @@ _is_sane_jsonl() {
 
 _infer_alg_from_method() {
   local m="${1,,}"
+  # A method label may name a particular CHECKPOINT of a method rather than the run's final
+  # model: `MAGRPO_S250` is MAGRPO's step-250 save, written out by
+  # scripts/70_rebuild/export_tag_hf.py under its own method name so the supplementary row goes
+  # through this same evaluation. The suffix belongs to the label, not to the algorithm, so it is
+  # taken off before the dispatch and the evaluation runs with MAGRPO's own `--marl_algorithm`.
+  # Without this the label fell through to "auto" and the same weights would have been evaluated
+  # under a different algorithm setting than the label says.
+  if [[ "$m" =~ ^(.+)_s[0-9]+$ ]]; then m="${BASH_REMATCH[1]}"; fi
   case "$m" in
     sft)   echo "none" ;;
     mappo) echo "mappo" ;;
@@ -283,7 +299,7 @@ _run_eval_one() {
 
     # NOTE: this is the evaluation entry point (the learning rates are set to 0 above, so no
     # optimization happens). The batch sizes below are conservative single-GPU generation defaults;
-    # training batch configuration follows the paper (Table 3) and scripts/40_train/paper_train.sh.
+    # the training batch configuration is the recipe of scripts/40_train/paper_train.sh.
     --train_batch_size 1
     --micro_train_batch_size 1
     --rollout_batch_size 1

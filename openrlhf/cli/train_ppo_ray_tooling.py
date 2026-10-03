@@ -924,7 +924,7 @@ def _normalize_c3_algorithm_args(args) -> None:
     args.c3_credit_variant = _normalize_choice(
         getattr(args, "c3_credit_variant", None),
         allowed=("reward_only", "value_assisted", "value_only"),
-        default="value_assisted",
+        default="reward_only",
     )
     args.c3_va_alpha = _safe_float(getattr(args, "c3_va_alpha", None), 1.0)
     if args.c3_va_alpha < 0.0 or args.c3_va_alpha > 1.0:
@@ -1437,9 +1437,13 @@ def _add_c3_args(p: argparse.ArgumentParser) -> None:
     c3_group.add_argument(
         "--c3_credit_variant",
         type=str,
-        default="value_assisted",
+        default="reward_only",
         choices=["reward_only", "value_assisted", "value_only"],
-        help="C3 credit variant (default: value_assisted).",
+        help=(
+            "C3 credit variant. reward_only (the default) is C3 as the paper defines it: credit "
+            "from the returns of the counterfactual continuations alone, with no critic. "
+            "value_assisted and value_only add a learned Q-critic and are optional."
+        ),
     )
     c3_group.add_argument(
         "--c3_va_alpha",
@@ -1635,6 +1639,19 @@ def _add_ppo_args(p: argparse.ArgumentParser) -> None:
 
     p.add_argument("--rollout_batch_size", type=int, default=512)
     p.add_argument("--micro_rollout_batch_size", type=int, default=8)
+    p.add_argument(
+        "--logprob_micro_batch_size",
+        type=int,
+        default=0,
+        help=(
+            "Row chunk for the log-probability forwards of the experience phase, the policy "
+            "and the reference model. 0, the default, keeps one forward per batch and is the "
+            "behaviour of every run so far. A positive value splits that forward into chunks "
+            "of this many sequences and joins the results, which lowers the peak of the "
+            "[batch, tokens, vocabulary] logits tensor. It changes neither the training micro "
+            "batch nor the numbers the phase produces."
+        ),
+    )
 
     p.add_argument("--max_epochs", type=int, default=1)
     p.add_argument("--prompt_max_len", type=int, default=1024)

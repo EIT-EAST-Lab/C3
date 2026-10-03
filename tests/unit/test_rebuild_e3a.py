@@ -850,7 +850,8 @@ def test_the_cell_driver_asks_for_the_measurement_the_analysis_plan_fixed(
         assert _flag(argv, "--num_candidates") == "4"
         assert _flag(argv, "--num_completions") == "4"
         assert _flag(argv, "--seed") == "0"
-        assert _flag(argv, "--split") == "MATHPOOL"
+        # The paper reads E3a off the head of MATH500 (Appendix B.6).
+        assert _flag(argv, "--split") == "MATH500"
         assert _flag(argv, "--inject_literal_candidate") == _e3a_cells().NULL_TEXTS[_flag(argv, "--null_form")]
 
 
@@ -887,7 +888,7 @@ def test_the_cell_driver_stamps_the_meta_the_results_layout_requires(capsys: pyt
         assert meta["rule"] == f"e3a_{form}"
         assert meta["policy_tag"] == "sft"
         assert meta["context_scope"] == "ancestors"
-        assert meta["dataset"] == "MATHPOOL"
+        assert meta["dataset"] == "MATH500"
         # The null arm is not one of the alternatives it is compared against.
         assert meta["n_alternatives"] == 4
         assert meta["replays_per_alt"] == 4

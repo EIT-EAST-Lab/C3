@@ -4,20 +4,24 @@ How a trained model is measured: which benchmarks, with what decoding, how many
 samples per problem, and what the evaluation record holds. Every number below is
 derived, not chosen by taste, and the derivation is in this document.
 
+Sections 1 to 6 are the protocol of the long-generation run, Table 7 of the
+paper. The 5-seed runs of Tables 2 and 8 are evaluated more simply, greedily
+under a 512-token generation limit; section 7 says how.
+
 Two evaluations exist and they are not the same thing:
 
 | | During training | After training |
 |---|---|---|
 | Task file | [configs/tasks/math.yaml](../configs/tasks/math.yaml) | [configs/tasks/math_final_eval.yaml](../configs/tasks/math_final_eval.yaml) |
-| When | every ten percent of the run | once, on the finished model |
-| Suites | the five main-table files | those five plus the two saturation controls |
+| When | every 25 percent of the run | after training, on the finished model |
+| Suites | the five files of the four suites of Table 7 | those five plus the two saturation controls |
 | Samples per problem | four, for every suite | per suite, see below |
-| What it is for | the monitoring curve | the numbers of the main table |
+| What it is for | the monitoring curve | the numbers of Table 7 |
 | Driver | [scripts/40_train/paper_train.sh](../scripts/40_train/paper_train.sh) | [scripts/70_rebuild/final_eval.py](../scripts/70_rebuild/final_eval.py) |
 
 ## 1. Benchmarks
 
-The main table reports four suites:
+Table 7 reports four suites:
 
 | Suite | Problems | File |
 |---|---|---|
@@ -33,11 +37,12 @@ the two file accuracies unless the two files have equally many problems. The
 merge happens in the evaluation record, not in the data, so both files stay
 visible and either can still be read on its own.
 
-Multiple-comparison correction is over these four suites.
+No significance test is run on the long-generation run. The paired tests of
+the paper (Table 10) are over the 5-seed run; see section 7.
 
-GSM8K-test (1,319 problems) and CMATH-test (1,098) are saturation controls. They
-are reported in the appendix and no test is run on them: a benchmark a model
-already solves can only show that nothing broke.
+GSM8K-test (1,319 problems) and CMATH-test (1,098) are saturation controls in
+this run: Table 7 reports them beside the four suites, read the same way. A
+benchmark a model already solves can only show that nothing broke.
 
 OlympiadBench is not evaluated. Under the non-thinking decoding of the 4B policy
 its accuracy was 2, 4 and 8 percent at generation caps of 512, 2048 and 4096
@@ -50,15 +55,11 @@ Temperature 0.7, top-p 0.8, top-k 20. This is the setting Qwen3 documents for
 its own non-thinking mode, and it is the setting the training rollouts already
 use, so the evaluation samples from the same distribution training optimized.
 
-Generation cap 2048 tokens, in training and in evaluation alike. At 512 tokens
-three of the candidate suites were measuring truncation rather than ability: not
-one AIME problem reached an answer inside the cap.
+Generation cap 2048 tokens, in training and in evaluation alike, so that
+Minerva-Math, AMC23 and AIME are read with room for a full solution.
 
 Every suite is read this way, the two saturation controls included: one
 estimator, one decoding, across the whole protocol.
-
-An additional greedy evaluation at a 4096 cap is an appendix sensitivity
-analysis, not part of the main protocol.
 
 ## 3. Samples per problem: where k comes from
 
@@ -71,8 +72,8 @@ The sampling standard error of one evaluation is about
 
 with N the problems of the suite and p its accuracy. The requirement is that
 this noise stays under about 1.5 percentage points per training seed: the
-seed-to-seed standard deviation of MATH500 in the January paper is about 0.9
-points, and an evaluation whose own noise is larger than that measures the
+seed-to-seed standard deviation of MATH500 in the 5-seed run of the paper
+(Table 2) is at most 0.9 points, and an evaluation whose own noise is larger than that measures the
 sampler instead of the method.
 
 Putting the measured start accuracies into that expression:
@@ -91,13 +92,13 @@ two, and a control read greedily could not be compared with a suite read at
 avg@4.
 
 The generation count of one model follows from the table: 4,688 for the four
-main-table suites (2,000 plus 1,088 plus 640 plus 960), and 9,668 more for the
+suites of Table 7 (2,000 plus 1,088 plus 640 plus 960), and 9,668 more for the
 two controls at k = 4 (5,276 plus 4,392), so about 14,400 in all.
 
-Each trained model is evaluated once, with a fixed sampling seed. The unit of
-replication is the training seed: five independent training runs per method,
-compared pairwise. avg@k is what replaced the earlier convention of evaluating
-each model several times and averaging.
+The long-generation run trains one model per method, and each model is
+evaluated five times, under evaluation seeds 0 to 4; Table 7 reports the mean
+and standard deviation over those five evaluations. The training seed is the
+unit of replication of the 5-seed runs (section 7), not of this one.
 
 Before the training runs start, the frozen policy is evaluated twice under this
 protocol with two different sampling seeds. The difference between those two
@@ -133,8 +134,8 @@ python scripts/70_rebuild/final_eval.py --policy /models/Qwen3-4B-Instruct-2507 
 
 # Evaluate one finished training run and write its record.
 python scripts/70_rebuild/final_eval.py \
-    --policy ckpt/_runs/paper_C3_math_seed0/final_hf \
-    --run_id paper_C3_math_seed0 \
+    --policy ckpt/_runs/paper_long_C3_math_seed0/final_hf \
+    --run_id paper_long_C3_math_seed0 \
     --out /abs/path/final_eval_record.json
 ```
 
@@ -192,4 +193,21 @@ start accuracies in the table are the measurements of the start-accuracy probe,
 frozen policy. Data provenance for every file named here is in
 [30_data_sources.md](30_data_sources.md). Every suite named here is prepared by
 the default run: `--prepare_candidate_benchmarks` defaults to `1`, which is what
-changed when four of the candidates became evaluation suites of the main task.
+changed when four of the candidates became evaluation suites of the long-generation run.
+
+## 7. The 5-seed runs (Tables 2, 8 and 10)
+
+The 5-seed runs train each method under training seeds 0 to 4, on the 2-agent
+workflow (Table 2) and on the 3-agent workflow (Table 8). Each trained model is
+evaluated once, greedily (k = 1), under a 512-token generation limit, the limit
+it was trained under, on four suites: MATH500, AIME 2025, CMATH-test and
+GSM8K-test. The average the tables print is the mean of MATH500, CMATH and
+GSM8K; AIME 2025 (30 problems) is reported beside it.
+
+[c3/analysis/rebuild/aggregate_5seed.py](../c3/analysis/rebuild/aggregate_5seed.py)
+reads the records and writes each cell as the mean and standard deviation over
+the training seeds. For the 2-agent workflow it also writes Table 10: C3 minus
+the baseline with the higher MATH500 mean, paired by training seed, a two-sided
+paired t test with its 95 percent interval, and Holm's correction over the four
+suites. The training seed is the unit of replication. The commands are in
+[scripts/70_rebuild/README.md](../scripts/70_rebuild/README.md).

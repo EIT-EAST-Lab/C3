@@ -5,6 +5,174 @@ All notable changes to this repository are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-03
+
+**The training recipes, the trainer defaults and the experiment drivers follow
+version 3 of the paper** (arXiv:2603.06859v3, "The Trace Is the State: Exact
+Credit Assignment for LLM Agent Teams"). `scripts/70_rebuild/README.md` maps
+every driver to the table and section of the paper it produces. The README, the
+project page, the citation metadata and the logo carry the paper's version 3
+title, authors and reading of the name: C3, credit assignment by counterfactual
+continuation.
+
+### Changed
+
+- `c3/utils/paper_train_contract.py` holds three training recipes by name, one
+  per trained table of the paper: `main` (Table 2, the 5-seed run of the 2-agent
+  workflow), `long` (Table 7, the long-generation run) and `a3` (Table 8, the
+  5-seed run of the 3-agent workflow). Every value is taken from Table 5,
+  Table 6 or Appendix B.2 and names its source beside it; a setting the paper
+  does not state is taken from the configuration of the reported run and says
+  so. The 5-seed recipes generate up to 512 tokens, train 5 passes at micro
+  batches 64 and 32 and evaluate every 5 percent of the run; the long recipe
+  generates up to 2048 tokens, trains 2 passes of 5,000 problems at micro
+  batches 4 and 8 and evaluates every 25 percent. Every recipe runs one PPO
+  epoch per batch and 8 rollouts per instance for every method. C3 runs the
+  reward-only credit with the leave-one-out baseline, fanout `2,4` on the
+  2-agent workflow and `2,2,2` on the 3-agent one. MAPPO's critic is
+  `jhu-clsp/mmBERT-base` with a 64-step warmup. `PAPER_TRAIN_RECIPE`,
+  `PAPER_TRAIN_STORE_TRUE_FLAGS` and `PAPER_TRAIN_DEPARTURES` are replaced by
+  `PAPER_TRAIN_RECIPES`, and the module has a command line,
+  `python -m c3.utils.paper_train_contract {recipes,task,seeds,args}`.
+- The 5-seed recipes train on the MATH training split alone
+  (`configs/tasks/math_5seed.yaml` for `main`, `configs/tasks/math_5seed_a3.yaml`
+  for `a3`), as Table 5 states; the long recipe keeps `configs/tasks/math.yaml`.
+  They also pack sequences into micro-batches under a per-GPU token budget
+  (`--packing_samples --use_dynamic_batch --train_max_tokens_per_gpu 32768
+  --rollout_max_tokens_per_gpu 32768`), and C3 passes
+  `--advantage_estimator reinforce`, both from the configuration of the
+  reported run. The long recipe saves a checkpoint every 250 steps and keeps 3
+  (`--save_steps 250 --max_ckpt_num 3`), so the step-250 checkpoint of Table 7
+  is on disk when the run ends.
+- `scripts/40_train/paper_train.sh` takes `RECIPE=main|long|a3` (default
+  `main`) and trains the math task of that recipe for MAPPO, MAGRPO and C3 over
+  the recipe's training seeds: 0 to 4 for `main` and `a3`, 0 for `long`. The
+  code task is no longer part of the matrix. Every flag comes from the contract,
+  including `--c3_credit_variant`, `--critic_pretrain`, `--critic_warmup_steps`,
+  `--max_epochs` and `--train_epochs`. `DRY_RUN=1` prints the final command line
+  of every run and starts none. `EXTRA_ARGS` is appended to every run, for the
+  flags of the machine's hardware layout. Run ids are now
+  `paper_<recipe>_<method>_math_seed<k>`. Every run keeps its checkpoints under
+  its own run directory (`--ckpt_path ckpt/_runs/<run_id>`).
+- `scripts/20_models/download_models.sh` downloads the models of the paper,
+  `Qwen/Qwen3-4B-Instruct-2507`, `Qwen/Qwen3-8B` and `jhu-clsp/mmBERT-base`,
+  beside the registry's two Qwen2.5 models, which belong to the evaluation
+  protocol of the earlier versions. `--models paper|early|all` (default `all`)
+  picks the set.
+- The `--manifest` help of every aggregation points at
+  `configs/results_keys_v3.json`.
+- `--c3_credit_variant` defaults to `reward_only`, which is C3 as the paper
+  defines it, with no critic. `value_assisted` and `value_only` remain
+  available. The fallbacks that read the variant off the arguments use the same
+  default.
+- `scripts/70_rebuild/e3a_cells.py` draws its decision points from `MATH500` by
+  default, the first 150 questions of the suite. `--split MATHPOOL` selects the
+  screened pool.
+- `configs/main_results_registry.yaml`, `scripts/50_eval/paper_main_results.sh`
+  in its `sweep` mode, `scripts/60_analysis/paper_analysis_figs.sh`,
+  `c3/reporting/main_results.py` and `c3/reporting/plot_paper_figures.py` say in
+  their headers that they implement the evaluation protocol of the paper's
+  earlier versions, v1 and v2. The evaluation of record of v3 is
+  `scripts/70_rebuild/final_eval.py`, aggregated by
+  `c3.analysis.rebuild.aggregate_5seed` for the 5-seed runs and
+  `c3.analysis.rebuild.aggregate_e2` for the long-generation run.
+- The package version is 0.3.0, and its description reads "Official
+  implementation of C3, credit assignment by counterfactual continuation for LLM
+  agent teams."
+- `README.md` is rewritten for version 3 of the paper: its title and status,
+  the TL;DR, Figure 1 of version 3 with its caption, the key results with
+  Table 2 (the 5-seed run of the 2-agent workflow), how each experiment is
+  reproduced, and the BibTeX entry. The two figures of version 1 (the token
+  Pareto plot and the learning dynamics), the 3-agent table with its MBPP
+  columns and the CORY comparison are removed. The workflow sections name the
+  training recipes, the evaluation of record of each trained table, and the
+  registry sweep and analysis figures as the protocol of the earlier versions.
+- `project-page/index.html` is rewritten for version 3: title and description,
+  the eight authors and three affiliations, the abstract, three sections with
+  Figure 1, Figure 2 and Table 2, four headline numbers, the reproduction
+  commands and the BibTeX entry. `project-page/assets/C3.bib` carries the same
+  entry, and `project-page/styles.css` gains the styles of the table.
+- `CITATION.cff`: the software title is "C3: Credit assignment by
+  counterfactual continuation", the preferred citation is the version 3 title,
+  and both author lists have the eight authors of version 3, with Jinghan Wang
+  added. Version 0.3.0.
+- `figs/c3-logo-light.svg` and `figs/c3-logo-dark.svg` read "credit assignment
+  by counterfactual continuation", with the line pinned to its box by
+  `textLength`; `figs/c3-social.png` is redrawn from the new logo with the
+  version 3 title. `figs/fig1_overview.png` is Figure 1 of version 3, and
+  `figs/fig2_prediction.png` (Figure 2 of version 3) is added;
+  `figs/fig_learning_dynamics_4b.png` and `figs/fig_pareto_tokens_4b.png` are
+  removed, and `.github/workflows/project-page.yml` copies the new set.
+- `docs/00_getting_started.md`, `docs/10_code_map.md`,
+  `docs/20_implementation_audit.md`, `docs/32_evaluation_protocol.md` and
+  `docs/51_release_checklist.md` point at the training recipes, the evaluation
+  of record and the experiment drivers of version 3, and name the registry
+  sweep and the analysis figures as the protocol of the earlier versions.
+  `docs/32_evaluation_protocol.md` says which run each part of the protocol
+  belongs to: avg@k at 2048 tokens for the long-generation run (Table 7), and
+  greedy decoding at 512 tokens with the paired tests of Table 10 for the
+  5-seed runs.
+
+### Added
+
+- `c3/analysis/rebuild/e1_signal_noise.py`: the signal and the noise behind
+  split-half reliability on the E1 cells, and the reliability S / (S + 2N) they
+  imply (Table 1, Implied column; Table 3, lower block).
+- `scripts/70_rebuild/e1b_cells.py`: the cells of the noise-law grid (Table 3,
+  upper block), n and c in {2, 4, 8}, 500 decision points, continuation seeds
+  1001 and 2002, the second reusing the alternatives the first recorded.
+- `c3/analysis/rebuild/e3a_strata.py`: the bias of the two high-influence strata
+  of E3a (Table 9), through the aggregation's own code and checked a second time
+  with plain numpy.
+- `scripts/70_rebuild/e4_critic.py` and `scripts/70_rebuild/e4_reference_cells.py`:
+  the learned-critic comparison (Section 4, Appendix B.7), from the held-out
+  split through the 16-continuation reference cells, the mmBERT-base critic
+  sweep and refit, scoring, and the rank-correlation evaluation.
+- `c3/analysis/rebuild/e2_tokens.py` and `c3/analysis/rebuild/e2_curves.py`: the
+  training-token account and the monitoring curve of a run, read from what its
+  run directory records. `aggregate_e2` writes the token account into the
+  compute keys, reports a resumed run's repeated steps apart from unreadable
+  lines, and stops with exit code 3 on a damaged evaluation record unless
+  `--allow-broken-records` is given.
+- `scripts/70_rebuild/export_tag_hf.py`: one DeepSpeed checkpoint tag written out
+  as a Hugging Face model directory, so an earlier step (the step-250 row of
+  Table 7) is evaluated like a final model. It loads the model on the CPU
+  without `accelerate`, which the CPU tier does not install. A method label of
+  the form `<method>_s<step>` is evaluated under its method's algorithm, and
+  `aggregate_e2` reports such a row as supplementary and in no comparison.
+- `--logprob_micro_batch_size`: splits the experience-phase log-probability pass
+  of the policy and the reference model into row chunks, which return the same
+  numbers and lower the peak memory of one question group. The long recipe sets
+  it to 4 for MAPPO and MAGRPO.
+- `scripts/70_rebuild/README.md`: the code names of the drivers against the
+  paper's tables and sections, and the commands of each experiment.
+- `c3/analysis/rebuild/aggregate_5seed.py`: the 5-seed runs. Tables 2 and 8 as
+  the mean and standard deviation over training seeds of MATH500, AIME 2025,
+  CMATH, GSM8K and their average, and the paired test of Table 10 (C3 minus the
+  baseline with the higher MATH500 mean, paired by training seed, two-sided t
+  test with its 95 percent interval, Holm over the four benchmarks). `--table`
+  writes the three tables as Markdown.
+- `configs/tasks/math_final_eval_a3.yaml`: the evaluation of the 3-agent 5-seed
+  run with `final_eval.py`, on the four benchmarks of Table 8 with the 3-agent
+  team.
+- `configs/results_keys_v3.json`: the result keys the paper prints, with their
+  unit and the table, figure or section they appear in, and no value. It has
+  the manifest's shape, so the aggregations accept it as `--manifest`. The keys
+  of the 5-seed runs are named `E2main.<arm>.*`; the training-token column of
+  Table 8 has no key and is not aggregated.
+
+### Fixed
+
+- `--ref_reward_offload` moves the reference model's weights to the CPU between
+  batches; it used to set a ZeRO-3 key that ZeRO-2 ignores.
+- With `--adam_offload`, the DeepSpeed configuration carries
+  `zero_force_ds_cpu_optimizer: false`, so torch's AdamW may update the
+  offloaded optimizer states.
+- `scripts/40_train/paper_train.sh` passed one `--ckpt_path` to every run of a
+  recipe, so the runs shared `ckpt/_actor/`: a later run rotated out or
+  overwrote the checkpoints of an earlier one, the step-250 checkpoint of the
+  long recipe's MAGRPO run among them. Each run now has its own.
+
 ## [0.2.4] - 2026-09-19
 
 **This release removes import paths.** Five aliases kept since 0.2.0 are gone,

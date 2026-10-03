@@ -106,7 +106,7 @@ if [[ "${RUN_SFT_EVAL}" == "1" ]]; then
     echo "ERROR: RUN_SFT_EVAL=1 requires HF_BASE or SMOKE_HF_BASE." >&2
     exit 2
   }
-  echo "[release_gate] optional paper-facing SFT eval"
+  echo "[release_gate] optional SFT eval (the earlier versions' greedy profile)"
   bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
   bash scripts/50_eval/paper_main_results.sh one \
     --id "RELEASE_GATE_SFT" \

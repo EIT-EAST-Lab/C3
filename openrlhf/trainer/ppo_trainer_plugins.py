@@ -1810,7 +1810,7 @@ class PPOTrainerPluginsMixin:
         marl_alg = str(marl_alg or "auto").lower().strip()
         if raw != "auto":
             if marl_alg == "c3":
-                cv = str(getattr(self.args, "c3_credit_variant", "value_assisted") or "value_assisted").lower().strip()
+                cv = str(getattr(self.args, "c3_credit_variant", "reward_only") or "reward_only").lower().strip()
                 if cv == "reward_only" and raw in {"q", "all"}:
                     raise RuntimeError(
                         "[C3][FAIL-FAST] critic_target is explicitly set to 'q/all' but c3_credit_variant=reward_only. "
@@ -1819,7 +1819,7 @@ class PPOTrainerPluginsMixin:
             return raw
 
         if marl_alg == "c3":
-            cv = str(getattr(self.args, "c3_credit_variant", "value_assisted") or "value_assisted").lower().strip()
+            cv = str(getattr(self.args, "c3_credit_variant", "reward_only") or "reward_only").lower().strip()
             return "none" if cv == "reward_only" else "q"
         if marl_alg == "mappo":
             return "v"

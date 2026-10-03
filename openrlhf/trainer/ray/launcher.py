@@ -15,6 +15,7 @@ from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 from tqdm import tqdm
 
 from openrlhf.models import Actor, get_llm_for_sequence_regression
+from openrlhf.trainer.ray.logprob_chunking import chunked_forward
 from openrlhf.trainer.ray.utils import ray_noset_visible_devices
 from openrlhf.utils.deepspeed import DeepspeedStrategy
 
@@ -195,6 +196,19 @@ class BaseModelActor(BaseDistributedActor):
         return results
 
 
+def _params_module(model):
+    """The plain module that owns an eval model's parameters, for a .to(device) move.
+
+    ``strategy.prepare`` hands back the ``Actor`` wrapper for an actor and the DeepSpeed engine
+    itself for anything else, and in both cases the parameters sit on the engine's ``.module``.
+    The unwrapping is spelled out instead of ``getattr(x, "model", x)`` because a DeepSpeed
+    engine forwards unknown attributes to its module, and a causal LM's ``.model`` is its
+    transformer body: that spelling would move the body and leave the output head on the GPU.
+    """
+    engine = model.model if isinstance(model, Actor) else model
+    return getattr(engine, "module", engine)
+
+
 @ray.remote(num_gpus=1)
 class ReferenceModelActor(BaseModelActor):
     def init_model_from_pretrained(self, strategy: DeepspeedStrategy, pretrain, role_name: Optional[str] = None):
@@ -220,6 +234,48 @@ class ReferenceModelActor(BaseModelActor):
         self.model = self.strategy.prepare(model, is_rlhf=True)
         self.model.eval()
 
+        # --ref_reward_offload asks for the reference model to live on the CPU between forwards.
+        # It used to be carried only into get_ds_eval_config(offload=True), which sets
+        # zero_optimization.offload_param.device = "cpu"; that key is a ZeRO-3 mechanism and
+        # get_ds_eval_config pins the stage to 0 whenever the training stage is not 3, so under
+        # --zero_stage 2 the flag moved nothing. The move is done by this class instead: the
+        # weights start on the CPU, and execute_batch brings them over for the length of one
+        # batch of forwards and puts them back.
+        self._offload = bool(getattr(self.model, "_offload", False))
+        # Set while execute_batch holds the weights on the GPU for a whole batch, so that the
+        # per-item forwards inside that batch do not move them again.
+        self._on_device = False
+        if self._offload:
+            _params_module(self.model).to("cpu")
+            torch.cuda.empty_cache()
+
+    def execute_batch(self, method_name: str, all_data, start_idx, end_idx):
+        """Move the offloaded weights over once per batch instead of once per item.
+
+        ``RayActorGroup.async_run_method_batch`` hands each rank its slice of the rollout and
+        the base implementation calls ``forward`` once per item, because ``forward`` is not one
+        of the methods marked ``__openrlhf_batched__``. With ``--ref_reward_offload`` that meant
+        one round trip of the whole 8 GB model per item: on the MAPPO arm, 32 per rank per
+        rollout. The move is done here instead, around the base implementation, whose slicing
+        this override leaves untouched.
+
+        ``BaseModelActor.execute_batch`` is named explicitly rather than through ``super()``
+        because Ray builds the actor instance from a class of its own making.
+        """
+        offload = bool(getattr(self, "_offload", False))
+        if not offload:
+            return BaseModelActor.execute_batch(self, method_name, all_data, start_idx, end_idx)
+
+        device = torch.cuda.current_device()
+        _params_module(self.model).to(device)
+        self._on_device = True
+        try:
+            return BaseModelActor.execute_batch(self, method_name, all_data, start_idx, end_idx)
+        finally:
+            self._on_device = False
+            _params_module(self.model).to("cpu")
+            torch.cuda.empty_cache()
+
     def forward(
         self,
         sequences: torch.LongTensor,
@@ -229,15 +285,39 @@ class ReferenceModelActor(BaseModelActor):
         packed_seq_lens: Optional[list[int]] = None,
     ) -> torch.Tensor:
         device = torch.cuda.current_device()
-        with torch.no_grad():
-            log_probs = self.model(
-                sequences.to(device),
-                action_mask.to(device),
-                attention_mask.to(device),
+        # execute_batch already moved the weights over for the whole batch and says so with
+        # _on_device; a forward reached without it has nobody to do that and moves them itself.
+        offload = bool(getattr(self, "_offload", False)) and not bool(getattr(self, "_on_device", False))
+        if offload:
+            _params_module(self.model).to(device)
+
+        # One MAPPO question group arrives here as one batch of 16 sequences, whose logits are
+        # [16, T, vocab]: about 19 GiB in bf16. --logprob_micro_batch_size splits this pass into
+        # row chunks and joins the results, which returns the same numbers because a row's log
+        # probabilities depend on that row alone (see logprob_chunking.py). Packed sequences
+        # carry their lengths in a parallel list, so a row slice would not mean the same thing
+        # there and the switch stays off for that layout.
+        chunk = 0
+        if packed_seq_lens is None:
+            chunk = int(getattr(self.strategy.args, "logprob_micro_batch_size", 0) or 0)
+
+        def _run(seq, act_mask, attn_mask):
+            return self.model(
+                seq.to(device),
+                act_mask.to(device),
+                attn_mask.to(device),
                 ring_attn_group=self.strategy.ring_attn_group,
                 packed_seq_lens=packed_seq_lens,
             )
-        return log_probs.to("cpu")
+
+        try:
+            with torch.no_grad():
+                log_probs = chunked_forward(_run, sequences, action_mask, attention_mask, chunk)
+        finally:
+            if offload:
+                _params_module(self.model).to("cpu")
+                torch.cuda.empty_cache()
+        return log_probs
 
 
 @ray.remote(num_gpus=1)

@@ -110,31 +110,40 @@ a usable CUDA device and the training stack (`vllm` and `ray`) is importable, so
 GPU machine with only the CPU tier installed still resolves to `cpu`. Force it
 either way with `--tier cpu` or `--tier gpu`.
 
-## 5. Run the paper-facing workflows (GPU tier)
+## 5. Run the paper's experiments (GPU tier)
 
-### SFT-only eval sweep
+### Training recipes
+
+Three recipes, one per trained table of the paper: `main` (Table 2), `long`
+(Table 7) and `a3` (Table 8). Each trains MAPPO, MAGRPO and C3 with the
+settings of Tables 5 and 6 and Appendix B.2.
+
+```bash
+export PRETRAIN='Qwen/Qwen3-4B-Instruct-2507'
+DRY_RUN=1 RECIPE=main bash scripts/40_train/paper_train.sh   # print the command lines only
+RECIPE=main bash scripts/40_train/paper_train.sh
+```
+
+### Evaluation and measurements
+
+Every trained model is evaluated by `scripts/70_rebuild/final_eval.py`, and the
+records are aggregated on the CPU by `c3.analysis.rebuild.aggregate_5seed`
+(Tables 2, 8 and 10) and `c3.analysis.rebuild.aggregate_e2` (Table 7). The
+measurements of Sections 3 and 4 have their own drivers under
+`scripts/70_rebuild/`. The commands, and which driver produces which table, are
+in [scripts/70_rebuild/README.md](../scripts/70_rebuild/README.md).
+
+### Workflows of the earlier paper versions
+
+The registry sweep and the analysis figures below implement the evaluation
+protocol of the paper's earlier versions (v1 and v2). They are kept for those
+versions and do not produce the tables of the current one.
 
 ```bash
 bash scripts/50_eval/paper_main_results.sh sweep \
   --registry configs/main_results_registry.yaml \
   --only_methods SFT
 ```
-
-### Full training matrix
-
-```bash
-export PRETRAIN='Qwen/Qwen2.5-3B-Instruct'
-bash scripts/40_train/paper_train.sh
-```
-
-### Full main-results sweep
-
-```bash
-bash scripts/50_eval/paper_main_results.sh sweep \
-  --registry configs/main_results_registry.yaml
-```
-
-### Paper analyses
 
 ```bash
 bash scripts/60_analysis/paper_analysis_figs.sh fig2 \

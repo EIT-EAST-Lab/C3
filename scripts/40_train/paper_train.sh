@@ -3,20 +3,50 @@ set -euo pipefail
 
 # scripts/40_train/paper_train.sh
 #
-# One-command launcher for the paper training matrix:
-#   METHODS  : MAPPO, MAGRPO, C3
-#   TASKS    : math, code
-#   SEEDS    : 0..4
+# One-command launcher for the training runs of the paper
+# (arXiv:2603.06859v3, "The Trace Is the State: Exact Credit Assignment for
+# LLM Agent Teams"). RECIPE picks which trained table to reproduce:
+#
+#   RECIPE=main  Table 2: the 5-seed run, 2-agent workflow (Reasoner, Actor),
+#                512-token generation limit, training seeds 0..4 (default)
+#   RECIPE=long  Table 7: the long-generation run, 2-agent workflow,
+#                2048-token generation limit, one training seed
+#   RECIPE=a3    Table 8: the 5-seed run, 3-agent workflow (Reasoner, Actor,
+#                Verifier), training seeds 0..4
+#
+# Every recipe trains the three methods the paper compares: MAPPO, MAGRPO and
+# C3, on the math task of the recipe. The hyperparameters are not written here:
+# they are rendered per (recipe, method) from c3/utils/paper_train_contract.py,
+# which is this repository's copy of Tables 5 and 6 and of Appendix B.2, so a
+# run follows the tables instead of the trainer's argparse defaults.
+#
+# Environment
+#   PRETRAIN    base model, a HuggingFace id or a local HF directory; the paper
+#               trains Qwen/Qwen3-4B-Instruct-2507 (required)
+#   RECIPE      main | long | a3 (default: main)
+#   DRY_RUN     1 prints the final command line of every run and starts none
+#   PYTHON_BIN  Python executable (default: python)
+#   EXTRA_ARGS  extra trainer flags appended to every run, for the hardware
+#               layout of the machine (GPU and vLLM engine counts, colocation,
+#               offloading, gradient checkpointing); the hyperparameters of the
+#               tables stay in the recipe
 #
 # Outputs
 #   - Run directory:        ckpt/_runs/<run_id>/
+#   - Checkpoints:          ckpt/_runs/<run_id>/_actor/ (and _critic/ for MAPPO),
+#                           one directory per run, so no run rotates or
+#                           overwrites the checkpoints of another
 #   - Final HF checkpoint:  ckpt/_runs/<run_id>/final_hf/
 #
+# The numbers of the tables come from the evaluation that runs after training,
+# scripts/70_rebuild/final_eval.py, on each final_hf directory; the evaluation
+# that runs during training is the monitoring curve only. See
+# scripts/70_rebuild/README.md for the evaluation and aggregation commands.
+#
 # This script is intentionally non-interactive and non-branchy:
-# it always runs the full matrix and fails fast on missing prerequisites.
+# it runs the full matrix of the recipe and fails fast on missing prerequisites.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${REPO_ROOT}/scripts/_lib/common_env.sh"
 
 c3_repro_export_common_env "${REPO_ROOT}"
@@ -26,15 +56,24 @@ export WANDB_DISABLED=true
 export OPENRLHF_RAY_STOP_ON_EXIT=1
 
 CKPT_ROOT="ckpt"
+RECIPE="${RECIPE:-main}"
+DRY_RUN="${DRY_RUN:-0}"
+PYTHON_BIN="${PYTHON_BIN:-python}"
+EXTRA_ARGS="${EXTRA_ARGS:-}"
+read -r -a EXTRA <<< "$EXTRA_ARGS"
 
 if [[ -z "${PRETRAIN:-}" ]]; then
-  cat >&2 <<'EOF'
+  if [[ "$DRY_RUN" == "1" ]]; then
+    PRETRAIN='<PRETRAIN>'
+  else
+    cat >&2 <<'EOF'
 ERROR: PRETRAIN is not set.
 
-Set PRETRAIN to a HuggingFace model id or a local HF directory, e.g.:
-  export PRETRAIN='Qwen/Qwen2.5-3B-Instruct'
+Set PRETRAIN to a HuggingFace model id or a local HF directory. The paper trains
+  export PRETRAIN='Qwen/Qwen3-4B-Instruct-2507'
 EOF
-  exit 1
+    exit 1
+  fi
 fi
 
 _require_file() {
@@ -42,52 +81,71 @@ _require_file() {
   [[ -f "$p" ]] || { echo "ERROR: missing required file: $p" >&2; exit 1; }
 }
 
-_require_dir() {
-  local p="$1"
-  [[ -d "$p" ]] || { echo "ERROR: missing required directory: $p" >&2; exit 1; }
-}
-
 cd "$REPO_ROOT"
 
-# Basic repo prerequisites.
-_require_file "configs/tasks/math.yaml"
-_require_file "configs/tasks/code.yaml"
-_require_dir "scripts"
+# Ask the contract for one piece of the recipe. Assign first, split second:
+# under `set -e` the assignment aborts the run if the helper fails, which a
+# `read` from a command substitution would not. A run that quietly lost the
+# recipe would train on the trainer's defaults.
+_contract() {
+  "$PYTHON_BIN" -m c3.utils.paper_train_contract "$@"
+}
+
+TASK_YAML="$(_contract task --recipe "$RECIPE")"
+SEEDS_LINE="$(_contract seeds --recipe "$RECIPE")"
+read -r -a SEEDS <<< "$SEEDS_LINE"
+_require_file "$TASK_YAML"
+if [[ ${#SEEDS[@]} -eq 0 ]]; then
+  echo "ERROR: recipe ${RECIPE} lists no training seed" >&2
+  exit 1
+fi
 
 # NOTE:
 # We do NOT enforce dataset file layout here.
 # The training/eval pipeline will error out naturally if required files are missing.
-mkdir -p "${CKPT_ROOT}/_runs"
-
-PYTHON_BIN="${PYTHON_BIN:-python}"
-
-_paper_train_n_samples() {
-  local method="$1"
-  "$PYTHON_BIN" - "$method" <<'PY'
-import sys
-
-from c3.utils.paper_train_contract import get_paper_train_n_samples
-
-print(get_paper_train_n_samples(sys.argv[1]))
-PY
-}
-
-_paper_train_recipe_args() {
-  "$PYTHON_BIN" - <<'PY'
-from c3.utils.paper_train_contract import render_paper_train_args
-
-print(render_paper_train_args())
-PY
-}
+if [[ "$DRY_RUN" != "1" ]]; then
+  mkdir -p "${CKPT_ROOT}/_runs"
+fi
 
 run_one() {
-  local alg="$1" task="$2" seed="$3"
-  local run_id="paper_${alg}_${task}_seed${seed}"
+  local alg="$1" seed="$2"
+  local run_id="paper_${RECIPE}_${alg}_math_seed${seed}"
   local run_dir="${CKPT_ROOT}/_runs/${run_id}"
   local final_hf="${run_dir}/final_hf"
-  local n_samples_per_prompt
   local recipe_args_line
   local -a recipe_args=()
+  local -a cmd=()
+
+  recipe_args_line="$(_contract args --recipe "$RECIPE" --method "$alg")"
+  read -r -a recipe_args <<< "$recipe_args_line"
+  if [[ ${#recipe_args[@]} -eq 0 ]]; then
+    echo "ERROR: the paper training recipe ${RECIPE} rendered empty for ${alg}" >&2
+    echo "       Expected flags from c3/utils/paper_train_contract.py" >&2
+    exit 1
+  fi
+
+  cmd=(
+    "$PYTHON_BIN" -m openrlhf.cli.train_ppo_ray
+    --c3_task "$TASK_YAML"
+    --marl_algorithm "${alg,,}"
+    --pretrain "$PRETRAIN"
+    --seed "$seed"
+    "${recipe_args[@]}"
+    --ckpt_path "$run_dir"
+    --run_id "$run_id"
+    --wandb_run_name "$run_id"
+    --run_dir "$run_dir"
+    --save_path "$final_hf"
+    --use_wandb 0
+    ${EXTRA[@]+"${EXTRA[@]}"}
+  )
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "# recipe=${RECIPE} alg=${alg} seed=${seed}"
+    printf '%q ' "${cmd[@]}"
+    printf '\n'
+    return 0
+  fi
 
   if [[ -e "$run_dir" ]]; then
     echo "ERROR: run_dir already exists: $run_dir" >&2
@@ -95,61 +153,12 @@ run_one() {
     exit 1
   fi
 
-  echo "[paper_train] RUN alg=${alg} task=${task} seed=${seed}" >&2
+  echo "[paper_train] RUN recipe=${RECIPE} alg=${alg} seed=${seed}" >&2
   echo "[paper_train]   run_id=${run_id}" >&2
   echo "[paper_train]   run_dir=${run_dir}" >&2
   echo "[paper_train]   final_hf=${final_hf}" >&2
 
-  local task_yaml="configs/tasks/${task}.yaml"
-  n_samples_per_prompt="$(_paper_train_n_samples "$alg")"
-  # Assign first, split second: under `set -e` the assignment aborts the run if
-  # the helper fails, which a `read` from a command substitution would not. A
-  # run that quietly lost the recipe would train on the trainer's defaults.
-  recipe_args_line="$(_paper_train_recipe_args)"
-  read -r -a recipe_args <<< "$recipe_args_line"
-  if [[ ${#recipe_args[@]} -eq 0 ]]; then
-    echo "ERROR: the paper training recipe rendered empty" >&2
-    echo "       Expected flags from c3/utils/paper_train_contract.py" >&2
-    exit 1
-  fi
-
-  # The batch sizes and the optimization flags are not written here. They are
-  # rendered from c3/utils/paper_train_contract.py, which is this repository's
-  # copy of Table 3 of the paper, so that the run follows the table instead of
-  # the trainer's argparse defaults. The two deliberate departures from that
-  # table, the generation cap and the evaluation interval, are listed there in
-  # PAPER_TRAIN_DEPARTURES with their reasons, and are passed below.
-  #
-  # Decoding and evaluation follow docs/32_evaluation_protocol.md:
-  #   - generation cap 2048 for training and evaluation alike, because 512
-  #     truncates the harder suites before they reach an answer;
-  #   - temperature 0.7, top-p 0.8, top-k 20 for the rollouts, and the same
-  #     top-p and top-k for the evaluation, which reads them off these flags and
-  #     overrides only the temperature and the sample count;
-  #   - one evaluation every ten percent of the run, four samples per problem,
-  #     which is the monitoring curve. The numbers of the main table come from
-  #     scripts/70_rebuild/final_eval.py after training, not from these.
-  "$PYTHON_BIN" -m openrlhf.cli.train_ppo_ray \
-    --c3_task "$task_yaml" \
-    --marl_algorithm "${alg,,}" \
-    --policy_sharing_mode shared \
-    --pretrain "$PRETRAIN" \
-    --seed "$seed" \
-    "${recipe_args[@]}" \
-    --generate_max_len 2048 \
-    --temperature 0.7 \
-    --top_p 0.8 \
-    --top_k 20 \
-    --n_samples_per_prompt "$n_samples_per_prompt" \
-    --eval_every_ratio 0.10 \
-    --eval_temperature 0.7 \
-    --eval_n_samples_per_prompt 4 \
-    --ckpt_path "$CKPT_ROOT" \
-    --run_id "$run_id" \
-    --wandb_run_name "$run_id" \
-    --run_dir "$run_dir" \
-    --save_path "$final_hf" \
-    --use_wandb 0
+  "${cmd[@]}"
 
   if [[ ! -d "$final_hf" ]]; then
     echo "ERROR: training finished but final_hf directory not found: $final_hf" >&2
@@ -158,15 +167,15 @@ run_one() {
 }
 
 METHODS=(MAPPO MAGRPO C3)
-TASKS=(math code)
-SEEDS=(0 1 2 3 4)
 
 for alg in "${METHODS[@]}"; do
-  for task in "${TASKS[@]}"; do
-    for seed in "${SEEDS[@]}"; do
-      run_one "$alg" "$task" "$seed"
-    done
+  for seed in "${SEEDS[@]}"; do
+    run_one "$alg" "$seed"
   done
 done
 
-echo "[paper_train] DONE. Training outputs are under ${CKPT_ROOT}/_runs/paper_*" >&2
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "# recipe=${RECIPE}: $(( ${#METHODS[@]} * ${#SEEDS[@]} )) runs, none started (DRY_RUN=1)"
+else
+  echo "[paper_train] DONE. Training outputs are under ${CKPT_ROOT}/_runs/paper_${RECIPE}_*" >&2
+fi

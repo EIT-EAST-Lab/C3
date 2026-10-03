@@ -30,6 +30,7 @@ from openrlhf.utils.utils import safe_get_global_grad_norm
 
 from ..ppo_utils import NaiveReplayBuffer
 from .launcher import BaseModelActor
+from .logprob_chunking import chunked_forward
 from .utils import get_physical_gpu_id
 
 logger = init_logger(__name__)
@@ -778,15 +779,29 @@ class PolicyModelActor(BaseModelActor):
     ) -> torch.Tensor:
         device = torch.cuda.current_device()
         self.actor.eval()
-        with torch.no_grad():
-            action_log_probs = self.actor(
-                sequences.to(device),
-                action_mask.to(device),
-                attention_mask.to(device),
+
+        # One MAPPO question group arrives here as one batch of 16 sequences, whose logits are
+        # [16, T, vocab]: about 19 GiB in bf16. --logprob_micro_batch_size splits this pass into
+        # row chunks and joins the results, which returns the same numbers because a row's log
+        # probabilities depend on that row alone (see logprob_chunking.py). Packed sequences
+        # carry their lengths in a parallel list, so a row slice would not mean the same thing
+        # there and the switch stays off for that layout.
+        chunk = 0
+        if packed_seq_lens is None:
+            chunk = int(getattr(self.strategy.args, "logprob_micro_batch_size", 0) or 0)
+
+        def _run(seq, act_mask, attn_mask):
+            return self.actor(
+                seq.to(device),
+                act_mask.to(device),
+                attn_mask.to(device),
                 ring_attn_group=self.strategy.ring_attn_group,
             )
+
+        with torch.no_grad():
+            action_log_probs = chunked_forward(_run, sequences, action_mask, attention_mask, chunk)
         self.actor.train()
-        return action_log_probs.to("cpu")
+        return action_log_probs
 
     def broadcast_to_vllm(self, weights_version=None):
         self.trainer._broadcast_to_vllm(weights_version=weights_version)

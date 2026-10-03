@@ -49,9 +49,27 @@ __all__ = [
     "git_sha",
     "key_refusal",
     "RESERVED_TOP_LEVEL",
+    "RESULTS_KEYS_V3",
+    "MANIFEST_HELP",
     "build_summary",
     "write_summary",
 ]
+
+
+#: The keys the paper (arXiv:2603.06859v3) prints, one entry per key with its
+#: unit and the tables, figures or sections it appears in, and no value. Its
+#: shape is the manifest's (key -> entry with a `unit`), so it can be passed as
+#: `--manifest` as it is: an aggregation then writes the keys of the paper and
+#: refuses the rest.
+RESULTS_KEYS_V3 = "configs/results_keys_v3.json"
+
+#: The `--manifest` help text every aggregation shares.
+MANIFEST_HELP = (
+    "the results manifest: a JSON object of key -> entry with a unit, which decides the keys "
+    "this script may write. No manifest ships with the repository; %s lists the keys of the "
+    "paper with their units and tables, and no values, and is accepted here as it is"
+    % RESULTS_KEYS_V3
+)
 
 
 # -----------------------------------------------------------------------------

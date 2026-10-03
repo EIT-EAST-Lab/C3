@@ -50,18 +50,20 @@ These are recommended before a public paper artifact release:
 bash scripts/10_data/prepare_all.sh --out_dir data --strict 1
 ```
 
-2. SFT-only main-results sweep:
+2. The command lines of the three training recipes, and of the evaluation of
+record, printed without starting anything:
 
 ```bash
-bash scripts/50_eval/paper_main_results.sh sweep \
-  --registry configs/main_results_registry.yaml \
-  --only_methods SFT
+for R in main long a3; do
+  DRY_RUN=1 RECIPE=$R PRETRAIN=Qwen/Qwen3-4B-Instruct-2507 bash scripts/40_train/paper_train.sh
+done
+python scripts/70_rebuild/final_eval.py --policy Qwen/Qwen3-4B-Instruct-2507 --dry-run
 ```
 
 3. Optional release gate with a real HF base model:
 
 ```bash
-HF_BASE='Qwen/Qwen2.5-3B-Instruct' RUN_SFT_EVAL=1 bash scripts/90_audit/release_gate.sh
+HF_BASE='Qwen/Qwen3-4B-Instruct-2507' RUN_SFT_EVAL=1 bash scripts/90_audit/release_gate.sh
 ```
 
 ## Packaging

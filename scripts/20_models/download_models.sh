@@ -2,7 +2,7 @@
 # scripts/20_models/download_models.sh
 set -euo pipefail
 
-# Download / cache HuggingFace base models referenced by a registry YAML.
+# Download / cache the HuggingFace models the experiments read.
 #
 # This repo does NOT ship model weights. By default, Transformers will download
 # weights on first use. This script is an optional convenience for:
@@ -10,8 +10,17 @@ set -euo pipefail
 #   - keeping an explicit local `models/` directory for reproducibility,
 #   - avoiding repeated downloads across runs.
 #
-# It reads `configs/main_results_registry.yaml` and downloads all unique
-# `source.type=hf_base` entries.
+# Two sets of models, chosen with --models:
+#   paper  the models of the paper (arXiv:2603.06859v3): Qwen/Qwen3-4B-Instruct-2507,
+#          the base model of every trained workflow and of the measurements;
+#          Qwen/Qwen3-8B, the second base model of the measurements; and
+#          jhu-clsp/mmBERT-base, the encoder MAPPO's critic and the learned
+#          critic of the critic comparison are built on.
+#   early  the unique `source.type=hf_base` entries of a registry YAML,
+#          `configs/main_results_registry.yaml` by default. These are the base
+#          models of the evaluation protocol of the earlier versions of the
+#          paper (Qwen2.5-3B-Instruct and Qwen2.5-Coder-3B-Instruct).
+# The default, all, is both.
 #
 # NOTE: Some models (e.g., Qwen) may require accepting terms on Hugging Face.
 #       If the download fails with 401/403, login first:
@@ -24,11 +33,12 @@ Usage:
   bash scripts/20_models/download_models.sh [options]
 
 Options:
-  --registry PATH       Registry YAML (default: configs/main_results_registry.yaml)
+  --models SET          paper | early | all (default: all)
+  --registry PATH       Registry YAML of the early set (default: configs/main_results_registry.yaml)
   --out_dir DIR         Local directory to store snapshots (default: models)
-  --only_ids LIST       Comma/space list of run IDs to consider (optional)
-  --only_methods LIST   Comma/space list of methods to consider (optional)
-  --only_tasks LIST     Comma/space list of tasks to consider (optional)
+  --only_ids LIST       Comma/space list of registry run IDs to consider (early set only)
+  --only_methods LIST   Comma/space list of registry methods to consider (early set only)
+  --only_tasks LIST     Comma/space list of registry tasks to consider (early set only)
   --dry_run 0|1         Only print resolved model ids, do not download (default: 0)
   -h, --help            Show this help.
 
@@ -43,6 +53,7 @@ USAGE
 }
 
 PYTHON_BIN="${PYTHON:-python}"
+MODEL_SET="all"
 REGISTRY="configs/main_results_registry.yaml"
 OUT_DIR="models"
 ONLY_IDS=""
@@ -50,8 +61,14 @@ ONLY_METHODS=""
 ONLY_TASKS=""
 DRY_RUN="0"
 
+# The models of the paper, as HuggingFace ids.
+PAPER_MODELS="Qwen/Qwen3-4B-Instruct-2507
+Qwen/Qwen3-8B
+jhu-clsp/mmBERT-base"
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --models) MODEL_SET="${2:-}"; shift 2 ;;
     --registry) REGISTRY="${2:-}"; shift 2 ;;
     --out_dir) OUT_DIR="${2:-}"; shift 2 ;;
     --only_ids) ONLY_IDS="${2:-}"; shift 2 ;;
@@ -72,12 +89,21 @@ source "${REPO_ROOT}/scripts/_lib/mirrors.sh"
 c3_mirrors_validate
 c3_mirrors_report
 
-[[ -f "${REGISTRY}" ]] || { echo "[download_models] ERROR: registry not found: ${REGISTRY}" >&2; exit 1; }
+case "${MODEL_SET}" in
+  paper|early|all) ;;
+  *) echo "[download_models] ERROR: --models must be paper, early or all, got: ${MODEL_SET}" >&2; exit 2 ;;
+esac
+
+if [[ "${MODEL_SET}" != "paper" ]]; then
+  [[ -f "${REGISTRY}" ]] || { echo "[download_models] ERROR: registry not found: ${REGISTRY}" >&2; exit 1; }
+fi
 
 mkdir -p "${OUT_DIR}"
 
-# Extract unique model ids (one per line).
-MODELS="$("${PYTHON_BIN}" - <<'PY' "${REGISTRY}" "${ONLY_IDS}" "${ONLY_METHODS}" "${ONLY_TASKS}"
+EARLY_MODELS=""
+if [[ "${MODEL_SET}" != "paper" ]]; then
+# Extract unique model ids of the registry (one per line).
+EARLY_MODELS="$("${PYTHON_BIN}" - <<'PY' "${REGISTRY}" "${ONLY_IDS}" "${ONLY_METHODS}" "${ONLY_TASKS}"
 import sys, yaml
 
 reg, only_ids, only_methods, only_tasks = sys.argv[1:5]
@@ -127,16 +153,40 @@ for x in sorted(out):
     print(x)
 PY
 )"
+fi
+
+MODELS=""
+if [[ "${MODEL_SET}" != "early" ]]; then
+  MODELS="${PAPER_MODELS}"
+fi
+# The early set after the paper set, without repeating an id both carry.
+while IFS= read -r mid; do
+  mid="${mid%$'\r'}"
+  [[ -n "${mid}" ]] || continue
+  if ! grep -qxF -- "${mid}" <<< "${MODELS}"; then
+    MODELS="${MODELS:+${MODELS}
+}${mid}"
+  fi
+done <<< "${EARLY_MODELS}"
 
 if [[ -z "${MODELS}" ]]; then
   echo "[download_models] No hf_base models found in ${REGISTRY}" >&2
   exit 0
 fi
 
-echo "[download_models] registry=${REGISTRY}" >&2
+echo "[download_models] models=${MODEL_SET}" >&2
+if [[ "${MODEL_SET}" != "paper" ]]; then
+  echo "[download_models] registry=${REGISTRY}" >&2
+fi
 echo "[download_models] out_dir=${OUT_DIR}" >&2
 echo "[download_models] models:" >&2
-echo "${MODELS}" | sed 's/^/  - /' >&2
+while IFS= read -r mid; do
+  if grep -qxF -- "${mid}" <<< "${PAPER_MODELS}" && [[ "${MODEL_SET}" != "early" ]]; then
+    echo "  - ${mid}   (paper)" >&2
+  else
+    echo "  - ${mid}   (early protocol, ${REGISTRY})" >&2
+  fi
+done <<< "${MODELS}"
 
 if [[ "${DRY_RUN}" == "1" ]]; then
   echo "[download_models] dry_run=1: done." >&2

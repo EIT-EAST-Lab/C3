@@ -1,0 +1,55 @@
+# ===== Task: math_final_eval_a3 (evaluation of the 3-agent 5-seed run) =====
+#
+# Evaluation only, for the models RECIPE=a3 of scripts/40_train/paper_train.sh
+# trains (Table 8 of the paper). The training block and the roles are those of
+# math_5seed_a3.yaml, so a model is measured on the team it was trained in; the
+# evaluation suites are the four benchmarks of Table 8.
+#
+# The 5-seed run is evaluated once per training seed with greedy decoding under
+# a 512-token generation limit, which is one sample per problem on every suite:
+#
+#   python scripts/70_rebuild/final_eval.py --task configs/tasks/math_final_eval_a3.yaml \
+#       --k_by_suite MATH500=1,AIME25=1,CMATH-test=1,GSM8K-test=1 --generate_max_len 512 ...
+#
+# c3.analysis.rebuild.aggregate_5seed reads the records into Table 8.
+
+experiment_name: "c3_math_final_eval_a3"
+
+environment:
+  env_name: "MathEnv"
+  sampling_mode: concat        # every problem appears once per epoch; merge_epoch oversamples the smaller source
+  reshuffle_each_epoch: true   # reshuffle at the start of every epoch; set false to keep a fixed order
+
+  # Training set: identical to math_5seed_a3.yaml. Present because the task schema
+  # requires it; this task only ever runs the evaluation path.
+  train_datasets:
+    - name: "MATH-train"
+      path: "data/MATH/train.jsonl"
+      weight: 1.0
+      limit: null
+
+  # Evaluation: the four benchmarks of Table 8, whole.
+  eval_suites:
+    - name: "MATH500"
+      path: "data/MATH500/test.jsonl"
+      limit: null
+    - name: "AIME25"
+      path: "data/AIME25/test.jsonl"
+      limit: null
+    - name: "CMATH-test"
+      path: "data/CMATH/test.jsonl"
+      limit: null
+    - name: "GSM8K-test"
+      path: "data/GSM8K/test.jsonl"
+      limit: null
+
+  # Environment and reward conventions: the same scorer as math.yaml, unchanged.
+  episode_length: 1
+  math_backend: marft            # marft | simple
+  reward_mode: vote_binary       # vote_binary | avg_per_answer
+  use_math_verify: true
+  mix_seed: 42                   # deterministic seed for the mixed sampling
+
+# Roles (three-agent chain: reasoner -> actor -> verifier).
+mas:
+  roles_path: "../roles/math/roles_trio.json"

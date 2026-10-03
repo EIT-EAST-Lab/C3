@@ -26,9 +26,10 @@ and is read as a legacy alias by the aggregation, which never writes it.
 Measured position: reasoner, with the actor recorded as the downstream role,
 which is the position the analysis plan fixes for E3a.
 
-Decision points come from `MATHPOOL`, the screened question pool, in the order
-the pool file holds them, so the 150 points of a cell are its first 150
-questions.
+Decision points come from `MATH500`, in the order the suite file holds them,
+so the 150 points of a cell are its first 150 questions. That is the set the
+paper (arXiv:2603.06859v3, Appendix B.6 and Table 9) reads E3a off.
+`--split MATHPOOL` selects the screened question pool instead.
 
 Examples:
 
@@ -86,7 +87,7 @@ NULL_TEXTS = {"empty": "", "placeholder": "No message."}
 DEFAULT_MODELS = "4b=Qwen3-4B-Instruct-2507"
 DEFAULT_RESULTS_ROOT = "20_data/results"
 DEFAULT_ANALYSIS_YAML = "configs/analysis.yaml"
-DEFAULT_SPLIT = "MATHPOOL"
+DEFAULT_SPLIT = "MATH500"
 DEFAULT_ALTERNATIVES = 4
 DEFAULT_COMPLETIONS = 4
 DEFAULT_LIMIT = 150

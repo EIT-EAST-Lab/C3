@@ -53,6 +53,7 @@ from c3.analysis.rebuild.influence import (
     source_path,
     write_summary,
 )
+from c3.analysis.rebuild.summary import MANIFEST_HELP
 
 EXTRACTORS: Dict[str, Callable[[str], Optional[str]]] = {
     "math": math_extractor,
@@ -169,7 +170,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Aggregate E3a into summary.json")
     ap.add_argument("--results", required=True, help="the E3a results directory")
     ap.add_argument("--manifest", required=True,
-                    help="the results manifest of the paper build")
+                    help=MANIFEST_HELP)
     ap.add_argument("--out", required=True, help="where summary.json is written")
     ap.add_argument("--extractor", default=DEFAULT_EXTRACTOR, choices=sorted(EXTRACTORS),
                     help="answer extractor: math is the repository parser plus its expression "

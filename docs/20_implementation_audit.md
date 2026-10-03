@@ -4,7 +4,7 @@ This document maps the C3 paper to the implementation in this repository and rec
 
 ## Scope
 
-- paper target: contextual counterfactual credit assignment for two-agent `Reasoner -> Actor` collaboration,
+- paper target: C3, credit assignment by counterfactual continuation, for LLM agent teams that communicate through a shared trace: the 2-agent `Reasoner -> Actor` and 3-agent `Reasoner -> Actor -> Verifier` workflows in training, and workflows of 2 to 10 decision points in the measurements,
 - repository target: public release of the reference implementation,
 - audit goal: make the paper-facing path, compatibility path, and reproducibility path explicit.
 
@@ -44,8 +44,11 @@ Trainer --> Analysis["c3/analysis/* + c3/reporting/analysis_results.py"]
 | Training entry | `openrlhf/cli/train_ppo_ray_tooling.py`, `openrlhf/cli/train_ppo_ray.py`, `openrlhf/trainer/ppo_trainer.py` | Normalizes args, creates critics, drives PPO/Q-critic training | `marl_algorithm=auto` does not imply `c3`; Q-critic is enabled only for specific C3 variants |
 | Math evaluation | `c3/envs/math/reward.py`, `c3/envs/math/backends/marft/*` | Math reward and answer checking | Current paper path scores only the final actor output |
 | Code evaluation | `c3/envs/code/reward.py`, `c3/envs/code/executor.py` | Code reward and sandboxed execution | Reward is a pass-rate style score based on hidden tests in metadata |
-| Paper main results | `scripts/50_eval/paper_main_results.sh`, `c3/reporting/main_results.py`, `configs/main_results_registry.yaml` | Eval-only sweep and table aggregation | Datasource names must match task-suite names and registry expectations |
-| Paper analyses | `scripts/60_analysis/paper_analysis_figs.sh`, `c3/analysis/*`, `c3/reporting/analysis_results.py`, `c3/reporting/plot_paper_figures.py` | Credit, influence, variance, and plotting pipeline | Bucket metadata is the contract for downstream metrics |
+| Paper training recipes | `c3/utils/paper_train_contract.py`, `scripts/40_train/paper_train.sh` | The three trained tables of the paper: `main` (Table 2), `long` (Table 7), `a3` (Table 8) | Every hyperparameter comes from the recipe, which names its source in Tables 5 and 6 or Appendix B.2 |
+| Evaluation of record | `scripts/70_rebuild/final_eval.py`, `c3/analysis/rebuild/aggregate_5seed.py`, `c3/analysis/rebuild/aggregate_e2.py` | Evaluates each trained model after training and aggregates Tables 2, 7, 8 and 10 | One evaluation run has one k; the aggregations write only the keys their `--manifest` defines, and `configs/results_keys_v3.json` lists the paper's |
+| Measurements (Sections 3 and 4) | `scripts/70_rebuild/` drivers, `c3/analysis/rebuild/*` | Reliability, noise law, ablation bias and the critic comparison on a frozen policy | `scripts/70_rebuild/README.md` maps each driver to its table and section |
+| Results sweep of the earlier paper versions | `scripts/50_eval/paper_main_results.sh` (`sweep`), `c3/reporting/main_results.py`, `configs/main_results_registry.yaml` | Eval-only sweep and table aggregation of the v1 and v2 protocol | Datasource names must match task-suite names and registry expectations |
+| Analyses of the earlier paper versions | `scripts/60_analysis/paper_analysis_figs.sh`, `c3/analysis/*`, `c3/reporting/analysis_results.py`, `c3/reporting/plot_paper_figures.py` | Credit, influence, variance, and plotting pipeline of v1 and v2 | Bucket metadata is the contract for downstream metrics |
 
 ## Primary paper-facing defaults
 
@@ -61,9 +64,10 @@ Trainer --> Analysis["c3/analysis/* + c3/reporting/analysis_results.py"]
 
 ### Main-results entrypoints
 
-- training: `scripts/40_train/paper_train.sh`
-- eval-only sweep: `scripts/50_eval/paper_main_results.sh`
-- analyses: `scripts/60_analysis/paper_analysis_figs.sh`
+- training: `scripts/40_train/paper_train.sh` (`RECIPE=main|long|a3`)
+- evaluation of record: `scripts/70_rebuild/final_eval.py`, aggregated by `c3.analysis.rebuild.aggregate_5seed` and `c3.analysis.rebuild.aggregate_e2`
+- measurements of Sections 3 and 4: `scripts/70_rebuild/` (see its README)
+- results sweep and analyses of the earlier paper versions: `scripts/50_eval/paper_main_results.sh`, `scripts/60_analysis/paper_analysis_figs.sh`
 - fast wiring check: `scripts/30_smoke/smoke.sh`
 
 ## Core-path vs compatibility-path
