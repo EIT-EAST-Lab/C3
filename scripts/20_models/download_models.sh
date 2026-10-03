@@ -204,7 +204,7 @@ try:
 except Exception as e:
     raise SystemExit(
         "huggingface_hub is required for download_models.sh. "
-        "Install the CPU or GPU tier (see the README), or `pip install huggingface_hub`."
+        "Install the CPU or GPU tier (see docs/00_getting_started.md), or `pip install huggingface_hub`."
     ) from e
 
 # Token is automatically picked up from env (HF_TOKEN / HUGGINGFACE_HUB_TOKEN).

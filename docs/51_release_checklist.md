@@ -33,12 +33,47 @@ Step 6 is skipped when `data/` is absent, which is the state of a clean checkout
 so a gate run that never prepared the datasets is a seven-step gate: prepare the
 datasets first if you want the full one.
 
+Together, `pre_release.sh` and `release_gate.sh` verify:
+
+- Absence of hard-coded private paths
+- Absence of obvious leaked secrets
+- Absence of bundled datasets or generated release-surface artifacts
+- English prose with no em or en dashes, and no CJK outside the functional allowlist
+- Bash scripting syntax sanity
+- Python compilation and test suite sanity
+- That the gate itself leaves no artifacts in the working tree
+
+Both scripts run on a CPU machine with the CPU tier installed. The same two
+stages run in CI on every push and pull request; see
+[.github/workflows/ci-cpu.yml](../.github/workflows/ci-cpu.yml).
+
 Run `tests/contract/test_release_surface.py` on its own when you only want the release
 surface contracts:
 
 ```bash
 pytest -q tests/contract/test_release_surface.py
 ```
+
+## What is verified, and on what
+
+<p>
+  <a href="../.github/workflows/ci-cpu.yml"><img src="https://github.com/EIT-EAST-Lab/C3/actions/workflows/ci-cpu.yml/badge.svg" alt="CPU CI"></a>
+  <a href="../.github/workflows/ci-cpu.yml"><img src="https://img.shields.io/github/check-runs/EIT-EAST-Lab/C3/main?nameFilter=release-audit&label=release%20audit" alt="Release audit"></a>
+</p>
+
+Every push runs the CPU tier on Python 3.11: install from `requirements/cpu.lock.txt`, a dependency
+consistency check, the full unit suite, both fixture smoke tests, the prose scan, and the
+pre-release audit. That is what the badges above report.
+
+Two things are worth naming because a reader cannot see them from a green badge.
+
+- **The credit mechanism is checked without a GPU.** `tests/mechanism/` builds the paper's rollout
+  tree by hand and compares the leave-one-out advantages against values computed on paper, so the
+  arithmetic at the centre of the method can be confirmed on a laptop in seconds.
+- **The GPU tier is installed and imported, not trained end to end, in CI.** No hosted runner has
+  the hardware. `requirements/gpu.lock.txt` records exactly which checks were run against it and
+  which were not, and `requirements/gpu-paper.lock.txt` pins the environment that produced the
+  published numbers.
 
 ## Extended paper-facing checks
 

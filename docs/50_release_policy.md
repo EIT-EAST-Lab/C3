@@ -29,6 +29,13 @@ The release ships two installable tiers plus one historical record:
 
 ## What the public repository does not ship
 
+To maintain a clean public-release surface, this repository does **not** distribute:
+
+- Prepared datasets
+- Trained model checkpoints
+- Cached model weights
+- Generated run-time artifacts (e.g., run logs, checkpoints, reports, and experiment outputs)
+
 The following directories are treated as generated local outputs and must remain empty or absent in a public release:
 
 - `data/`

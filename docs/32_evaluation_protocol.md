@@ -211,3 +211,7 @@ the baseline with the higher MATH500 mean, paired by training seed, a two-sided
 paired t test with its 95 percent interval, and Holm's correction over the four
 suites. The training seed is the unit of replication. The commands are in
 [scripts/70_rebuild/README.md](../scripts/70_rebuild/README.md).
+
+The evaluation that runs during training is a different thing: every 5 percent
+of the run in the 5-seed recipes and every 25 percent in the long-generation
+recipe, and it feeds the monitoring curve only.

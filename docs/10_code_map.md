@@ -4,13 +4,14 @@ This document is a quick navigation guide to the repository. It is intentionally
 
 ## Top-level layout
 
-- `c3/`: project-native code
+- `c3/`: project-native code: the core C3 implementation, including multi-agent protocol handling, environments, credit assignment logic, and analysis tools
 - `openrlhf/`: vendored upstream training stack with C3 integrations
 - `configs/`: task, role, registry, analysis, and data-manifest config
 - `requirements/`: lock files for the CPU tier, the GPU tier, and the paper environment
 - `scripts/`: entrypoints, numbered in the order a new user runs them
 - `docs/`: documentation, numbered in reading order
 - `tests/`: `mechanism/` for the credit-assignment arithmetic, `contract/` for the release surface and the data contracts, `unit/` for everything else, plus `fixtures/`
+- `project-page/`: static companion site for the paper, deployed via GitHub Pages
 
 ## The numbered stages
 

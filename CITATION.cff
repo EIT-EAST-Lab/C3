@@ -27,7 +27,7 @@ keywords:
   - multi-agent reinforcement learning
   - counterfactual continuation
   - large language models
-version: 0.3.0
+version: 0.3.1
 date-released: "2026-10-03"
 preferred-citation:
   type: article

@@ -151,6 +151,12 @@ that were not prepared, such as HumanEval and APPS under the default flags, are
 reported as skipped; a run where nothing at all was readable exits `2` rather than
 reporting a vacuous pass. The gate uses the standard library only.
 
+The overlap gate and the hard failure on a split the pinned revision does not
+carry (section A) both exist because the manifest shipped before 0.2.0 had a
+mirror of MATH that merged the train and test splits, and a CMATH revision with
+no test split at all; the 0.2.0 entry in [CHANGELOG.md](../CHANGELOG.md) records
+what changed and who it affected.
+
 ---
 
 ## Prepared Outputs (Authoritative: `configs/data_manifest.yaml`)

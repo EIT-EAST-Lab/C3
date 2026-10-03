@@ -1,8 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80" role="img" aria-label="C3">
-  <title>C3</title>
-  <desc>Three agent nodes joined by an arc that reads as the letter C.</desc>
-  <path d="M55 19 A26 26 0 1 0 55 61" fill="none" stroke="currentColor" stroke-width="9"/>
-  <circle cx="55" cy="19" r="7.5" fill="#1F6FEB"/>
-  <circle cx="14" cy="40" r="7.5" fill="#1F6FEB"/>
-  <circle cx="55" cy="61" r="7.5" fill="#1F6FEB"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="C3">
+<title>C3</title>
+<path d="M71.40 18.06 A38.00 38.00 0 1 0 71.40 77.94" stroke="#1F2328" stroke-width="6.4" stroke-linecap="round" fill="none"/>
+<path d="M71.40 18.06 A27.00 27.00 0 1 0 73.53 58.75" stroke="#D9A08F" stroke-width="6.4" stroke-linecap="round" fill="none"/>
+<path d="M71.40 18.06 A16.00 16.00 0 1 0 73.80 40.95" stroke="#D9A08F" stroke-width="6.4" stroke-linecap="round" fill="none"/>
+<circle cx="71.40" cy="77.94" r="3.968" fill="#1F2328"/>
+<circle cx="73.53" cy="58.75" r="3.968" fill="#B24A2F"/>
+<circle cx="73.80" cy="40.95" r="3.968" fill="#B24A2F"/>
+<circle cx="71.40" cy="18.06" r="7.359999999999999" fill="#B24A2F"/>
 </svg>

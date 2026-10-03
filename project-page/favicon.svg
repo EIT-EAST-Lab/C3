@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="C3">
+<title>C3</title>
+<rect x="0" y="0" width="96" height="96" rx="20" fill="#ffffff"/>
+<path d="M68.46 20.45 A34.20 34.20 0 1 0 68.46 74.35" stroke="#1F2328" stroke-width="7.2" stroke-linecap="round" fill="none"/>
+<path d="M68.46 20.45 A24.30 24.30 0 1 0 70.38 57.08" stroke="#D9A08F" stroke-width="7.2" stroke-linecap="round" fill="none"/>
+<path d="M68.46 20.45 A14.40 14.40 0 1 0 70.62 41.05" stroke="#D9A08F" stroke-width="7.2" stroke-linecap="round" fill="none"/>
+<circle cx="68.46" cy="74.35" r="4.464" fill="#1F2328"/>
+<circle cx="70.38" cy="57.08" r="4.464" fill="#B24A2F"/>
+<circle cx="70.62" cy="41.05" r="4.464" fill="#B24A2F"/>
+<circle cx="68.46" cy="20.45" r="8.28" fill="#B24A2F"/>
+</svg>

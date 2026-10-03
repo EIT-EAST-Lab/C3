@@ -5,6 +5,20 @@ All notable changes to this repository are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-10-03
+
+### Changed
+
+- New logo: three runs leave one decision point and open into the letter C,
+  the mark drawn from counterfactual continuation itself. Light and dark
+  variants, the standalone mark, a favicon for the project page and a new
+  social card are generated from one drawing, with all text set as outlines.
+- The README now carries what a reader of the paper needs first: overview,
+  method, results, a quickstart, how to reproduce the paper, repository
+  layout and citation. Installation tiers, data preparation, the GPU path,
+  workflows and the release gate moved to `docs/`, mostly
+  `docs/00_getting_started.md`; nothing was dropped.
+- The project page uses the new favicon and social card.
 ## [0.3.0] - 2026-10-03
 
 **The training recipes, the trainer defaults and the experiment drivers follow
